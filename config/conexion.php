@@ -1,18 +1,16 @@
 <?php
 session_start();
 
-class Conectar
-{
+class Conectar {
     protected $dbh;
 
-    protected function Conexion()
-    {
+    protected function Conexion() {
         try {
             // Cambiar los valores según tu configuración de PostgreSQL   192.168.0.200  masterd_asft
-            $host = "172.16.5.2";
+            $host = "localhost";
             $dbname = "evds2023";
             $usuario = "postgres";
-            $contrasena = "masterd_asft";
+            $contrasena = "ROOT";
 
             $conectar = $this->dbh = new PDO("pgsql:host=$host;port=5432;dbname=$dbname", $usuario, $contrasena);
             return $conectar;
@@ -22,14 +20,12 @@ class Conectar
         }
     }
 
-    public function set_names()
-    {
+    public function set_names() {
         return $this->dbh->query("SET NAMES 'utf8'");
     }
 
-    public static function ruta()
-    {
-        //return "http://localhost/evds2023/";
-        return "http://181.204.219.154:3396/evds2023/";
+    public static function ruta() {
+        return "http://localhost/evds2023/";
+        //return "http://181.204.219.154:3396/evds2023/";
     }
 }
