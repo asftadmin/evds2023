@@ -1,0 +1,25 @@
+/* Estilo para pantallas pequeñas */
+@media (max-width: 767px) {
+    .knob {
+        width: 100px; /* Ajusta el ancho para pantallas pequeñas */
+        height: 100px; /* Ajusta el alto para pantallas pequeñas */
+        font-size: 12px; /* Ajusta el tamaño de fuente para pantallas pequeñas */
+    }
+}
+
+/* Estilo para pantallas medianas */
+@media (min-width: 768px) and (max-width: 991px) {
+    .knob {
+        width: 160px; /* Ajusta el ancho para pantallas medianas */
+        height: 160px; /* Ajusta el alto para pantallas medianas */
+        font-size: 16px; /* Ajusta el tamaño de fuente para pantallas medianas */
+    }
+}
+
+
+.knob-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}

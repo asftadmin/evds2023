@@ -1,0 +1,17 @@
+# Entornos / secretos
+.env
+.env.* 
+*.local.php
+
+# Cachés y temporales
+.cache/
+dist/
+build/
+*.log
+*.tmp
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

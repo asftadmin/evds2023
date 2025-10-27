@@ -1,0 +1,138 @@
+body {
+    background-color: #009BA9;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+.container {
+    position: relative;
+    max-width: 500px;
+    width: 100%;
+    background-color:#ffffff; 
+    box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    margin: 0 auto;
+    margin-top: 10vh;
+}  
+
+.container .form{
+  padding: 5%;
+}
+
+.container .form .title{
+  position: relative;
+  font-size: 26px;
+  font-weight: 600;
+  text-align: center;
+} 
+
+
+.logo{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto;
+  margin-bottom:15px;
+}
+
+.acceso {
+  width: 40px; 
+  height: 40; 
+  margin-top: -5px;
+}
+
+.title-and-image {
+  display: flex;
+  align-items: center; 
+  margin-left: 16%;
+}
+.container .form h3{
+  position: relative;
+  font-size: 27px;
+  font-weight: 600;
+
+}
+
+.form .form-group {
+  position: relative;
+  margin-top: 10px;
+
+}
+
+.form-group input[type="text"], input[type="password"]{
+  height: 100%;
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 17px;
+  border-bottom: 2px solid #ccc;
+  border-top: 0px solid transparent;
+  padding: 17px 55px;
+  transition:all 0.1s ease;
+}
+
+
+.form-group i.fa-user, i.fa-lock{
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  color:hsl(189, 69%, 36%);
+  font-size: 23px;
+  cursor: pointer;
+}
+
+
+.form-group i.fa-eye-slash, i.fa-eye{
+  position: absolute;
+  top: 50%;
+  left: 90%;
+  transform: translateY(-50%);
+  color:hsl(200, 4%, 84%);
+  font-size: 23px;
+  cursor: pointer;
+
+}
+
+.form-group input:is(:focus, :valid){
+  border-bottom-color:hsl(193, 7%, 74%);
+}
+
+.form-group input:is(:focus, :valid):hover {
+  border-bottom-color: hsl(189, 87%, 41%);
+}
+
+
+.form-group input:is(:focus,:valid) ~ i:hover{
+  color:rgb(163, 161, 161);
+}
+
+
+.form .form-text{
+  display: flex;
+  justify-content:space-between;
+  margin-top: 32px;
+}
+
+
+
+.form-check .form-check-input{
+  accent-color: rgb(28, 140, 148);
+  display:flex;
+  align-items: center;
+  margin-left: 2%;
+  margin-top: 2% ;
+}
+
+.form-check .form-check-label{
+  margin-top: -28% ;
+}
+
+.form a:hover{
+  text-decoration: none;
+}
+

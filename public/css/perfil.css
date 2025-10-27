@@ -1,0 +1,23 @@
+.card-header {
+    display: flex;
+    justify-content: center; 
+    align-items: center; 
+    height: 50px;
+}
+
+.card-footer {
+    text-align: center; 
+}
+
+.card-footer button {
+    display: block; 
+    margin: 0 auto; 
+}
+
+.content .container-fluid {
+    justify-content: center;
+    align-items: center;
+    margin:0 auto;
+    max-width:600px;
+    margin-top: 40px;
+}

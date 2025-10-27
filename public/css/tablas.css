@@ -1,0 +1,24 @@
+/* Estilos para pantallas pequeñas */
+@media (max-width: 767px) {
+    #rol_data {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+    }
+  
+    #rol_data th, #rol_data td {
+      white-space: nowrap;
+    }
+  }
+
+
+
+
+  
+
+  .small-table {
+    max-width: 400px; 
+    margin: 0 auto;
+    font-size: 14px; 
+  }
+  
