@@ -5,7 +5,6 @@
 
 # Cachés y temporales
 .cache/
-dist/
 build/
 *.log
 *.tmp
