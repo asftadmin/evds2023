@@ -1,10 +1,8 @@
 <?php
 
-class Empleado extends Conectar
-{
+class Empleado extends Conectar {
 
-    public function get_empledo()
-    {
+    public function get_empledo() {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados";
@@ -12,9 +10,8 @@ class Empleado extends Conectar
         $sql->execute();
         return $resultado = $sql->fetchAll();
     }
-    
-    public function get_empledo_activo()
-    {
+
+    public function get_empledo_activo() {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados WHERE esta_empl = 1 ORDER BY nomb_empl";
@@ -23,8 +20,7 @@ class Empleado extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_empledo_grupo()
-    {
+    public function get_empledo_grupo() {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados em INNER JOIN cargo cg ON cg.codi_carg = em.carg_empl 
@@ -34,8 +30,7 @@ class Empleado extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_empledo_tipo_documento()
-    {
+    public function get_empledo_tipo_documento() {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados em INNER JOIN tipo_documento tp ON em.tpdc_empl = tp.codi_tpdc";
@@ -44,8 +39,7 @@ class Empleado extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_empledo_x_id($codigo_empleado)
-    {
+    public function get_empledo_x_id($codigo_empleado) {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados WHERE id_empl=?";
@@ -55,8 +49,7 @@ class Empleado extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function insertar_empleado($tipo_documento, $numero_documento, $nombre_empleado, $telefono_empleado, $direccion_empleado, $cargo_empleado, $fecha_ingreso)
-    {
+    public function insertar_empleado($tipo_documento, $numero_documento, $nombre_empleado, $telefono_empleado, $direccion_empleado, $cargo_empleado, $fecha_ingreso) {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "INSERT INTO empleados (tpdc_empl, cedu_empl, nomb_empl, tele_empl, dire_empl, carg_empl, fecha_ingreso_empl, esta_empl) VALUES (?,?,?,?,?,?,?,'1')";
@@ -72,7 +65,7 @@ class Empleado extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function insertarEmplNuevo($data){
+    public function insertarEmplNuevo($data) {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "INSERT INTO empleados (cedu_empl, nomb_empl, fecha_ingreso_empl, fecha_naci_empl, dire_empl, tele_empl, esta_empl, tpdc_empl) VALUES (:cedu, :nomb, :fein, :fena, :dire, :celu, 1, 2)";
@@ -84,6 +77,26 @@ class Empleado extends Conectar
         $sql->bindParam(":dire", $data['dire_empl']);
         $sql->bindParam(":celu", $data['celu_empl']);
 
-    return $sql->execute();
+        return $sql->execute();
+    }
+
+    public function update_empleado($id_empl, $tipo_docto, $doct_empl, $nomb_empl, $telf_empl, $dire_empl, $carg_empl, $ingr_empl, $esta_empl) {
+        $conectar = parent::conexion();
+        parent::set_names();
+        $sql = "UPDATE empleados SET tpdc_empl = ?, cedu_empl = ?, nomb_empl = ?,
+                 tele_empl = ?, dire_empl = ?, carg_empl = ?, fecha_ingreso_empl = ?,
+                 esta_empl = ?  WHERE id_empl = ?";
+        $sql = $conectar->prepare($sql);
+        $sql->bindValue(1, $tipo_docto);
+        $sql->bindValue(2, $doct_empl);
+        $sql->bindValue(3, $nomb_empl);
+        $sql->bindValue(4, $telf_empl);
+        $sql->bindValue(5, $dire_empl);
+        $sql->bindValue(6, $carg_empl);
+        $sql->bindValue(7, $ingr_empl);
+        $sql->bindValue(8, $esta_empl);
+        $sql->bindValue(9, $id_empl);
+        $sql->execute();
+        return $resultado = $sql->fetchAll();
     }
 }

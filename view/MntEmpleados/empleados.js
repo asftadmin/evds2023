@@ -2,14 +2,14 @@ let tabla;
 
 
 function init() {
-    $("#mantenimiento_empleado").on("submit", function(e){
+    $("#form_empleado").on("submit", function(e){
         guardaryeditar(e);
     });
 };
 
 function guardaryeditar(e){
     e.preventDefault();
-    var formData = new FormData($("#mantenimiento_empleado")[0]);
+    var formData = new FormData($("#form_empleado")[0]);
     $.ajax({
 
         url: "../../controller/empleado.php?op=guardaryeditar",
@@ -20,6 +20,8 @@ function guardaryeditar(e){
         success:function(datos){
             console.log(datos);
             $('#modalEmpleado').modal('hide');
+            $('#txt_numero_documento').prop('readonly', false);
+            $('#form_empleado')[0].reset();
             Swal.fire({
                 title: "Grupo Empleado",
                 text: "Registro guardado exitosamente",
@@ -178,7 +180,12 @@ $('#reservationdate').daterangepicker({
 
 
 $.post("../../controller/tipodoc.php?op=comboTipoDocumento",function(data, status){
-    var $tipoDocumentoEmpl = $('#tipo_documento_empl');
+    var $tipoDocumentoEmpl = $('#txt_tipo_documento_empl');
+    $tipoDocumentoEmpl.html(data);
+});
+
+$.post("../../controller/Cargo.php?op=comboCargo",function(data, status){
+    var $tipoDocumentoEmpl = $('#select_cargo_empleado');
     $tipoDocumentoEmpl.html(data);
 });
 
@@ -193,11 +200,14 @@ function editar(codigo_empleado){
         $('#txt_direccion_empleado').val(data.txt_direccion_empleado);
         $('#txt_fecha_ingreso').val(data.txt_fecha_ingreso);
         $('#txt_fecha_nacimiento').val(data.txt_fecha_nacimiento);
+        $('#txt_tipo_documento_empl').val(data.txt_tipo_documento_empl);
+        $('#select_cargo_empleado').val(data.select_cargo_empleado);
 
 
     });
 
     $('#modalUpdateEmpleado').modal('hide');
+    $('#txt_numero_documento').prop('readonly', true);
 
 }
 

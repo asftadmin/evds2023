@@ -14,7 +14,7 @@ switch ($_REQUEST["op"]) {
     case 'guardaryeditar':
 
 
-        if (empty($_POST["codigo_empleado"])) {
+        if (empty($_POST["txt_codigo_empleado"])) {
             $empleado->insertar_empleado(
                 $_POST["tipo_documento_empl"],
                 $_POST["numero_documento"],
@@ -25,22 +25,19 @@ switch ($_REQUEST["op"]) {
                 $_POST["fecha_ingreso"]
             );
         } else {
-            /*             $empleado->update_empledado(
+            $empleado->update_empleado(
                 $_POST["txt_codigo_empleado"],
+                $_POST["txt_tipo_documento_empl"],
                 $_POST["txt_numero_documento"],
                 $_POST["txt_nombre_empleado"],
                 $_POST["txt_telefono_empleado"],
                 $_POST["txt_direccion_empleado"],
                 $_POST["select_cargo_empleado"],
                 $_POST["txt_fecha_ingreso"],
-                $_POST["select_genero"],
-                $_POST["select_nivel_educativo"],
-                $_POST["txt_profesion"],
-                $_POST["txt_rh"]
-            ); */
+                $_POST["select_esta_empl"]
+
+            );
         }
-
-
         break;
 
     case 'comboRol':
@@ -145,12 +142,13 @@ switch ($_REQUEST["op"]) {
                 $output["select_cargo_empleado"] = $row["carg_empl"];
                 $output["txt_fecha_ingreso"] = $row["fecha_ingreso_empl"];
                 $output["txt_fecha_nacimiento"] = $row["fecha_naci_empl"];
+                $output["txt_tipo_documento_empl"] = $row["tpdc_empl"];
             }
             echo json_encode($output);
         }
 
         break;
-    
+
     case "consultaEmpleadoSiesa":
 
         $data = array();
@@ -159,21 +157,21 @@ switch ($_REQUEST["op"]) {
         $totalPaginas = 1; // valor inicial, luego se actualiza en la primera iteración
         $fechainicio = $_GET['fechainicio'] ?? '2017-01-01';
         $fechafin = $_GET['fechafin'] ?? date('Y-m-d');
-        
+
         do {
             $url = 'idCompania=6026';
             $url .= '&descripcion=asfaltart_CONSULTA_EMPLEADOS';
             $url .= '&paginacion=' . urlencode("numPag=$pagina|tamPag=$tamPag");
             $url .= '&parametros=' . urlencode("fechainicio=$fechainicio|fechafin=$fechafin");
-        
+
             $method = "GET";
             $response = CurlController::requestEstandar($url, $method);
-        
+
             if (isset($response->detalle->Datos) && is_array($response->detalle->Datos)) {
                 if ($pagina === 1 && isset($response->detalle->total_páginas)) {
                     $totalPaginas = $response->detalle->total_páginas;
                 }
-        
+
                 foreach ($response->detalle->Datos as $row) {
                     if (is_object($row)) {
                         $sub_array = array();
@@ -184,18 +182,18 @@ switch ($_REQUEST["op"]) {
                         $sub_array[] = $row->f015_direccion1 ?? '';
                         $sub_array[] = $row->f015_email ?? '';
                         $sub_array[] = $row->f015_celular ?? '';
-        
-                        
-        
+
+
+
                         $data[] = $sub_array;
                     }
                 }
             }
-        
+
             $pagina++; // avanzar a la siguiente página
-        
+
         } while ($pagina <= $totalPaginas);
-        
+
         // Enviar la respuesta final
         $resultado = array(
             "sEcho" => 1,
@@ -203,7 +201,7 @@ switch ($_REQUEST["op"]) {
             "iTotalDisplayRecords" => count($data),
             "aaData" => $data
         );
-        
+
         echo json_encode($resultado);
         break;
     case 'consultarEmpleados':
@@ -231,25 +229,25 @@ switch ($_REQUEST["op"]) {
         break;
 
     case "guardarEmpleadoNuevo":
-        
-            $documento = $_POST["documento"];
-            $nombre = $_POST["nombre"];
-            $fecha_ingreso = $_POST ["fecha_ingreso"];
-            $fecha_nacimiento = $_POST ["fecha_nacimiento"];
-            $direccion = $_POST ["direccion"];
-            $celular = $_POST ["celular"];
 
-            $resultado = $empleado->insertarEmplNuevo([
-                'cedu_empl' => $documento,
-                'nomb_empl' => $nombre,
-                'fein_empl' => $fecha_ingreso,
-                'fena_empl' => $fecha_nacimiento,
-                'dire_empl' => $direccion,
-                'celu_empl' => $celular
-            ]);
-            
-            echo json_encode(["success" => $resultado]);
+        $documento = $_POST["documento"];
+        $nombre = $_POST["nombre"];
+        $fecha_ingreso = $_POST["fecha_ingreso"];
+        $fecha_nacimiento = $_POST["fecha_nacimiento"];
+        $direccion = $_POST["direccion"];
+        $celular = $_POST["celular"];
+
+        $resultado = $empleado->insertarEmplNuevo([
+            'cedu_empl' => $documento,
+            'nomb_empl' => $nombre,
+            'fein_empl' => $fecha_ingreso,
+            'fena_empl' => $fecha_nacimiento,
+            'dire_empl' => $direccion,
+            'celu_empl' => $celular
+        ]);
+
+        echo json_encode(["success" => $resultado]);
 
 
-            break;
+        break;
 }

@@ -15,6 +15,14 @@
 
                     <input type="hidden" name="codigo_empleado" id="codigo_empleado">
 
+                    <div class="form-group row">
+                        <label for="numero_documento" class="col-sm-3 col-form-label">Número Documento: </label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" name="numero_documento" id="numero_documento"
+                                placeholder="Numero de identificación">
+                        </div>
+                    </div>
+
                     <span class="form-group row" id="selectTipoDocumento">
                         <label for="tipo_documento_empl" class="col-sm-3 col-form-label">Tipo Documento:</label>
                         <div class="col-sm-9" style="display: inline-block; ">
@@ -25,13 +33,7 @@
                         </div>
                     </span>
 
-                    <div class="form-group row">
-                        <label for="numero_documento" class="col-sm-3 col-form-label">Número Documento: </label>
-                        <div class="col-sm-9">
-                            <input type="text" class="form-control" name="numero_documento" id="numero_documento"
-                                placeholder="Numero de identificación">
-                        </div>
-                    </div>
+
 
                     <div class="form-group row">
                         <label for="nombre_empleado" class="col-sm-3 col-form-label">Nombre Completo: </label>
