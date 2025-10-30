@@ -9,7 +9,47 @@ function init() {
 
 function guardaryeditar(e){
     e.preventDefault();
+
+    // Validar campos obligatorios
+    var camposObligatorios = [
+        'txt_tipo_documento_empl',
+        'txt_numero_documento', 
+        'txt_telefono_empleado',
+        'txt_direccion_empleado',
+        'select_cargo_empleado',
+        'txt_fecha_ingreso',
+        'select_esta_empl'
+    ];
+
+    for(var i = 0; i < camposObligatorios.length; i++) {
+        var campo = $('#' + camposObligatorios[i]);
+        if(!campo.val() || campo.val().trim() === '') {
+            Swal.fire({
+                title: "Error",
+                text: "El campo " + campo.attr('name') + " es obligatorio",
+                icon: "error"
+            });
+            return false;
+        }
+    }
+
     var formData = new FormData($("#form_empleado")[0]);
+
+    var camposOpcionales = [
+        'txt_fecha_nacimiento',
+        'select_nivel_educativo',
+        'txt_profesion',
+        'select_genero', 
+        'txt_rh'
+    ];
+
+    camposOpcionales.forEach(function(campo) {
+        var valor = $('#' + campo).val();
+        if(!valor || valor.trim() === '') {
+            formData.set(campo, 'NULL');
+        }
+    });
+
     $.ajax({
 
         url: "../../controller/empleado.php?op=guardaryeditar",
@@ -22,6 +62,7 @@ function guardaryeditar(e){
             $('#modalEmpleado').modal('hide');
             $('#txt_numero_documento').prop('readonly', false);
             $('#form_empleado')[0].reset();
+            resetearDataTableEmpleados();
             Swal.fire({
                 title: "Grupo Empleado",
                 text: "Registro guardado exitosamente",
@@ -30,6 +71,12 @@ function guardaryeditar(e){
         }
  
     });
+}
+
+function resetearDataTableEmpleados() {
+    if ($.fn.DataTable.isDataTable('#empleados_data')) {
+        $('#empleados_data').DataTable().ajax.reload();
+    }
 }
 
 $(document).ready(function(){
@@ -161,21 +208,52 @@ $(document).ready(function() {
 
 
 
-$('#reservationdate').daterangepicker({
-    singleDatePicker: true,          // Habilitar solo una selección de fecha
-    showDropdowns: true,             // Mostrar dropdowns para seleccionar el año y mes
-    minYear: '1900',           // Fecha mínima permitida
-    maxYear: '2090',           // Fecha máxima permitida
-    locale: {                        // Configuraciones locales
-        format: 'YYYY-MM-DD',        // Formato de la fecha
+// DatePicker para Fecha de Ingreso
+$('#reservationdate_ingreso').daterangepicker({
+    singleDatePicker: true,
+    showDropdowns: true,
+    autoApply: true,
+    autoUpdateInput: true,  // ← Actualiza el input automáticamente
+    drops: 'down',
+    minYear: '1900',
+    maxYear: '2090',
+    locale: {
+        format: 'YYYY-MM-DD',
         applyLabel: "Aplicar",
         cancelLabel: "Cancelar",
         daysOfWeek: ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"],
         monthNames: ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
         firstDay: 1
     }
-}, function(start, end, label) {
-    $('#fecha_ingreso').val(start.format('YYYY-MM-DD'));
+});
+
+// Manejar el evento cuando se selecciona una fecha
+$('#reservationdate_ingreso').on('apply.daterangepicker', function(ev, picker) {
+    $('#txt_fecha_ingreso').val(picker.startDate.format('YYYY-MM-DD'));
+});
+
+// DatePicker para Fecha de Nacimiento
+$('#reservationdate_nacimiento').daterangepicker({
+    singleDatePicker: true,
+    showDropdowns: true,
+    autoApply: true,
+    autoUpdateInput: true,  // ← Actualiza el input automáticamente
+    drops: 'down',
+    minYear: '1900',
+    maxYear: '2090',
+    locale: {
+        format: 'YYYY-MM-DD',
+        applyLabel: "Aplicar",
+        cancelLabel: "Cancelar",
+        daysOfWeek: ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"],
+        monthNames: ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
+        firstDay: 1
+    }
+});
+
+// Manejar el evento cuando se selecciona una fecha
+$('#reservationdate_nacimiento').on('apply.daterangepicker', function(ev, picker) {
+    $('#txt_fecha_nacimiento').val(picker.startDate.format('YYYY-MM-DD'));
 });
 
 
@@ -187,6 +265,16 @@ $.post("../../controller/tipodoc.php?op=comboTipoDocumento",function(data, statu
 $.post("../../controller/Cargo.php?op=comboCargo",function(data, status){
     var $tipoDocumentoEmpl = $('#select_cargo_empleado');
     $tipoDocumentoEmpl.html(data);
+});
+
+function irErp() {
+    window.location.href = BASE_URL +'/view/MntSiesa/emplSiesa.php'; //http://181.204.219.154:3396/preoperacional
+}
+
+$(function(){
+    $('#btnSiesa').on('click', function(){
+        irErp();
+    });
 });
 
 function editar(codigo_empleado){ 
@@ -211,7 +299,7 @@ function editar(codigo_empleado){
 
 }
 
-$(document).on("click","#btnNuevoEmple",function(){
+/* $(document).on("click","#btnNuevoEmple",function(){
 
     $('#lblTitulo').html('Nuevo Registro');
     document.getElementById('selectEstadoEmpleado').style.display = 'none';
@@ -223,6 +311,6 @@ $(document).on("click","#btnNuevoEmple",function(){
 
     $('#modalEmpleado').modal('show');
 
-});
+}); */
 
 init();

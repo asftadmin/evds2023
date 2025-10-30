@@ -80,12 +80,13 @@ class Empleado extends Conectar {
         return $sql->execute();
     }
 
-    public function update_empleado($id_empl, $tipo_docto, $doct_empl, $nomb_empl, $telf_empl, $dire_empl, $carg_empl, $ingr_empl, $esta_empl) {
+    public function update_empleado($id_empl, $tipo_docto, $doct_empl, $nomb_empl, $telf_empl, $dire_empl, $carg_empl, $ingr_empl, $esta_empl, $fecha_nac = null, $genero = null, $nivel_edu = null, $profesion = null, $rh = null) {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "UPDATE empleados SET tpdc_empl = ?, cedu_empl = ?, nomb_empl = ?,
                  tele_empl = ?, dire_empl = ?, carg_empl = ?, fecha_ingreso_empl = ?,
-                 esta_empl = ?  WHERE id_empl = ?";
+                 esta_empl = ?, fecha_naci_empl = ?, nivel_educ_empl = ?, prof_empl = ?,
+                 gene_empl = ?, grup_sang_empl = ?  WHERE id_empl = ?";
         $sql = $conectar->prepare($sql);
         $sql->bindValue(1, $tipo_docto);
         $sql->bindValue(2, $doct_empl);
@@ -95,7 +96,12 @@ class Empleado extends Conectar {
         $sql->bindValue(6, $carg_empl);
         $sql->bindValue(7, $ingr_empl);
         $sql->bindValue(8, $esta_empl);
-        $sql->bindValue(9, $id_empl);
+        $sql->bindValue(9, $fecha_nac);
+        $sql->bindValue(10, $genero);
+        $sql->bindValue(11, $nivel_edu);
+        $sql->bindValue(12, $profesion);
+        $sql->bindValue(13, $rh);
+        $sql->bindValue(14, $id_empl);
         $sql->execute();
         return $resultado = $sql->fetchAll();
     }

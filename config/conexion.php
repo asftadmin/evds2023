@@ -7,7 +7,7 @@ class Conectar {
     protected function Conexion() {
         try {
             // Cambiar los valores según tu configuración de PostgreSQL   192.168.0.200  masterd_asft
-            $host = "172.16.5.2";
+            $host = "172.16.5.3";
             $dbname = "evds2023";
             $usuario = "postgres";
             $contrasena = "masterd_asft";

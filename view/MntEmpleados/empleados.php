@@ -65,15 +65,11 @@ if (isset($_SESSION["user_id"])) {
                                         <input type="text" class="form-control" name="txt_numero_documento"
                                             id="txt_numero_documento">
                                         <span class="input-group-append">
-                                            <button type="button" class="btn btn-info btn-flat"><i
-                                                    class="fas fa-search-plus"></i></button>
-                                        </span>
-                                        <span class="input-group-append">
-                                            <button type="button" id="btnBuscEmple" class="btn btn-warning btn-flat"><i
+                                            <button type="button" id="btnBuscEmple" class="btn btn-info btn-flat"><i
                                                     class="fas fa-user-edit"></i></button>
                                         </span>
                                         <span class="input-group-append">
-                                            <button type="button" class="btn btn-dark btn-flat"><i
+                                            <button type="button" id="btnSiesa" class="btn btn-dark btn-flat"><i
                                                     class="fab fa-uncharted"></i></button>
                                         </span>
                                     </div>
@@ -109,7 +105,8 @@ if (isset($_SESSION["user_id"])) {
                                             </label>
                                             <div class="col-sm-8">
                                                 <input type="text" class="form-control" name="txt_nombre_empleado"
-                                                    id="txt_nombre_empleado" placeholder="Nombre completo del Empleado">
+                                                    id="txt_nombre_empleado" placeholder="Nombre completo del Empleado"
+                                                    required>
                                             </div>
                                         </div>
 
@@ -118,7 +115,7 @@ if (isset($_SESSION["user_id"])) {
                                             </label>
                                             <div class="col-sm-8">
                                                 <input type="text" class="form-control" name="txt_telefono_empleado"
-                                                    id="txt_telefono_empleado" placeholder="Telefono y/o Celular">
+                                                    id="txt_telefono_empleado" placeholder="Telefono y/o Celular" required>
                                             </div>
                                         </div>
 
@@ -127,7 +124,8 @@ if (isset($_SESSION["user_id"])) {
                                             </label>
                                             <div class="col-sm-8">
                                                 <input type="text" class="form-control" name="txt_direccion_empleado"
-                                                    id="txt_direccion_empleado" placeholder="Dirección de residencia">
+                                                    id="txt_direccion_empleado" placeholder="Dirección de residencia"
+                                                    required>
                                             </div>
                                         </div>
 
@@ -145,12 +143,12 @@ if (isset($_SESSION["user_id"])) {
                                         <div class="form-group row">
                                             <label for="txt_fecha_ingreso" class="col-sm-4 col-form-label">Fecha Ingreso:
                                             </label>
-                                            <div class="input-group date col-sm-8" id="reservationdate"
+                                            <div class="input-group date col-sm-8" id="reservationdate_ingreso"
                                                 data-target-input="nearest">
                                                 <input type="text" class="form-control datetimepicker-input"
-                                                    data-target="#reservationdate" name="txt_fecha_ingreso"
-                                                    id="txt_fecha_ingreso" />
-                                                <div class="input-group-append" data-target="#reservationdate"
+                                                    data-target="#reservationdate_ingreso" name="txt_fecha_ingreso"
+                                                    id="txt_fecha_ingreso" required />
+                                                <div class="input-group-append" data-target="#reservationdate_ingreso"
                                                     data-toggle="datetimepicker">
                                                     <div class="input-group-text"><i class="fa fa-calendar"></i></div>
                                                 </div>
@@ -166,12 +164,12 @@ if (isset($_SESSION["user_id"])) {
                                             <label for="txt_fecha_nacimiento" class="col-sm-4 col-form-label">Fecha
                                                 Nacimiento:
                                             </label>
-                                            <div class="input-group date col-sm-8" id="reservationdate"
+                                            <div class="input-group date col-sm-8" id="reservationdate_nacimiento"
                                                 data-target-input="nearest">
                                                 <input type="text" class="form-control datetimepicker-input"
-                                                    data-target="#reservationdate" name="txt_fecha_nacimiento"
+                                                    data-target="#reservationdate_nacimiento" name="txt_fecha_nacimiento"
                                                     id="txt_fecha_nacimiento" />
-                                                <div class="input-group-append" data-target="#reservationdate"
+                                                <div class="input-group-append" data-target="#reservationdate_nacimiento"
                                                     data-toggle="datetimepicker">
                                                     <div class="input-group-text"><i class="fa fa-calendar"></i></div>
                                                 </div>
@@ -184,6 +182,9 @@ if (isset($_SESSION["user_id"])) {
                                             <div class="col-sm-8" style="display: inline-block; ">
                                                 <select class="form-control select2" style="width: 100%;"
                                                     name="select_genero" id="select_genero">
+                                                    <option disabled selected required>--Selecciona el genero--</option>
+                                                    <option value="M">Masculino</option>
+                                                    <option value="F">Femenino</option>
 
                                                 </select>
                                             </div>
@@ -196,6 +197,16 @@ if (isset($_SESSION["user_id"])) {
                                             <div class="col-sm-8" style="display: inline-block; ">
                                                 <select class="form-control select2" style="width: 100%;"
                                                     name="select_nivel_educativo" id="select_nivel_educativo">
+                                                    <option disabled selected required>--Selecciona nivel educativo--
+                                                    </option>
+                                                    <option value="Basica Primaria">Basica Primaria</option>
+                                                    <option value="Basica Secundaria">Basica Secundaria</option>
+                                                    <option value="Bachillerato">Bachillerato</option>
+                                                    <option value="Tecnico">Tecnico</option>
+                                                    <option value="Tecnologo">Tecnologo</option>
+                                                    <option value="Profesional">Profesional</option>
+                                                    <option value="Postgrado">Postgrado</option>
+
 
                                                 </select>
                                             </div>
@@ -285,6 +296,7 @@ if (isset($_SESSION["user_id"])) {
         <?php require_once("update_empleado.php") ?>
 
         <?php require_once("../MainJS/JS.php") ?>
+        <script src="../../config/config.js"></script>
         <script type="text/javascript" src="empleados.js"></script>
 
     </body>

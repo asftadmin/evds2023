@@ -13,6 +13,13 @@ switch ($_REQUEST["op"]) {
 
     case 'guardaryeditar':
 
+        // Procesar campos opcionales - convertir a NULL si vienen vacíos o con string 'NULL'
+        $fecha_nacimiento = (!empty($_POST["txt_fecha_nacimiento"]) && $_POST["txt_fecha_nacimiento"] != 'NULL') ? $_POST["txt_fecha_nacimiento"] : null;
+        $genero = (!empty($_POST["select_genero"]) && $_POST["select_genero"] != 'NULL') ? $_POST["select_genero"] : null;
+        $nivel_educativo = (!empty($_POST["select_nivel_educativo"]) && $_POST["select_nivel_educativo"] != 'NULL') ? $_POST["select_nivel_educativo"] : null;
+        $profesion = (!empty($_POST["txt_profesion"]) && $_POST["txt_profesion"] != 'NULL') ? $_POST["txt_profesion"] : null;
+        $sanguineo = (!empty($_POST["txt_rh"]) && $_POST["txt_rh"] != 'NULL') ? $_POST["txt_rh"] : null;
+
 
         if (empty($_POST["txt_codigo_empleado"])) {
             $empleado->insertar_empleado(
@@ -22,7 +29,12 @@ switch ($_REQUEST["op"]) {
                 $_POST["telefono_empleado"],
                 $_POST["direccion_empleado"],
                 $_POST["cargo_empleado"],
-                $_POST["fecha_ingreso"]
+                $_POST["fecha_ingreso"],
+                $fecha_nacimiento,
+                $nivel_educativo,
+                $profesion,
+                $genero,
+                $sanguineo
             );
         } else {
             $empleado->update_empleado(
@@ -34,7 +46,12 @@ switch ($_REQUEST["op"]) {
                 $_POST["txt_direccion_empleado"],
                 $_POST["select_cargo_empleado"],
                 $_POST["txt_fecha_ingreso"],
-                $_POST["select_esta_empl"]
+                $_POST["select_esta_empl"],
+                $fecha_nacimiento,
+                $nivel_educativo,
+                $profesion,
+                $genero,
+                $sanguineo
 
             );
         }
@@ -111,9 +128,6 @@ switch ($_REQUEST["op"]) {
             $sub_array[] = '<div class="button-container text-center" >
                     <button type="button" onClick="editar(' . $row["id_empl"] . ');" id="' . $row["id_empl"] . '" class="btn btn-warning btn-icon " >
                         <div><i class="fa fa-edit"></i></div>
-                    </button>
-                    <button type="button" onClick="eliminar(' . $row["id_empl"] . ');" id="' . $row["id_empl"] . '" class="btn btn-danger btn-icon" >
-                        <div><i class="fa fa-trash"></i></div>
                     </button>
                 </div>';
             $data[] = $sub_array;

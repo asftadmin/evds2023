@@ -38,12 +38,13 @@ $(document).on('click', '#btn-filtrar-fechas', function () {
         type: 'GET',
         dataType: 'json',
         success: function (response) {
-            const empleadosBD = response.aaData.map(row => row[0].toString().trim());
+            const empleadosBD = response.aaData
+                .filter(row => row[0] !== null && row[0] !== undefined)
+                .map(row => row[0].toString().trim());
             cargarEmpleadosAPI(empleadosBD);
         }
     });
 });
-
 
 
 function cargarEmpleadosAPI(empleadosBD) {
