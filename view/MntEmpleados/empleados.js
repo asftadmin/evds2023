@@ -277,26 +277,60 @@ $(function(){
     });
 });
 
-function editar(codigo_empleado){ 
-    $.post("../../controller/empleado.php?op=mostrar",{codigo_empleado:codigo_empleado},function(data){
-        data= JSON.parse(data); //formatear la data para que front en lo detecte como texto
-        console.log(data);
-        $('#txt_codigo_empleado').val(data.txt_codigo_empleado);  
-        $('#txt_numero_documento').val(data.txt_numero_documento);
-        $('#txt_nombre_empleado').val(data.txt_nombre_empleado);
-        $('#txt_telefono_empleado').val(data.txt_telefono_empleado);
-        $('#txt_direccion_empleado').val(data.txt_direccion_empleado);
-        $('#txt_fecha_ingreso').val(data.txt_fecha_ingreso);
-        $('#txt_fecha_nacimiento').val(data.txt_fecha_nacimiento);
-        $('#txt_tipo_documento_empl').val(data.txt_tipo_documento_empl);
-        $('#select_cargo_empleado').val(data.select_cargo_empleado);
 
+function editar(codigo_empleado){
+    $.post("../../controller/empleado.php?op=mostrar", 
+        {codigo_empleado: codigo_empleado}, 
+        function(data) {
+            try {
+                data = JSON.parse(data);
+                console.log(data);
+                
+                $('#txt_codigo_empleado').val(data.txt_codigo_empleado);
+                $('#txt_numero_documento').val(data.txt_numero_documento);
+                $('#txt_nombre_empleado').val(data.txt_nombre_empleado);
+                $('#txt_telefono_empleado').val(data.txt_telefono_empleado);
+                $('#txt_direccion_empleado').val(data.txt_direccion_empleado);
+                $('#select_cargo_empleado').val(data.select_cargo_empleado);
+                $('#txt_fecha_ingreso').val(data.txt_fecha_ingreso);
+                $('#txt_fecha_nacimiento').val(data.txt_fecha_nacimiento);
+                $('#txt_tipo_documento_empl').val(data.txt_tipo_documento_empl);
+                $('#select_genero').val(data.select_genero);
+                mostrarDescripcionGenero(data.gene_empl);
+                $('#select_nivel_educativo').val(data.select_nivel_educativo);
+                $('#txt_profesion').val(data.txt_profesion);
+                $('#txt_rh').val(data.txt_rh);
+                $('#select_esta_empl').val(data.select_esta_empl);
+                mostrarDescripcionEstado(data.esta_empl);
+                $('#modalUpdateEmpleado').modal('hide');
+                $('#txt_numero_documento').prop('readonly', true);
+            } catch (error) {
+                console.error('Error parsing JSON:', error);
+                console.log('Raw response:', data);
+                alert('Error al cargar los datos del empleado');
+            }
+        }
+    );
+}
 
-    });
+// Función para mostrar descripción del género
+function mostrarDescripcionGenero(valor) {
+    const descripciones = {
+        'M': 'Masculino',
+        'F': 'Femenino'
+    };
+    // Opcional: mostrar en algún elemento aparte
+    $('#genero_descripcion').text(descripciones[valor] || 'Desconocido');
+}
 
-    $('#modalUpdateEmpleado').modal('hide');
-    $('#txt_numero_documento').prop('readonly', true);
-
+// Función para mostrar descripción del estado
+function mostrarDescripcionEstado(valor) {
+    const descripciones = {
+        '1': 'Activo',
+        '0': 'Inactivo'
+    };
+    // Opcional: mostrar en algún elemento aparte
+    $('#estado_descripcion').text(descripciones[valor] || 'Desconocido');
 }
 
 /* $(document).on("click","#btnNuevoEmple",function(){

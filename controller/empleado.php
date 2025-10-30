@@ -129,6 +129,9 @@ switch ($_REQUEST["op"]) {
                     <button type="button" onClick="editar(' . $row["id_empl"] . ');" id="' . $row["id_empl"] . '" class="btn btn-warning btn-icon " >
                         <div><i class="fa fa-edit"></i></div>
                     </button>
+                    <button type="button" onClick="eliminar(' . $row["id_empl"] . ');" id="' . $row["id_empl"] . '" class="btn btn-danger btn-icon" >
+                        <div><i class="fa fa-trash"></i></div>
+                    </button>
                 </div>';
             $data[] = $sub_array;
         }
@@ -157,6 +160,11 @@ switch ($_REQUEST["op"]) {
                 $output["txt_fecha_ingreso"] = $row["fecha_ingreso_empl"];
                 $output["txt_fecha_nacimiento"] = $row["fecha_naci_empl"];
                 $output["txt_tipo_documento_empl"] = $row["tpdc_empl"];
+                $output["select_genero"] = $row["gene_empl"];
+                $output["select_nivel_educativo"] = $row["nivel_educ_empl"];
+                $output["txt_profesion"] = $row["prof_empl"];
+                $output["txt_rh"] = $row["grup_sang_empl"];
+                $output["select_esta_empl"] = $row["esta_empl"];
             }
             echo json_encode($output);
         }

@@ -42,7 +42,9 @@ class Empleado extends Conectar {
     public function get_empledo_x_id($codigo_empleado) {
         $conectar = parent::conexion();
         parent::set_names();
-        $sql = "SELECT * FROM empleados WHERE id_empl=?";
+        $sql = "SELECT *
+                FROM empleados 
+                WHERE id_empl = ?;";
         $sql = $conectar->prepare($sql);
         $sql->bindValue(1, $codigo_empleado);
         $sql->execute();
