@@ -250,6 +250,32 @@ switch ($_REQUEST["op"]) {
 
         break;
 
+    case 'listar_activos':
+
+        $datos = $empleado->get_empledo();
+
+        $data = array();
+        foreach ($datos as $row) {
+
+            $sub_array = array();
+            $sub_array[] = $row["id_empl"];
+            $sub_array[] = $row["cedu_empl"];
+            $sub_array[] = $row["nomb_empl"];
+            $sub_array[] = $row["esta_empl"];
+            $data[] = $sub_array;
+        }
+
+
+        $resultado = array(
+            "sEcho" => 1,
+            "iTotalRecords" => count($data),
+            "iTotalDisplayRecords" => count($data),
+            "aaData" => $data
+        );
+        echo json_encode($resultado);
+
+        break;
+
     case "guardarEmpleadoNuevo":
 
         $documento = $_POST["documento"];
@@ -271,5 +297,11 @@ switch ($_REQUEST["op"]) {
         echo json_encode(["success" => $resultado]);
 
 
+        break;
+
+    case "inactivar_masivo":
+        $ids = $_POST["ids"];
+        $result = $empleado->inactivar_empleados($ids);
+        echo json_encode(["success" => $result]);
         break;
 }

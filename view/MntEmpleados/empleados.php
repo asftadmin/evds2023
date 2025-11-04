@@ -72,6 +72,9 @@ if (isset($_SESSION["user_id"])) {
                                             <button type="button" id="btnSiesa" class="btn btn-dark btn-flat"><i
                                                     class="fab fa-uncharted"></i></button>
                                         </span>
+                                        <span class="input-group-append">
+                                            <button type="button" id="btnDisabled" class="btn btn-danger btn-flat"><i class="fas fa-user-slash"></i></button>
+                                        </span>
                                     </div>
                                 </div>
                             </div>

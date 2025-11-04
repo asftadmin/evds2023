@@ -7,10 +7,10 @@ class Conectar {
     protected function Conexion() {
         try {
             // Cambiar los valores según tu configuración de PostgreSQL   192.168.0.200  masterd_asft
-            $host = "localhost";
+            $host = "172.16.5.2";
             $dbname = "evds2023";
             $usuario = "postgres";
-            $contrasena = "ROOT";
+            $contrasena = "masterd_asft";
 
             $conectar = $this->dbh = new PDO("pgsql:host=$host;port=5432;dbname=$dbname", $usuario, $contrasena);
             return $conectar;
@@ -25,7 +25,7 @@ class Conectar {
     }
 
     public static function ruta() {
-        return "http://localhost/evds2023/";
+        return "http://localhost:8086/evds2023/";
         //return "http://181.204.219.154:3396/evds2023/";
     }
 }

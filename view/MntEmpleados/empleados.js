@@ -277,6 +277,13 @@ $(function(){
     });
 });
 
+$(function(){
+    $('#btnDisabled').on('click', function(){
+        window.location.href = BASE_URL +'/view/MntEmpleados/inactivar.php';
+    });
+});
+
+
 
 function editar(codigo_empleado){
     $.post("../../controller/empleado.php?op=mostrar", 
