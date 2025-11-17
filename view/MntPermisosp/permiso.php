@@ -72,6 +72,7 @@ if (isset($_SESSION["user_id"])) {
                             <form id="form_permiso">
 
                                 <div class="form-row">
+                                    <input type="hidden" id="empleado_codi" name="empleado_codi" class="form-control">
                                     <div class="form-group col-md-6">
                                         <label>Nombres y Apellido</label>
                                         <input id="empleado_id" name="empleado_id" class="form-control" readonly>
@@ -102,7 +103,7 @@ if (isset($_SESSION["user_id"])) {
 
                                         <label for="timepicker_salida">Hora de salida</label>
                                         <div class="input-group">
-                                            <input type="text" id="timepicker_salida" class="form-control" autocomplete="off">
+                                            <input type="text" name="timepicker_salida" id="timepicker_salida" class="form-control" autocomplete="off">
                                             <div class="input-group-append">
                                                 <span class="input-group-text"><i class="far fa-clock"></i></span>
                                             </div>
@@ -112,7 +113,7 @@ if (isset($_SESSION["user_id"])) {
                                     <div class="form-group col-md-4">
                                         <label for="timepicker_entrada">Hora de entrada</label>
                                         <div class="input-group">
-                                            <input type="text" id="timepicker_entrada" class="form-control" autocomplete="off">
+                                            <input type="text" name="timepicker_entrada" id="timepicker_entrada" class="form-control" autocomplete="off">
                                             <div class="input-group-append">
                                                 <span class="input-group-text"><i class="far fa-clock"></i></span>
                                             </div>
@@ -130,7 +131,15 @@ if (isset($_SESSION["user_id"])) {
                                     <textarea name="permiso_detalle" id="permiso_detalle" rows="4" class="form-control"></textarea>
                                 </div>
 
-                                <button type="submit" class="btn btn-dark btn-block">Registrar Permiso</button>
+                                <!-- Este input oculto almacenará el base64 -->
+                                <input type="hidden" name="firma" id="firma">
+                                <!-- Esta imagen mostrará la firma capturada -->
+                                <div class="form-group">
+                                    <img id="previewFirma" src="" alt="Firma no registrada" width="200" style="border:1px solid #ccc; border-radius:5px;">
+                                </div>
+
+                                <button type="button" id="btnRegistrarFirma" class="btn btn-info btn-block">Registrar Firma</button>
+                                <button type="sumbit" id="btnGuardar" class="btn btn-dark btn-block">Registrar Permiso</button>
 
                             </form>
 
@@ -149,6 +158,7 @@ if (isset($_SESSION["user_id"])) {
 
             <?php require_once("../MainFooter/footer.php") ?>
 
+
             <!-- Control Sidebar -->
             <aside class="control-sidebar control-sidebar-dark">
                 <!-- Control sidebar content goes here -->
@@ -156,6 +166,8 @@ if (isset($_SESSION["user_id"])) {
             <!-- /.control-sidebar -->
         </div>
         <!-- ./wrapper -->
+
+        <?php require_once("modalFirma.php") ?>
 
         <?php require_once("../MainJS/JS.php") ?>
         <script type="text/javascript" src="permiso.js"></script>

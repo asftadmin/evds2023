@@ -304,4 +304,20 @@ switch ($_REQUEST["op"]) {
         $result = $empleado->inactivar_empleados($ids);
         echo json_encode(["success" => $result]);
         break;
+
+
+    case 'getEmployee':
+        $id = $_SESSION["id_empl"]; // ID del empleado logueado
+
+        error_log("ID de sesión: " . $id);
+
+        $datos = $empleado->get_empleado_por_id($id);
+
+        if (is_array($datos) && count($datos) > 0) {
+            $row = $datos[0];
+            echo json_encode($row);
+        } else {
+            echo json_encode(["error" => "Empleado no encontrado"]);
+        }
+        break;
 }

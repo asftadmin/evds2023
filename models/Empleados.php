@@ -127,4 +127,18 @@ class Empleado extends Conectar
         $stmt = $conectar->prepare($sql);
         return $stmt->execute();
     }
+
+
+    public function get_empleado_por_id($id)
+    {
+        $conectar = parent::conexion();
+        parent::set_names();
+        $sql = "SELECT * FROM empleados 
+                INNER JOIN cargo ON cargo.codi_carg = empleados.carg_empl
+                WHERE id_empl = ?";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $id);
+        $stmt->execute();
+        return $resultado = $stmt->fetchAll();
+    }
 }

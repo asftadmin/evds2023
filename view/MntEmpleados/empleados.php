@@ -295,7 +295,7 @@ if (isset($_SESSION["user_id"])) {
 
 
         <?php require_once("mantenimiento_empleado.php") ?>
-        s
+        
         <?php require_once("update_empleado.php") ?>
 
         <?php require_once("../MainJS/JS.php") ?>
