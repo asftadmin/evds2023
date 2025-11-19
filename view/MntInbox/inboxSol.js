@@ -1,15 +1,20 @@
-var tabla = null;
+let tablaOpen = null;
 
-document.getElementById('abiertos-btn').addEventListener('click', function () {
-    cargarSolicitudes();  // Llama a la función que carga los tickets "Abiertos"
+function init(){
+    inicializarTabla();
+}
+
+$('#abiertos-btn').on('click', function () {
+    cargarSolicitudesP('Pendientes');
+    //if (tablaRevision) tablaRevision.clear().destroy();
 });
 
 
-function cargarSolicitudes() {
-    if (tabla) {
-        tabla.clear(); // Limpiar la tabla existente
+function inicializarTabla() {
+    if (tablaOpen) {
+        tablaOpen.clear(); // Limpiar la tabla existente
     } else {
-        tabla = $('#tableSolicitudes').DataTable({
+        tablaOpen = $('#tableSolicitudes').DataTable({
             "aProcessing": true,
             "aServerSide": true,
             "searching": false,
@@ -36,14 +41,14 @@ function cargarSolicitudes() {
                 }
             },
             "ajax": {
-                url: '../../controller/permiso.php?op=listarSolicitudesOpen',
+                url: '../../controller/permiso.php?op=listarSolicitudesPendientes',
                 type: "POST",
                 dataType: "json",
                 success: function (response) {
                     console.log(response);
                 
                     if (response && response.aaData) {
-                        tabla.clear().rows.add(response.aaData).draw(); // Añadir los datos a la tabla
+                        tablaOpen.clear().rows.add(response.aaData).draw(); // Añadir los datos a la tabla
                     }
                 },
                 error: function (e) {
@@ -53,3 +58,14 @@ function cargarSolicitudes() {
         });
     }
 }
+
+function cargarSolicitudesP(tipo = 'Pendientes') {
+    const nuevaURL = `../../controller/tickets.php?op=listarSolicitudes${tipo}`;
+    if (tablaOpen) {
+        tablaOpen.ajax.url(nuevaURL).load(); // recarga datos sin reiniciar tabla
+    } else {
+        inicializarTabla();
+    }
+}
+
+init();

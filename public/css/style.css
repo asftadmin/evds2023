@@ -11,3 +11,25 @@
     line-height: 38px;
     padding: 5px 10px;
 }
+
+/* Fondo oscuro de las etiquetas */
+.select2-container--bootstrap4 .select2-selection__choice {
+    background-color: #343a40 !important;  /* Dark */
+    border-color: #23272b !important;
+    color: #fff !important;
+}
+
+/* Texto dentro del tag */
+.select2-container--bootstrap4 .select2-selection__choice__display {
+    color: #ffffff !important;
+}
+
+/* Botón para cerrar (x) */
+.select2-container--bootstrap4 .select2-selection__choice__remove {
+    color: #ffffff !important;
+    margin-right: 6px !important;
+}
+
+.select2-container--bootstrap4 .select2-selection__choice__remove:hover {
+    color: #ffc107 !important; /* Amarillo en hover para mejor visibilidad */
+}

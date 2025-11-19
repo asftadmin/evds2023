@@ -1,7 +1,6 @@
 <?php
 
-class Permiso extends Conectar
-{
+class Permiso extends Conectar {
 
 
     public function insertar_permiso(
@@ -44,17 +43,15 @@ class Permiso extends Conectar
         return $stmt->execute();
     }
 
-    public function get_solicitudes(){
+    public function get_solicitudes() {
 
         $conectar = parent::Conexion();
-        $sql = 'SELECT * FROM permisos_personal
+        $sql = "SELECT * FROM permisos_personal
                 INNER JOIN empleados ON empleados.id_empl = permisos_personal.empleado_id
                 INNER JOIN tipo_permiso ON tipo_permiso.tipo_id = permisos_personal.permiso_tipo
-                WHERE permiso_estado = 1';
+                WHERE permiso_estado = '1'";
         $stmt = $conectar->prepare($sql);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
-
 }

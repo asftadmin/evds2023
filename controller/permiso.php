@@ -35,7 +35,7 @@ switch ($_GET["op"]) {
         break;
 
 
-    case "listarSolicitudesOpen":
+    case "listarSolicitudesPendientes":
 
         $datos = $permiso->get_solicitudes();
         $data = array();
