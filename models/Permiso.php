@@ -43,4 +43,18 @@ class Permiso extends Conectar
         // Ejecutamos la consulta y devolvemos el resultado
         return $stmt->execute();
     }
+
+    public function get_solicitudes(){
+
+        $conectar = parent::Conexion();
+        $sql = 'SELECT * FROM permisos_personal
+                INNER JOIN empleados ON empleados.id_empl = permisos_personal.empleado_id
+                INNER JOIN tipo_permiso ON tipo_permiso.tipo_id = permisos_personal.permiso_tipo
+                WHERE permiso_estado = 1';
+        $stmt = $conectar->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+
 }
