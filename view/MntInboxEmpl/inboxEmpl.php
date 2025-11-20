@@ -35,12 +35,12 @@ if (isset($_SESSION["user_id"])) {
                     <div class="container-fluid">
                         <div class="row mb-2">
                             <div class="col-sm-6">
-                                <h1 class="m-0">Gestion Solicitudes - Bandeja de Entrada</h1>
+                                <h1 class="m-0">Bandeja de Entrada</h1>
                             </div><!-- /.col -->
                             <div class="col-sm-6">
                                 <ol class="breadcrumb float-sm-right">
                                     <li class="breadcrumb-item"><a href="#">Inicio</a></li>
-                                    <li class="breadcrumb-item active">Solicitudes Permisos</li>
+                                    <li class="breadcrumb-item active">Inbox</li>
                                 </ol>
                             </div><!-- /.col -->
                         </div><!-- /.row -->
@@ -51,12 +51,12 @@ if (isset($_SESSION["user_id"])) {
                 <div class="content">
                     <div class="container-fluid">
                         <div class="row">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
 
-                                <?php require_once "carpetas.php"; ?>
+                                <?php require_once "carpetasEmpl.php"; ?>
 
                             </div>
-                            <div class="col-md-9">
+                            <div class="col-md-10">
                                 <div class="card card-primary card-outline">
                                     <div class="card-header">
                                         <h3 class="card-title">Solicitudes Permisos</h3>
@@ -65,14 +65,13 @@ if (isset($_SESSION["user_id"])) {
                                     <div class="card-body p-0">
 
                                         <div class="table-responsive mailbox-messages">
-                                            <table class="table table-hover table-striped" id="tableSolicitudes">
+                                            <table class="table table-hover table-striped" id="tablaSolcEmpl">
                                                 <thead>
                                                     <tr>
-                                                        <th>Empleado</th>
                                                         <th>Fecha Permiso</th>
-                                                        <th>Hora Salida</th>
-                                                        <th>Hora Entrada</th>
                                                         <th>Motivo</th>
+                                                        <th>Jefe / Supervisor</th>
+                                                        <th>Estado</th>
                                                         <th>Acciones</th>
                                                     </tr>
                                                 </thead>
@@ -102,7 +101,7 @@ if (isset($_SESSION["user_id"])) {
 
         <?php require_once "../MainJS/JS.php" ?>
         <script src="../../config/config.js"></script>
-        <script type="text/javascript" src="inboxSol.js"></script>
+        <script type="text/javascript" src="inboxEmpl.js"></script>
         <!-- date-range-picker -->
         <!-- SweetAlert -->
         <script src="../../public/plugins/sweetalert2/sweetalert2.js"></script>

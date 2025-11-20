@@ -1,6 +1,6 @@
 let tablaOpen = null;
 
-function init(){
+function init() {
     inicializarTabla();
 }
 
@@ -46,7 +46,7 @@ function inicializarTabla() {
                 dataType: "json",
                 success: function (response) {
                     console.log(response);
-                
+
                     if (response && response.aaData) {
                         tablaOpen.clear().rows.add(response.aaData).draw(); // Añadir los datos a la tabla
                     }
@@ -67,5 +67,139 @@ function cargarSolicitudesP(tipo = 'Pendientes') {
         inicializarTabla();
     }
 }
+
+
+function aprobar(codigo_permiso) {
+
+    Swal.fire({
+        title: "¿Estás seguro?",
+        text: "¿Deseas aprobar este permiso?",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#009BA9",
+        cancelButtonColor: "#FF0000",
+        iconColor: "#FF0000",
+        confirmButtonText: "Sí, aprobar",
+        cancelButtonText: "Cancelar",
+        reverseButtons: true
+    }).then((result) => {
+
+        if (result.isConfirmed) {
+
+            $.post(
+                "../../controller/permiso.php?op=aprobarPermiso",
+                { codigo_permiso: codigo_permiso },
+                function (data) {
+
+                    let respuesta = JSON.parse(data);
+
+                    if (respuesta.success) {
+
+                        Swal.fire({
+                            title: "Aprobado",
+                            text: respuesta.message,
+                            icon: "success",
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+
+                        // RECARGAR DATATABLE
+                        $("#tableSolicitudes").DataTable().ajax.reload();
+
+                    } else {
+
+                        Swal.fire({
+                            title: "Advertencia",
+                            text: respuesta.message,
+                            icon: "warning"
+                        });
+
+                    }
+                }
+            ).fail(function (xhr) {
+                Swal.fire("Error", "Error en el servidor.", "error");
+                console.log(xhr.responseText);
+            });
+
+        }
+    });
+    
+}
+
+function rechazar(codigo_permiso) {
+
+    Swal.fire({
+        title: "Rechazar Permiso",
+        text: "Escribe el motivo del rechazo:",
+        icon: "warning",
+        iconColor: "#FF0000",
+        input: "textarea",
+        inputPlaceholder: "Describa el motivo del rechazo...",
+        inputAttributes: {
+            "aria-label": "Motivo del rechazo"
+        },
+        showCancelButton: true,
+        confirmButtonColor: "#009BA9",
+        cancelButtonColor: "#FF0000",
+        confirmButtonText: "Rechazar",
+        cancelButtonText: "Cancelar",
+        reverseButtons: true,
+        inputValidator: (value) => {
+            if (!value) {
+                return "Debe escribir un motivo para rechazar el permiso.";
+            }
+        }
+    }).then((result) => {
+
+        if (result.isConfirmed) {
+
+            let motivo = result.value;
+
+            $.post(
+                "../../controller/permiso.php?op=rechazarPermiso",
+                {
+                    codigo_permiso: codigo_permiso,
+                    motivo_rechazo: motivo
+                },
+                function (data) {
+
+                    let respuesta = JSON.parse(data);
+
+                    if (respuesta.success) {
+
+                        Swal.fire({
+                            title: "Rechazado",
+                            text: "El permiso fue rechazado correctamente.",
+                            icon: "success",
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+
+                        // recargar datatable
+                        $("#tableSolicitudes").DataTable().ajax.reload();
+
+                    } else {
+
+                        Swal.fire({
+                            title: "Error",
+                            text: respuesta.message,
+                            icon: "error"
+                        });
+
+                    }
+                }
+            ).fail(function (xhr) {
+                Swal.fire("Error", "Error en el servidor.", "error");
+                console.log(xhr.responseText);
+            });
+
+        }
+
+    });
+}
+
+
+
+
 
 init();

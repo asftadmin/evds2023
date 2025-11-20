@@ -36,19 +36,24 @@ switch ($_GET["op"]) {
 
 
     case "listarSolicitudesPendientes":
-
-        $datos = $permiso->get_solicitudes();
+        $empleado_id = $_SESSION["id_empl"];
+        $datos = $permiso->get_solicitudes($empleado_id);
         $data = array();
         //$tickets = [];
         foreach ($datos as $solicitud) {
             $sub_array = array();
             $sub_array[] = $solicitud["nomb_empl"];
             $sub_array[] = date('d-m-Y', strtotime($solicitud["permiso_fecha"]));
+            $sub_array[] = $solicitud["permiso_hora_salida"];
+            $sub_array[] = $solicitud["permiso_hora_entrada"];
             $sub_array[] = $solicitud["tipo_nombre"];
 
             $sub_array[] = '<div class="button-container text-center" >
-                    <button type="button" onClick="ver(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-secondary btn-icon " >
-                        <div><i class="fas fa-envelope"></i></div>
+                    <button type="button" onClick="aprobar(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-success btn-icon " >
+                        <div><i class="fas fa-stamp"></i></div>
+                    </button>
+                    <button type="button" onClick="rechazar(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-danger btn-icon " >
+                        <div><i class="fas fa-ban"></i></div>
                     </button>
                 </div>';
 
@@ -64,6 +69,238 @@ switch ($_GET["op"]) {
         echo json_encode($results);
 
 
+
+        break;
+
+    case "listarSolicitudesJefe":
+        $empleado_id = $_SESSION["id_empl"];
+        $datos = $permiso->get_solicitudes_jefe($empleado_id);
+        $data = array();
+        //$tickets = [];
+        foreach ($datos as $solicitud) {
+            $sub_array = array();
+            $sub_array[] = date('d-m-Y', strtotime($solicitud["permiso_fecha"]));
+            $sub_array[] = $solicitud["tipo_nombre"];
+            $sub_array[] = $solicitud["nomb_empl"];
+            $estado = $solicitud["estado_permiso"];
+            $badge = '';
+
+            switch ($estado) {
+                case 'Pendiente Aprobacion':
+                    $badge = '<span class="badge bg-secondary">Pendiente Aprobacion</span>';
+                    break;
+                case 'Aprobado Jefe':
+                    $badge = '<span class="badge bg-success">Aprobado Jefe</span>';
+                    break;
+                case 'Vbo. Gestion Humana':
+                    $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
+                    break;
+                case 'Aprobado con pendientes':
+                    $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
+                    break;
+                case 'Rechazado':
+                    $badge = '<span class="badge bg-danger">Rechazado Jefe</span>';
+                    break;
+                case 'Cancelado Operacion':
+                    $badge = '<span class="badge bg-danger">Cancelado Operacion</span>';
+                    break;
+                default:
+                    $badge = '<span class="badge bg-dark">Desconocido</span>';
+                    break;
+            }
+
+            $sub_array[] = '<div class="text-center">' . $badge . '</div>';
+            $sub_array[] = '<div class="button-container text-center" >
+                    <button type="button" onClick="verPermiso(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-dark btn-icon " >
+                        <div><i class="fas fa-eye"></i></div>
+                    </button>
+                </div>';
+
+            $data[] = $sub_array;
+        }
+
+        $results = array(
+            "sEcho" => 1,
+            "iTotalRecords" => count($data),
+            "iTotalDisplayRecords" => count($data),
+            "aaData" => $data
+        );
+        echo json_encode($results);
+
+
+
+        break;
+
+    case "aprobarPermiso":
+
+        $codigo_permiso = $_POST["codigo_permiso"];
+        $codigo_empleado = $_SESSION["id_empl"];
+        $datos = $permiso->update_aprobado($codigo_permiso, $codigo_empleado);
+
+        if ($datos) {
+            echo json_encode(["success" => true]);
+        } else {
+            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+        }
+
+
+        break;
+
+
+    case "rechazarPermiso":
+
+        $codigo_permiso = $_POST["codigo_permiso"];
+        $codigo_empleado = $_SESSION["id_empl"];
+        $motivo = $_POST["motivo_rechazo"];
+        $datos = $permiso->update_rechazo($codigo_permiso, $codigo_empleado, $motivo);
+
+        if ($datos) {
+            echo json_encode(["success" => true]);
+        } else {
+            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+        }
+
+
+        break;
+
+    case "timeline":
+
+        $permiso_id = $_POST["permiso_id"];
+
+        // Modelo trae SOLO el permiso (1 registro)
+        $respuesta = $permiso->get_permiso($permiso_id);
+        $data = $respuesta[0];
+
+        /*         echo "<pre>";
+        print_r($data);
+        echo "</pre>";
+        exit; */
+
+        // -----------------------------------------
+        // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
+        // -----------------------------------------
+        function obtenerIconoPorEstado($estado) {
+
+            $iconos = [
+                "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-warning"], // Pendiente
+                "2" => ["icon" => "fas fa-check",          "bg" => "bg-success"], // Aprobado Jefe
+                "3" => ["icon" => "fas fa-user-tie",       "bg" => "bg-primary"], // VoBo RRHH
+                "4" => ["icon" => "fas fa-exclamation",    "bg" => "bg-info"],    // Aprobado con pendientes
+                "5" => ["icon" => "fas fa-exclamation",    "bg" => "bg-info"],    // Aprobado con pendientes
+                "6" => ["icon" => "fas fa-times",          "bg" => "bg-danger"],  // Rechazado Jefe
+                "7" => ["icon" => "fas fa-ban",            "bg" => "bg-dark"],    // Cancelado Operación
+            ];
+
+            return $iconos[$estado] ?? ["icon" => "fas fa-info-circle", "bg" => "bg-secondary"];
+        }
+
+        // -----------------------------------------
+        // GENERACIÓN DEL TIMELINE
+        // -----------------------------------------
+        $html = "";
+
+
+        // ------------------------
+        // 1. PERMISO CREADO
+        // ------------------------
+        if (!empty($data["permiso_creado"])) {
+
+            $fecha = date("d M Y", strtotime($data["permiso_creado"]));
+            $hora  = date("h:i A", strtotime($data["permiso_creado"]));
+
+            $html .= '
+            <div class="time-label">
+                <span class="bg-blue">' . $fecha . '</span>
+            </div>
+
+            <div>
+                <i class="fas fa-user bg-blue"></i>
+
+                <div class="timeline-item">
+                    <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
+                    <h3 class="timeline-header"><strong>Permiso Solicitado</strong></h3>
+                    <div class="timeline-body">
+                        El empleado radicó la solicitud.
+                    </div>
+                </div>
+            </div>
+        ';
+        }
+
+
+        // ------------------------
+        // 2. APROBACIÓN / RECHAZO DEL JEFE
+        // ------------------------
+        if (!empty($data["fecha_actu_permiso"])) {
+
+            $ico = obtenerIconoPorEstado($data["permiso_estado"]);
+
+            $fecha = date("d M Y", strtotime($data["fecha_actu_permiso"]));
+            $hora  = date("h:i A", strtotime($data["fecha_actu_permiso"]));
+
+            // Texto dinámico
+            $texto = ($data["permiso_estado"] == "6")
+                ? "Permiso Rechazado por Jefe"
+                : "Aprobación del Jefe";
+
+            $html .= '
+            <div class="time-label">
+                <span class="bg-success">' . $fecha . '</span>
+            </div>
+
+            <div>
+                <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
+
+                <div class="timeline-item">
+                    <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
+                    <h3 class="timeline-header"><strong>' . $texto . '</strong></h3>
+                    <div class="timeline-body">
+                        Acción realizada por el jefe inmediato.
+                    </div>
+                </div>
+            </div>
+        ';
+        }
+
+
+        // --------------------------------
+        // 3. VISTO BUENO DE RRHH
+        // --------------------------------
+        /*         if (!empty($data["fecha_actu_rrhh"])) {
+
+            $fecha = date("d M Y", strtotime($data["fecha_actu_rrhh"]));
+            $hora  = date("h:i A", strtotime($data["fecha_actu_rrhh"]));
+
+            $html .= '
+            <div class="time-label">
+                <span class="bg-primary">' . $fecha . '</span>
+            </div>
+
+            <div>
+                <i class="fas fa-user-tie bg-primary"></i>
+
+                <div class="timeline-item">
+                    <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
+                    <h3 class="timeline-header"><strong>Visto Bueno de Gestión Humana</strong></h3>
+                    <div class="timeline-body">
+                        Gestión Humana validó y cerró el permiso.
+                    </div>
+                </div>
+            </div>
+        ';
+        } */
+
+
+        // ------------------------
+        // FIN DEL TIMELINE
+        // ------------------------
+        $html .= '
+        <div>
+            <i class="fas fa-clock bg-gray"></i>
+        </div>
+    ';
+
+        echo $html;
 
         break;
 }

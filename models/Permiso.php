@@ -43,14 +43,76 @@ class Permiso extends Conectar {
         return $stmt->execute();
     }
 
-    public function get_solicitudes() {
+    public function get_solicitudes($codigo_empleado) {
 
         $conectar = parent::Conexion();
-        $sql = "SELECT * FROM permisos_personal
-                INNER JOIN empleados ON empleados.id_empl = permisos_personal.empleado_id
-                INNER JOIN tipo_permiso ON tipo_permiso.tipo_id = permisos_personal.permiso_tipo
-                WHERE permiso_estado = '1'";
+        $sql = "SELECT p.*, em.*, tp.*
+                FROM permisos_personal p
+                JOIN empleado_jefe ej ON ej.empleado_id = p.empleado_id
+                INNER JOIN empleados em ON em.id_empl = p.empleado_id
+                INNER JOIN tipo_permiso tp ON tp.tipo_id = p.permiso_tipo
+                WHERE ej.jefe_id = ? AND ej.ej_estado = 1 AND permiso_estado = '1'";
         $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function get_permiso($codigo_permiso) {
+        $conectar = parent::Conexion();
+        $sql = "SELECT permiso_id,
+                    permiso_creado,
+                    permiso_estado,
+                    fecha_actu_permiso,
+                    rechazo_permiso 
+                FROM permisos_personal p WHERE p.permiso_id = ?";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $codigo_permiso, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function get_solicitudes_jefe($codigo_empleado) {
+
+        $conectar = parent::Conexion();
+        $sql = "SELECT p.*, em.*, tp.*,
+                CASE 
+                        WHEN p.permiso_estado = '1' THEN 'Pendiente Aprobacion'
+                        WHEN p.permiso_estado = '2' THEN 'Aprobado Jefe'
+                        WHEN p.permiso_estado = '3' THEN 'Vbo. Gestion Humana'
+                        WHEN p.permiso_estado = '4' THEN 'Aprobado con pendientes'
+                        WHEN p.permiso_estado = '5' THEN 'Aprobado con pendientes'
+                        WHEN p.permiso_estado = '6' THEN 'Rechazado'
+                        WHEN p.permiso_estado = '7' THEN 'Cancelado Operacion'
+                        ELSE NULL
+                    END AS estado_permiso
+                FROM permisos_personal p
+                INNER JOIN empleados em ON p.aprobado_jefe_id = em.id_empl
+                INNER JOIN tipo_permiso tp ON tp.tipo_id = p.permiso_tipo
+                WHERE p.empleado_id = ? AND permiso_estado = '2'";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function update_aprobado($codigo_permiso, $codigo_empleado) {
+        $conectar = parent::Conexion();
+        $sql = "UPDATE permisos_personal SET permiso_estado = '2', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ? WHERE permiso_id = ? ";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
+        $stmt->bindValue(2, $codigo_permiso, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function update_rechazo($codigo_permiso, $codigo_empleado, $motivo) {
+        $conectar = parent::Conexion();
+        $sql = "UPDATE permisos_personal SET permiso_estado = '3', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ?, rechazo_permiso = ? WHERE permiso_id = ? ";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
+        $stmt->bindValue(2, $motivo, PDO::PARAM_INT);
+        $stmt->bindValue(3, $codigo_permiso, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
