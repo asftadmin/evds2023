@@ -52,45 +52,46 @@ if (isset($_SESSION["user_id"])) {
 
                     <!-- Default box -->
                     <div class="card">
+                        <form class="form-horizontal" method="post" id="form_add_rutas">
+                            <div class="card-body">
 
-                        <div class="card-body">
-
-                            <div class="form-group row mb-3">
-                                <label for="txt_empleado" class="col-sm-3 col-form-label fw-bold">
-                                    Empleado(s):
-                                </label>
-                                <div class="col-sm-9">
-                                    <select class="form-control select2" multiple="multiple" name="txt_empleado[]"
-                                        id="txt_empleado" required></select>
+                                <div class="form-group row mb-3">
+                                    <label for="txt_empleado" class="col-sm-3 col-form-label fw-bold">
+                                        Empleado(s):
+                                    </label>
+                                    <div class="col-sm-9">
+                                        <select class="form-control select2" multiple="multiple" name="txt_empleado[]"
+                                            id="txt_empleado" required></select>
+                                    </div>
                                 </div>
+
+                                <div class="form-group row mb-3">
+                                    <label for="txt_jefe" class="col-sm-3 col-form-label fw-bold">
+                                        Jefe / Supervisor:
+                                    </label>
+                                    <div class="col-sm-9">
+                                        <select class="form-control select2" name="txt_jefe" id="txt_jefe" required></select>
+                                    </div>
+                                </div>
+
                             </div>
+                            <div class="card-footer">
 
-                            <div class="form-group row mb-3">
-                                <label for="txt_jefe" class="col-sm-3 col-form-label fw-bold">
-                                    Jefe / Supervisor:
-                                </label>
-                                <div class="col-sm-9">
-                                    <select class="form-control select2" name="txt_jefe" id="txt_jefe" required></select>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <button type="submit" name="action" value="add"
+                                            class="btn btn-info float-right">Guardar</button>
+
+                                    </div>
+                                    <div class="col-md-6">
+                                        <button type="button" class="btn btn-dark" id="btnVolverR"><i
+                                                class="fas fa-arrow-circle-left"></i>
+                                            Regresar</button>
+                                    </div>
                                 </div>
+
                             </div>
-
-                        </div>
-                        <div class="card-footer">
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <button type="submit" name="action" value="add"
-                                        class="btn btn-info float-right">Guardar</button>
-
-                                </div>
-                                <div class="col-md-6">
-                                    <button type="button" class="btn btn-dark" id="btnVolverR"><i
-                                            class="fas fa-arrow-circle-left"></i>
-                                        Regresar</button>
-                                </div>
-                            </div>
-
-                        </div>
+                        </form>
 
                         <!-- /.card-body -->
 
