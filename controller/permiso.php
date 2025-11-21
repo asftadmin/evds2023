@@ -238,10 +238,19 @@ switch ($_GET["op"]) {
             $fecha = date("d M Y", strtotime($data["fecha_actu_permiso"]));
             $hora  = date("h:i A", strtotime($data["fecha_actu_permiso"]));
 
-            // Texto dinámico
-            $texto = ($data["permiso_estado"] == "6")
-                ? "Permiso Rechazado por Jefe"
-                : "Aprobación del Jefe";
+            // Texto dinámico según estado
+            if ($data["permiso_estado"] == "6") {
+                $titulo = "Permiso Rechazado por Jefe";
+
+                // Mostrar motivo del rechazo
+                $detalle = "
+            <strong>Motivo del rechazo:</strong><br>
+            " . (!empty($data["rechazo_permiso"]) ? nl2br($data["rechazo_permiso"]) : "No especificado.") . "
+        ";
+            } else {
+                $titulo = "Aprobación del Jefe";
+                $detalle = "Acción realizada por el jefe inmediato.";
+            }
 
             $html .= '
             <div class="time-label">
@@ -253,10 +262,8 @@ switch ($_GET["op"]) {
 
                 <div class="timeline-item">
                     <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
-                    <h3 class="timeline-header"><strong>' . $texto . '</strong></h3>
-                    <div class="timeline-body">
-                        Acción realizada por el jefe inmediato.
-                    </div>
+                    <h3 class="timeline-header"><strong>' . $titulo . '</strong></h3>
+                    <div class="timeline-body">' . $detalle . '</div>
                 </div>
             </div>
         ';

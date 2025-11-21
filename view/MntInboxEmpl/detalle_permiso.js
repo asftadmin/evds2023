@@ -40,3 +40,39 @@ $(document).ready(function () {
     }
 
 });
+
+
+$('#btnVolverR').click(function () {
+    // Verificar si viene de tickets.php
+    if (document.referrer.indexOf('inboxEmpl.php') !== -1) {
+        history.back(); // Regresa a la página anterior
+    } else {
+        window.location.href = 'inboxEmpl.php'; // Redirige por defecto
+    }
+});
+
+Dropzone.autoDiscover = false;
+
+var permiso_id_drop = getURLParameter('id');
+
+let myDropzone = new Dropzone(".dropzone", {
+
+    url: BASE_URL + "/controller/permiso.php?op=subirSoporte",
+
+    maxFilesize: 10, // MB
+    acceptedFiles: ".jpg,.jpeg,.png,.pdf,.doc,.docx",
+    addRemoveLinks: true,
+    dictRemoveFile: "Eliminar",
+
+    init: function () {
+        this.on("success", function (file, response) {
+            Swal.fire("Subido", "Archivo cargado correctamente", "success");
+            cargarSoportes(permiso_id_drop);
+        });
+
+        this.on("error", function (file, errorMessage) {
+            Swal.fire("Error", errorMessage, "error");
+        });
+    }
+
+});

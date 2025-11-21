@@ -16,7 +16,7 @@
 
     <!-- Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
-<!--     <link re="stylesheet" href="../../public/plugins/select2/css/select2.css"> -->
+    <!--     <link re="stylesheet" href="../../public/plugins/select2/css/select2.css"> -->
     <link rel="stylesheet" href="../../public/plugins/select2-bootstrap4-theme/select2-bootstrap4.css">
 
     <!-- daterange picker -->
@@ -29,6 +29,9 @@
     <link rel="stylesheet" href="../../public/plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
     <link rel="stylesheet" href="../../public/plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
 
+    <!-- Dropzone -->
+    <script src="https://unpkg.com/dropzone@6.0.0-beta.1/dist/dropzone-min.js"></script>
+
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-

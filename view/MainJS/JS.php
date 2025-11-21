@@ -1,4 +1,3 @@
-
 <!-- jQuery -->
 <script src="../../public/plugins/jquery/jquery.min.js"></script>
 
@@ -26,6 +25,10 @@
 <!-- date-range-picker -->
 <script src="../../public/plugins/daterangepicker/moment.min.js"></script>
 <script src="../../public/plugins/daterangepicker/daterangepicker.js"></script>
+
+<!-- Dropzone -->
+
+<link href="https://unpkg.com/dropzone@6.0.0-beta.1/dist/dropzone.css" rel="stylesheet" type="text/css" />
 
 
 <script src="../../public/plugins/sweetalert2/sweetalert2.min.js"></script>

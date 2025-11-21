@@ -55,7 +55,7 @@ class Permiso extends Conectar {
         $stmt = $conectar->prepare($sql);
         $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function get_permiso($codigo_permiso) {
@@ -89,7 +89,7 @@ class Permiso extends Conectar {
                 FROM permisos_personal p
                 INNER JOIN empleados em ON p.aprobado_jefe_id = em.id_empl
                 INNER JOIN tipo_permiso tp ON tp.tipo_id = p.permiso_tipo
-                WHERE p.empleado_id = ? AND permiso_estado = '2'";
+                WHERE p.empleado_id = ?";
         $stmt = $conectar->prepare($sql);
         $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
         $stmt->execute();
@@ -108,7 +108,7 @@ class Permiso extends Conectar {
 
     public function update_rechazo($codigo_permiso, $codigo_empleado, $motivo) {
         $conectar = parent::Conexion();
-        $sql = "UPDATE permisos_personal SET permiso_estado = '3', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ?, rechazo_permiso = ? WHERE permiso_id = ? ";
+        $sql = "UPDATE permisos_personal SET permiso_estado = '6', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ?, rechazo_permiso = ? WHERE permiso_id = ? ";
         $stmt = $conectar->prepare($sql);
         $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
         $stmt->bindValue(2, $motivo, PDO::PARAM_INT);
