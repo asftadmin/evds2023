@@ -75,6 +75,7 @@ if (isset($_SESSION["user_id"])) {
 
 
                                     </div>
+                                    <ul id="listaSoportes" class="list-group mt-3"></ul>
                                 </div>
 
                             </div>

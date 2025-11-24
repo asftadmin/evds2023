@@ -1,6 +1,7 @@
 <?php
 
-class Permiso extends Conectar {
+class Permiso extends Conectar
+{
 
 
     public function insertar_permiso(
@@ -43,7 +44,8 @@ class Permiso extends Conectar {
         return $stmt->execute();
     }
 
-    public function get_solicitudes($codigo_empleado) {
+    public function get_solicitudes($codigo_empleado)
+    {
 
         $conectar = parent::Conexion();
         $sql = "SELECT p.*, em.*, tp.*
@@ -58,7 +60,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function get_permiso($codigo_permiso) {
+    public function get_permiso($codigo_permiso)
+    {
         $conectar = parent::Conexion();
         $sql = "SELECT permiso_id,
                     permiso_creado,
@@ -72,7 +75,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function get_solicitudes_jefe($codigo_empleado) {
+    public function get_solicitudes_jefe($codigo_empleado)
+    {
 
         $conectar = parent::Conexion();
         $sql = "SELECT p.*, em.*, tp.*,
@@ -96,7 +100,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function update_aprobado($codigo_permiso, $codigo_empleado) {
+    public function update_aprobado($codigo_permiso, $codigo_empleado)
+    {
         $conectar = parent::Conexion();
         $sql = "UPDATE permisos_personal SET permiso_estado = '2', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ? WHERE permiso_id = ? ";
         $stmt = $conectar->prepare($sql);
@@ -106,7 +111,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function update_rechazo($codigo_permiso, $codigo_empleado, $motivo) {
+    public function update_rechazo($codigo_permiso, $codigo_empleado, $motivo)
+    {
         $conectar = parent::Conexion();
         $sql = "UPDATE permisos_personal SET permiso_estado = '6', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ?, rechazo_permiso = ? WHERE permiso_id = ? ";
         $stmt = $conectar->prepare($sql);
@@ -114,6 +120,39 @@ class Permiso extends Conectar {
         $stmt->bindValue(2, $motivo, PDO::PARAM_INT);
         $stmt->bindValue(3, $codigo_permiso, PDO::PARAM_INT);
         $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function registrar_soporte_permiso($permiso_id, $nombre_archivo, $ruta_remota)
+    {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "INSERT INTO permisos_soportes 
+            (permiso_id, soporte_nombre, soporte_ruta, soporte_fecha)
+            VALUES (?, ?, ?, NOW())";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $permiso_id);
+        $stmt->bindValue(2, $nombre_archivo);
+        $stmt->bindValue(3, $ruta_remota);
+
+        return $stmt->execute();
+    }
+
+    public function get_soportes_permiso($permiso_id)
+    {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "SELECT * FROM permisos_soportes 
+            WHERE permiso_id = ?
+            ORDER BY soporte_fecha ASC";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $permiso_id);
+        $stmt->execute();
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

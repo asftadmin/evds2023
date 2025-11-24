@@ -1,5 +1,5 @@
 
-var getURLParameter = function(sParam) {
+var getURLParameter = function (sParam) {
     var sPageURL = decodeURIComponent(window.location.search.substring(1));
     var sURLVariables = sPageURL.split('&');
     var sParameterName;
@@ -35,6 +35,7 @@ $(document).ready(function () {
 
     if (permiso_id !== undefined && permiso_id !== null && permiso_id !== "") {
         cargarTimeline(permiso_id);
+        cargarSoportes(permiso_id);
     } else {
         console.log("No se encontró parámetro 'id' en la URL");
     }
@@ -58,21 +59,76 @@ var permiso_id_drop = getURLParameter('id');
 let myDropzone = new Dropzone(".dropzone", {
 
     url: BASE_URL + "/controller/permiso.php?op=subirSoporte",
-
-    maxFilesize: 10, // MB
+    maxFilesize: 10,
     acceptedFiles: ".jpg,.jpeg,.png,.pdf,.doc,.docx",
     addRemoveLinks: true,
     dictRemoveFile: "Eliminar",
 
     init: function () {
-        this.on("success", function (file, response) {
-            Swal.fire("Subido", "Archivo cargado correctamente", "success");
-            cargarSoportes(permiso_id_drop);
+        var dz = this;
+
+        this.on("sending", function (file, xhr, formData) {
+            formData.append("permiso_id", permiso_id_drop);
         });
 
-        this.on("error", function (file, errorMessage) {
-            Swal.fire("Error", errorMessage, "error");
+        this.on("success", function (file, response) {
+
+            Swal.fire({
+                icon: "success",
+                title: "Subido correctamente",
+                showConfirmButton: false,
+                timer: 1200
+            });
+
+            // Recargar la lista de soportes
+            cargarSoportes(permiso_id_drop);
+
+            // Esperar y borrar archivo del Dropzone (solo visual)
+            setTimeout(function () {
+                dz.removeFile(file);
+            }, 1000);
+        });
+
+        this.on("error", function (file, message) {
+            Swal.fire("Error", message, "error");
+
+            // Remover archivo erróneo también
+            var dz = this;
+            setTimeout(function () {
+                dz.removeFile(file);
+            }, 1000);
         });
     }
 
 });
+
+
+
+function cargarSoportes(permiso_id) {
+
+    $.ajax({
+        url: BASE_URL + "/controller/permiso.php?op=listarSoportes",
+        type: "POST",
+        data: { permiso_id: permiso_id },
+        success: function (response) {
+
+            let lista = JSON.parse(response);
+            let html = "";
+
+            lista.forEach(s => {
+
+                html += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="../../controller/permiso.php?op=descargarSoporte&file=${encodeURIComponent(s.soporte_ruta)}" target="_blank">
+                            ${s.soporte_nombre}
+                        </a>
+                        <span class="badge badge-secondary">${s.soporte_fecha}</span>
+                    </li>
+                `;
+            });
+
+            $("#listaSoportes").html(html);
+        }
+    });
+}
+

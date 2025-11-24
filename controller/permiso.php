@@ -6,6 +6,47 @@ require_once("../models/Permiso.php");
 
 $permiso = new Permiso();
 
+
+/**
+ * Genera un nombre único basado en timestamp
+ */
+/* function generarNombreUnico($nombre_original)
+{
+    $info = pathinfo($nombre_original);
+    $base  = $info['filename'];
+    $ext   = isset($info['extension']) ? "." . $info['extension'] : "";
+    return $base . "_" . date("Ymd_His") . $ext;
+} */
+
+
+function ftp_mksubdirs_safe($ftp, $path)
+{
+    $parts = explode('/', trim($path, '/'));
+    $fullpath = "";
+
+    foreach ($parts as $part) {
+
+        if ($part == "") continue;
+
+        $fullpath .= "/" . $part;
+
+        // Intentar cambiar
+        if (@ftp_chdir($ftp, $fullpath)) {
+            // Existe → regresar a raíz y seguir
+            ftp_chdir($ftp, "/");
+            continue;
+        }
+
+        // Si no existe → intentar crearlo
+        if (!@ftp_mkdir($ftp, $fullpath)) {
+            return false; // No se pudo crear
+        }
+    }
+
+    return true;
+}
+
+
 switch ($_GET["op"]) {
 
     case 'guardarPermiso':
@@ -179,7 +220,8 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado) {
+        function obtenerIconoPorEstado($estado)
+        {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-warning"], // Pendiente
@@ -308,6 +350,156 @@ switch ($_GET["op"]) {
     ';
 
         echo $html;
+
+        break;
+
+    case "subirSoporte":
+
+        $empleado_id  = $_SESSION["id_empl"];
+        $nomb_empl    = str_replace(" ", "_", trim($_SESSION["nomb_empl"]));
+
+        $permiso_id   = $_POST["permiso_id"];
+
+        $tmpFile      = $_FILES["file"]["tmp_name"];
+        $fileName     = $_FILES["file"]["name"];
+
+        $fecha        = date("Y-m-d");
+
+        // Ruta remota final donde irá el archivo
+        $remotePath     = "data01/permisos/$nomb_empl/$fecha";
+        $remoteFullPath = "/$remotePath/$fileName";
+
+        // ===========================
+        // 1. CREAR CARPETAS VÍA FTP
+        // ===========================
+
+        $ftp_server   = "172.16.5.3";
+        $ftp_user     = "asfaltart_admin";
+        $ftp_pass     = "s1st3m4s19..";
+
+        $ftp = ftp_connect($ftp_server);
+        ftp_login($ftp, $ftp_user, $ftp_pass);
+
+        // Modo pasivo recomendado
+        ftp_pasv($ftp, true);
+
+        // Crear recursivamente: data01/permisos/{empleado}/{fecha}
+        // Crear recursivamente: data01/permisos/{empleado}/{fecha}
+        if (!ftp_mksubdirs_safe($ftp, "data01/permisos/$nomb_empl/$fecha")) {
+            echo json_encode([
+                "success" => false,
+                "message" => "No fue posible crear las carpetas en el NAS."
+            ]);
+            ftp_close($ftp);
+            exit;
+        }
+
+        ftp_close($ftp);
+
+
+        // ===========================
+        // 2. SUBIR ARCHIVO CON WinSCP
+        // ===========================
+
+        $scriptPath = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_temp.txt";
+        $winscpCom  = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+
+        $scriptContent =
+            "open ftp://$ftp_user:$ftp_pass@$ftp_server\n" .
+            "put \"$tmpFile\" \"$remoteFullPath\"\n" .
+            "exit\n";
+
+        file_put_contents($scriptPath, $scriptContent);
+
+        $cmd = "\"$winscpCom\" /ini=nul /script=\"$scriptPath\"";
+        exec($cmd . " 2>&1", $output, $resultCode);
+
+        unlink($scriptPath);
+
+
+        if ($resultCode === 0) {
+
+            $permiso->registrar_soporte_permiso(
+                $permiso_id,
+                $fileName,
+                $remoteFullPath
+            );
+
+            echo json_encode([
+                "success" => true,
+                "message" => "Soporte subido correctamente"
+            ]);
+        } else {
+
+            echo json_encode([
+                "success" => false,
+                "message" => "Error subiendo archivo",
+                "debug"   => $output
+            ]);
+        }
+
+        break;
+
+    case "listarSoportes":
+
+        $permiso_id = $_POST["permiso_id"];
+        $data = $permiso->get_soportes_permiso($permiso_id);
+
+        echo json_encode($data);
+        break;
+
+    // -------------------------
+    // DESCARGAR ARCHIVO
+    // -------------------------
+    case "descargarSoporte":
+
+        if (!isset($_GET["file"])) {
+            echo "Archivo no especificado";
+            exit;
+        }
+
+        $ruta_remota = $_GET["file"];
+        $nombre_archivo = basename($ruta_remota);
+
+        // Carpeta temporal local
+        $temp_local = "D:\\xampp\\htdocs\\evds2023\\public\\temp\\";
+        if (!is_dir($temp_local)) {
+            mkdir($temp_local, 0777, true);
+        }
+
+        $ruta_local = $temp_local . $nombre_archivo;
+
+        // Script temporal
+        $scriptPath = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_descarga.txt";
+        $winscpCom  = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+
+        // Script FTP
+        $scriptContent =
+            "open ftp://asfaltart_admin:s1st3m4s19..@172.16.5.3\n" .
+            "get \"$ruta_remota\" \"$ruta_local\"\n" .
+            "exit\n";
+
+        file_put_contents($scriptPath, $scriptContent);
+
+        $cmd = "\"$winscpCom\" /ini=nul /script=\"$scriptPath\"";
+        exec($cmd . " 2>&1", $output, $result);
+
+        unlink($scriptPath);
+
+        if (!file_exists($ruta_local)) {
+            echo "No se pudo descargar el archivo.";
+            exit;
+        }
+
+        // Enviar archivo al navegador
+        header("Content-Type: application/octet-stream");
+        header("Content-Disposition: attachment; filename=\"$nombre_archivo\"");
+        header("Content-Length: " . filesize($ruta_local));
+
+        readfile($ruta_local);
+
+        unlink($ruta_local);
+
 
         break;
 }

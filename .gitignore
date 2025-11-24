@@ -8,6 +8,8 @@
 build/
 *.log
 *.tmp
+*.exe
+
 
 # IDE/OS
 .vscode/
