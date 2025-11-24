@@ -11,9 +11,9 @@
     <div class="card-body p-0">
         <ul class="nav nav-pills flex-column">
             <li class="nav-item active">
-                <a href="inboxSol.php" class="nav-link" id="abiertos-btn">
+                <a href="inbox.php" class="nav-link" id="solicitudes-btn">
                     <i class="fas fa-lock-open"></i> Solicitudes
-                    <span class="badge bg-primary float-right">12</span>
+                    <!-- <span class="badge bg-primary float-right">12</span> -->
                 </a>
             </li>
 

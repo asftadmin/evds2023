@@ -19,8 +19,7 @@ $permiso = new Permiso();
 } */
 
 
-function ftp_mksubdirs_safe($ftp, $path)
-{
+function ftp_mksubdirs_safe($ftp, $path) {
     $parts = explode('/', trim($path, '/'));
     $fullpath = "";
 
@@ -172,6 +171,70 @@ switch ($_GET["op"]) {
 
         break;
 
+    case "listarSolicitudesRecursos":
+
+        $datos = $permiso->get_solicitudes_recursos();
+        $data = array();
+        //$tickets = [];
+        foreach ($datos as $solicitud) {
+            $sub_array = array();
+            $sub_array[] = $solicitud["empleado_nombre"];
+            $sub_array[] = date('d-m-Y', strtotime($solicitud["permiso_fecha"]));
+            $sub_array[] = $solicitud["tipo_nombre"];
+            $sub_array[] = $solicitud["jefe_nombre"];
+            $sub_array[] = $solicitud["fecha_actu_permiso"];
+
+            $estado = $solicitud["estado_permiso"];
+            $badge = '';
+
+            switch ($estado) {
+                case 'Pendiente Aprobacion':
+                    $badge = '<span class="badge bg-secondary">Pendiente Aprobacion</span>';
+                    break;
+                case 'Aprobado Jefe':
+                    $badge = '<span class="badge bg-success">Aprobado Jefe</span>';
+                    break;
+                case 'Vbo. Gestion Humana':
+                    $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
+                    break;
+                case 'Aprobado con pendientes':
+                    $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
+                    break;
+                case 'Rechazado':
+                    $badge = '<span class="badge bg-danger">Rechazado Jefe</span>';
+                    break;
+                case 'Cancelado Operacion':
+                    $badge = '<span class="badge bg-danger">Cancelado Operacion</span>';
+                    break;
+                default:
+                    $badge = '<span class="badge bg-dark">Desconocido</span>';
+                    break;
+            }
+
+            $sub_array[] = '<div class="text-center">' . $badge . '</div>';
+
+            $sub_array[] = '<div class="button-container text-center" >
+                    <button type="button" onClick="ver(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-warning btn-icon " >
+                        <div><i class="fas fa-edit"></i></div>
+                    </button>
+                    <button type="button" onClick="verTimeline(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-dark btn-icon " >
+                        <div><i class="fas fa-stream"></i></div>
+                    </button>
+                </div>';
+
+            $data[] = $sub_array;
+        }
+
+        $results = array(
+            "sEcho" => 1,
+            "iTotalRecords" => count($data),
+            "iTotalDisplayRecords" => count($data),
+            "aaData" => $data
+        );
+        echo json_encode($results);
+
+        break;
+
     case "aprobarPermiso":
 
         $codigo_permiso = $_POST["codigo_permiso"];
@@ -204,6 +267,87 @@ switch ($_GET["op"]) {
 
         break;
 
+    case "detallePermiso":
+        if (!isset($_GET['id'])) {
+            echo json_encode(['status' => 'error', 'message' => 'ID no proporcionado']);
+            exit;
+        }
+
+        $permisoID = $_GET['id'];
+        $detalle = $permiso->get_detalle_permiso($permisoID);
+
+        if (!$detalle) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'No se encontraron datos del permiso.'
+            ]);
+            exit;
+        }
+
+        $row = $detalle; // es solo un registro
+
+        // Datos del empleado y jefe inmediato
+        $empleado  = $row['empleado_nombre'];
+        $jefe      = $row['jefe_nombre'];
+
+        // HTML construido dinámicamente
+        $html = '';
+
+        $html .= '<div class="mailbox-read-info">';
+
+        $html .= '<h3><b>Detalle de Permiso #' . htmlspecialchars($permisoID) . '</b></h3>';
+        $html .= '<p><b>Empleado:</b> ' . htmlspecialchars($empleado) . '</p>';
+        $html .= '<p><b>Jefe Inmediato:</b> ' . htmlspecialchars($jefe) . '</p>';
+
+        $html .= '</div><hr>';
+
+
+        /* =============================
+        FORMULARIO EDITABLE (RRHH)
+       ============================= */
+
+        $html .= '<div class="mailbox-read-message">';
+
+        // fecha
+        $html .= '<label>Fecha Permiso:</label>';
+        $html .= '<input type="date" id="permiso_fecha" class="form-control" value="' . $row['permiso_fecha'] . '">';
+
+        // hora salida
+        $html .= '<label class="mt-2">Hora Salida:</label>';
+        $html .= '<input type="time" id="permiso_hora_salida" class="form-control" value="' . $row['permiso_hora_salida'] . '">';
+
+        // hora entrada
+        $html .= '<label class="mt-2">Hora Entrada:</label>';
+        $html .= '<input type="time" id="permiso_hora_entrada" class="form-control" value="' . $row['permiso_hora_entrada'] . '">';
+
+        // motivo
+        $html .= '<label class="mt-2">Motivo:</label>';
+        $html .= '<textarea id="permiso_motivo" class="form-control">' . $row['tipo_nombre'] . '</textarea>';
+
+        // justificación
+        $html .= '<label class="mt-2">Justificación:</label>';
+        $html .= '<textarea id="permiso_justificacion" class="form-control">' . $row['permiso_detalle'] . '</textarea>';
+
+        // Select estado
+        $html .= '<label class="mt-3 fw-bold">Estado de la Solicitud:</label>';
+        $html .= '<select id="permiso_estado" class="form-control select2">
+                <option value="3" ' . ($row['permiso_estado'] == 3 ? 'selected' : '') . '>V°B° Gestión Humana</option>
+                <option value="4" ' . ($row['permiso_estado'] == 4 ? 'selected' : '') . '>Aprobado con Pendientes</option>
+              </select>';
+
+        $html .= '<button class="btn btn-success mt-3" onclick="guardarDetallePermiso(' . $permisoID . ')">
+                Guardar Cambios
+              </button>';
+
+        $html .= '</div>';
+
+        echo json_encode([
+            'status' => 'success',
+            'html' => $html
+        ]);
+
+
+        break;
     case "timeline":
 
         $permiso_id = $_POST["permiso_id"];
@@ -220,8 +364,7 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado)
-        {
+        function obtenerIconoPorEstado($estado) {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-warning"], // Pendiente
