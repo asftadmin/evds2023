@@ -44,11 +44,10 @@ $(document).ready(function () {
 
 
 $('#btnVolverR').click(function () {
-    // Verificar si viene de tickets.php
-    if (document.referrer.indexOf('inboxEmpl.php') !== -1) {
-        history.back(); // Regresa a la página anterior
-    } else {
-        window.location.href = 'inboxEmpl.php'; // Redirige por defecto
+    // 1. Si hay historial previo → volver
+    if (document.referrer && document.referrer !== "") {
+        history.back();
+        return;
     }
 });
 

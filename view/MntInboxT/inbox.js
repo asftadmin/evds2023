@@ -90,7 +90,10 @@ function ver(permisoID) {
 }
 
 
-
+function verTimeline(permisoID){
+    window.location.href = BASE_URL + '/view/MntInboxEmpl/detalle_permiso.php?id=' + permisoID; //http://181.204.219.154:3396/preoperacional
+    cargarTimeline(permisoID);
+}
 
 
 

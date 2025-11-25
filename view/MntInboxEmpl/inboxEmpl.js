@@ -84,7 +84,6 @@ var getURLParameter = function(sParam) {
 
 function verPermiso(permisoId) {
     window.location.href = BASE_URL + '/view/MntInboxEmpl/detalle_permiso.php?id=' + permisoId; //http://181.204.219.154:3396/preoperacional
-
 }
 
 

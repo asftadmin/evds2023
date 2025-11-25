@@ -64,7 +64,8 @@ class Permiso extends Conectar {
                     permiso_creado,
                     permiso_estado,
                     fecha_actu_permiso,
-                    rechazo_permiso 
+                    rechazo_permiso,
+                    fecha_actu_rrhh
                 FROM permisos_personal p WHERE p.permiso_id = ?";
         $stmt = $conectar->prepare($sql);
         $stmt->bindValue(1, $codigo_permiso, PDO::PARAM_INT);
@@ -198,6 +199,57 @@ class Permiso extends Conectar {
         $stmt->bindValue(1, $permiso_id);
         $stmt->execute();
 
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function get_permiso_by_id($permiso_id) {
+        $conectar = parent::Conexion();
+        $sql = "SELECT p.*, e.nomb_empl
+            FROM permisos_personal p
+            INNER JOIN empleados e ON e.id_empl = p.empleado_id
+            WHERE permiso_id = ?";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $permiso_id);
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function actualizar_permiso_rrhh(
+        $permiso_id,
+        $permiso_fecha,
+        $hora_salida,
+        $hora_entrada,
+        $motivo,
+        $justificacion,
+        $estado,
+        $rrhh_id,
+        $fecha_actu_rrhh
+    ) {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "UPDATE permisos_personal 
+            SET 
+                permiso_fecha        = ?,
+                permiso_hora_salida  = ?,
+                permiso_hora_entrada = ?,
+                permiso_tipo         = ?,
+                permiso_detalle      = ?,
+                permiso_estado       = ?,
+                aprobado_rrhh_id     = ?,
+                fecha_actu_rrhh      = NOW()
+            WHERE permiso_id = ?";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $permiso_fecha);
+        $stmt->bindValue(2, $hora_salida);
+        $stmt->bindValue(3, $hora_entrada);
+        $stmt->bindValue(4, $motivo);
+        $stmt->bindValue(5, $justificacion);
+        $stmt->bindValue(6, $estado);
+        $stmt->bindValue(7, $rrhh_id);
+        $stmt->bindValue(8, $permiso_id);
+
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

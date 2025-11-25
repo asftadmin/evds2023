@@ -310,36 +310,51 @@ switch ($_GET["op"]) {
 
         // fecha
         $html .= '<label>Fecha Permiso:</label>';
-        $html .= '<input type="date" id="permiso_fecha" class="form-control" value="' . $row['permiso_fecha'] . '">';
+        $html .= '<input type="date" id="permiso_fecha" name="permiso_fecha" class="form-control" data-target="#reservationdate_fecha" value="' . $row['permiso_fecha'] . '">';
+        $html .= '<div class="input-group-append" data-target="#reservationdate_fecha" data-toggle="datetimepicker">';
+        $html .= '</div>';
 
         // hora salida
         $html .= '<label class="mt-2">Hora Salida:</label>';
-        $html .= '<input type="time" id="permiso_hora_salida" class="form-control" value="' . $row['permiso_hora_salida'] . '">';
+        $html .= '<input type="time" id="permiso_hora_salida" name="permiso_hora_salida" class="form-control" autocomplete="off" value="' . $row['permiso_hora_salida'] . '">';
 
         // hora entrada
         $html .= '<label class="mt-2">Hora Entrada:</label>';
-        $html .= '<input type="time" id="permiso_hora_entrada" class="form-control" value="' . $row['permiso_hora_entrada'] . '">';
+        $html .= '<input type="time" id="permiso_hora_entrada" name="permiso_hora_entrada" class="form-control" autocomplete="off" value="' . $row['permiso_hora_entrada'] . '">';
 
         // motivo
         $html .= '<label class="mt-2">Motivo:</label>';
-        $html .= '<textarea id="permiso_motivo" class="form-control">' . $row['tipo_nombre'] . '</textarea>';
+        $html .= '<select id="permiso_motivo" name="permiso_motivo" class="form-control" data-valorbd="' . $row["tipo_id"] . '">';
+        //$html .= '<option value="' . $row['tipo_id'] . '">' . $row['tipo_nombre'] . '</option>';
+        $html .= '</select>';
+        //<option value='".$row['tipo_id']."'>".$row['tipo_nombre']."</option>
 
-        // justificación
+        // justificación 
         $html .= '<label class="mt-2">Justificación:</label>';
-        $html .= '<textarea id="permiso_justificacion" class="form-control">' . $row['permiso_detalle'] . '</textarea>';
+        $html .= '<textarea id="permiso_justificacion" name="permiso_justificacion" class="form-control">' . $row['permiso_detalle'] . '</textarea>';
 
         // Select estado
         $html .= '<label class="mt-3 fw-bold">Estado de la Solicitud:</label>';
-        $html .= '<select id="permiso_estado" class="form-control select2">
+        $html .= '<select id="permiso_estado" name="permiso_estado" class="form-control select2">
                 <option value="3" ' . ($row['permiso_estado'] == 3 ? 'selected' : '') . '>V°B° Gestión Humana</option>
                 <option value="4" ' . ($row['permiso_estado'] == 4 ? 'selected' : '') . '>Aprobado con Pendientes</option>
               </select>';
 
-        $html .= '<button class="btn btn-success mt-3" onclick="guardarDetallePermiso(' . $permisoID . ')">
-                Guardar Cambios
-              </button>';
-
         $html .= '</div>';
+        $html .= '</form>';
+
+        $html .= '<ul id="listaSoportes" class="list-group mt-3 mb-3"></ul>';
+
+        $html .= '<form action="" class="dropzone" id="uploadZona">';
+        $html .= '<div class="dz-default dz-message">';
+        $html .= '<button class="dz-button" type="button">';
+        $html .= '<i class="fas fa-cloud-upload-alt icon-super-upload"></i>';
+        $html .= '<div style="font-size: 18px; font-weight: bold; margin-top: 10px; text-aling: center;"> Arrastra tus archivos o haz clic aquí </div>';
+        $html .= '</button>';
+        $html .= '</div>';
+        $html .= '</form>';
+
+
 
         echo json_encode([
             'status' => 'success',
@@ -348,6 +363,7 @@ switch ($_GET["op"]) {
 
 
         break;
+
     case "timeline":
 
         $permiso_id = $_POST["permiso_id"];
@@ -367,16 +383,16 @@ switch ($_GET["op"]) {
         function obtenerIconoPorEstado($estado) {
 
             $iconos = [
-                "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-warning"], // Pendiente
+                "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
                 "2" => ["icon" => "fas fa-check",          "bg" => "bg-success"], // Aprobado Jefe
                 "3" => ["icon" => "fas fa-user-tie",       "bg" => "bg-primary"], // VoBo RRHH
-                "4" => ["icon" => "fas fa-exclamation",    "bg" => "bg-info"],    // Aprobado con pendientes
-                "5" => ["icon" => "fas fa-exclamation",    "bg" => "bg-info"],    // Aprobado con pendientes
+                "4" => ["icon" => "fas fa-exclamation",    "bg" => "bg-warning"],    // Aprobado con pendientes
+                "5" => ["icon" => "fas fa-exclamation",    "bg" => "bg-warning"],    // Aprobado con pendientes
                 "6" => ["icon" => "fas fa-times",          "bg" => "bg-danger"],  // Rechazado Jefe
                 "7" => ["icon" => "fas fa-ban",            "bg" => "bg-dark"],    // Cancelado Operación
             ];
 
-            return $iconos[$estado] ?? ["icon" => "fas fa-info-circle", "bg" => "bg-secondary"];
+            return $iconos[$estado] ?? ["icon" => "fas fa-info-circle", "bg" => "bg-primary"];
         }
 
         // -----------------------------------------
@@ -393,23 +409,37 @@ switch ($_GET["op"]) {
             $fecha = date("d M Y", strtotime($data["permiso_creado"]));
             $hora  = date("h:i A", strtotime($data["permiso_creado"]));
 
+            // El icono SIEMPRE debe ser el del estado 1 (solicitado)
+            $ico = obtenerIconoPorEstado(1);
+
+            // Texto correspondiente
+            if ($data["permiso_estado"] >= 1) {
+                $titulo = "Permiso Solicitado";
+                $descripcion = "El empleado radicó la solicitud.";
+            } else {
+                // fallback seguro
+                $titulo = "Registro del Permiso";
+                $descripcion = "Se registró la radicación del permiso.";
+            }
+
+            // HTML del timeline
             $html .= '
-            <div class="time-label">
-                <span class="bg-blue">' . $fecha . '</span>
-            </div>
+                <div class="time-label">
+                    <span class="' . $ico["bg"] . '">' . $fecha . '</span>
+                </div>
 
-            <div>
-                <i class="fas fa-user bg-blue"></i>
+                <div>
+                    <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
 
-                <div class="timeline-item">
-                    <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
-                    <h3 class="timeline-header"><strong>Permiso Solicitado</strong></h3>
-                    <div class="timeline-body">
-                        El empleado radicó la solicitud.
+                    <div class="timeline-item">
+                        <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
+                        <h3 class="timeline-header"><strong>' . $titulo . '</strong></h3>
+                        <div class="timeline-body">
+                            ' . $descripcion . '
+                        </div>
                     </div>
                 </div>
-            </div>
-        ';
+            ';
         }
 
 
@@ -418,69 +448,99 @@ switch ($_GET["op"]) {
         // ------------------------
         if (!empty($data["fecha_actu_permiso"])) {
 
-            $ico = obtenerIconoPorEstado($data["permiso_estado"]);
-
             $fecha = date("d M Y", strtotime($data["fecha_actu_permiso"]));
             $hora  = date("h:i A", strtotime($data["fecha_actu_permiso"]));
 
-            // Texto dinámico según estado
-            if ($data["permiso_estado"] == "6") {
-                $titulo = "Permiso Rechazado por Jefe";
+            // Determinar si aprobó o rechazó
+            if ($data["permiso_estado"] == 2) {
 
-                // Mostrar motivo del rechazo
-                $detalle = "
-            <strong>Motivo del rechazo:</strong><br>
-            " . (!empty($data["rechazo_permiso"]) ? nl2br($data["rechazo_permiso"]) : "No especificado.") . "
-        ";
-            } else {
+                // Aprobado por jefe
+                $ico = obtenerIconoPorEstado(2);
                 $titulo = "Aprobación del Jefe";
-                $detalle = "Acción realizada por el jefe inmediato.";
+                $descripcion = "Aprobacion por el jefe inmediato.";
+            } elseif ($data["permiso_estado"] == 6) {
+
+                // Rechazado por jefe
+                $ico = obtenerIconoPorEstado(6);
+                $titulo = "Permiso Rechazado por el Jefe";
+                $descripcion = !empty($data["rechazo_permiso"])
+                    ? $data["rechazo_permiso"]
+                    : "El jefe rechazó el permiso.";
+            } else {
+                // Si el estado no corresponde, no mostrar este bloque.
+                $ico = obtenerIconoPorEstado(2);
+                $titulo = "Gestión del Jefe";
+                $descripcion = "Aprobacion realizada por el jefe.";
             }
 
             $html .= '
-            <div class="time-label">
-                <span class="bg-success">' . $fecha . '</span>
-            </div>
-
-            <div>
-                <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
-
-                <div class="timeline-item">
-                    <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
-                    <h3 class="timeline-header"><strong>' . $titulo . '</strong></h3>
-                    <div class="timeline-body">' . $detalle . '</div>
+                <div class="time-label">
+                    <span class="' . $ico["bg"] . '">' . $fecha . '</span>
                 </div>
-            </div>
-        ';
+
+                <div>
+                    <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
+
+                    <div class="timeline-item">
+                        <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
+                        <h3 class="timeline-header"><strong>' . $titulo . '</strong></h3>
+                        <div class="timeline-body">
+                            ' . $descripcion . '
+                        </div>
+                    </div>
+                </div>';
         }
 
 
         // --------------------------------
         // 3. VISTO BUENO DE RRHH
         // --------------------------------
-        /*         if (!empty($data["fecha_actu_rrhh"])) {
+        if (
+            !empty($data["fecha_actu_rrhh"]) &&
+            $data["fecha_actu_rrhh"] != "0000-00-00 00:00:00"
+        ) {
 
             $fecha = date("d M Y", strtotime($data["fecha_actu_rrhh"]));
             $hora  = date("h:i A", strtotime($data["fecha_actu_rrhh"]));
 
+            $ico = obtenerIconoPorEstado($data["permiso_estado"]);
+
+            // ============================
+            // TEXTO SEGÚN ESTADO
+            // ============================
+            if ($data["permiso_estado"] == '3') {
+                $titulo = "V°B° Gestión Humana";
+                $descripcion = "Gestión Humana validó y cerró el permiso.";
+            } elseif ($data["permiso_estado"] == '4') {
+                $titulo = "Aprobado con Pendientes";
+                $descripcion = "El permiso fue aprobado, pero queda pendiente la carga de soportes.";
+            } else {
+                $titulo = "Actualización de Gestión Humana";
+                $descripcion = "Se registró una actualización por parte de Gestión Humana.";
+            }
+
+            // ============================
+            // TIMELINE HTML
+            // ============================
             $html .= '
-            <div class="time-label">
-                <span class="bg-primary">' . $fecha . '</span>
-            </div>
+                <div class="time-label">
+                    <span class="' . $ico["bg"] . '">' . $fecha . '</span>
+                </div>
 
-            <div>
-                <i class="fas fa-user-tie bg-primary"></i>
+                <div>
+                    <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
 
-                <div class="timeline-item">
-                    <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
-                    <h3 class="timeline-header"><strong>Visto Bueno de Gestión Humana</strong></h3>
-                    <div class="timeline-body">
-                        Gestión Humana validó y cerró el permiso.
+                    <div class="timeline-item">
+                        <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
+                        <h3 class="timeline-header"><strong>' . $titulo . '</strong></h3>
+                        <div class="timeline-body">
+                            ' . $descripcion . '
+                        </div>
                     </div>
                 </div>
-            </div>
-        ';
-        } */
+            ';
+        }
+
 
 
         // ------------------------
@@ -488,7 +548,7 @@ switch ($_GET["op"]) {
         // ------------------------
         $html .= '
         <div>
-            <i class="fas fa-clock bg-gray"></i>
+            <i class="fas fa-clock bg-primary"></i>
         </div>
     ';
 
@@ -498,10 +558,24 @@ switch ($_GET["op"]) {
 
     case "subirSoporte":
 
-        $empleado_id  = $_SESSION["id_empl"];
-        $nomb_empl    = str_replace(" ", "_", trim($_SESSION["nomb_empl"]));
-
         $permiso_id   = $_POST["permiso_id"];
+
+        $datosPermiso = $permiso->get_permiso_by_id($permiso_id);
+
+        if (!$datosPermiso) {
+            echo json_encode([
+                "success" => false,
+                "message" => "Permiso no encontrado."
+            ]);
+            exit;
+        }
+
+        $empleado_id  = $datosPermiso["empleado_id"];
+        $nomb_empl    = str_replace(" ", "_", trim($datosPermiso["nomb_empl"]));
+
+        // ===========================
+        // 2. DATOS DEL ARCHIVO
+        // ===========================
 
         $tmpFile      = $_FILES["file"]["tmp_name"];
         $fileName     = $_FILES["file"]["name"];
@@ -513,7 +587,7 @@ switch ($_GET["op"]) {
         $remoteFullPath = "/$remotePath/$fileName";
 
         // ===========================
-        // 1. CREAR CARPETAS VÍA FTP
+        // 3. CREAR CARPETAS VÍA FTP
         // ===========================
 
         $ftp_server   = "172.16.5.3";
@@ -544,8 +618,8 @@ switch ($_GET["op"]) {
         // 2. SUBIR ARCHIVO CON WinSCP
         // ===========================
 
-        $scriptPath = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_temp.txt";
-        $winscpCom  = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+        $scriptPath = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_temp.txt";
+        $winscpCom  = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
 
         $scriptContent =
             "open ftp://$ftp_user:$ftp_pass@$ftp_server\n" .
@@ -642,6 +716,34 @@ switch ($_GET["op"]) {
         readfile($ruta_local);
 
         unlink($ruta_local);
+
+
+        break;
+
+    case "updateRecursos":
+
+        $permisoID = $_POST['permiso_id'];
+
+        // ID del empleado logueado
+        $fecha_permiso = $_POST["permiso_fecha"];
+        $hora_salida = $_POST["permiso_hora_salida"];
+        $hora_ingreso = $_POST["permiso_hora_entrada"];
+
+        // Datos recibidos del formulario
+        $motivo = $_POST["permiso_motivo"];
+        $detalle = $_POST["permiso_justificacion"];
+        $estado = $_POST["permiso_estado"];
+
+        $rrhh_id     = $_SESSION["id_empl"];
+        $fecha_actu  = date("Y-m-d H:i:s");
+
+        $resultado = $permiso->actualizar_permiso_rrhh($permisoID, $fecha_permiso, $hora_salida, $hora_ingreso, $motivo, $detalle, $estado, $rrhh_id, $fecha_actu);
+
+        if ($resultado) {
+            echo json_encode(["success" => true]);
+        } else {
+            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+        }
 
 
         break;
