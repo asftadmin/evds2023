@@ -252,4 +252,41 @@ class Permiso extends Conectar {
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function get_detalle_PDF($permiso_id) {
+        $conectar = parent::Conexion();
+        $sql = "SELECT 
+                    p.*,
+                    cg.nomb_carg AS cargo,
+                    em.nomb_empl AS empleado_nombre,
+                    p.permiso_firma AS firma_empleado,
+                    jf.nomb_empl AS jefe_nombre,
+                    fj.firma_base64 AS firma_jefe,
+                    gh.nomb_empl AS recurso_humano,
+                    fr.firma_base64 AS firma_rrhh,
+                    tp.*
+                FROM permisos_personal p
+                INNER JOIN empleados em 
+                    ON em.id_empl = p.empleado_id
+                INNER JOIN cargo cg 
+                    ON cg.codi_carg = em.carg_empl
+                LEFT JOIN empleado_jefe ej 
+                    ON ej.empleado_id = p.empleado_id
+                LEFT JOIN empleados jf 
+                    ON jf.id_empl = ej.jefe_id
+                LEFT JOIN firma_usuario fj 
+                    ON fj.user_id = ej.jefe_id
+                LEFT JOIN empleados gh 
+                    ON gh.id_empl = p.aprobado_rrhh_id
+                LEFT JOIN firma_usuario fr 
+                    ON fr.user_id = p.aprobado_rrhh_id
+                INNER JOIN tipo_permiso tp 
+                    ON tp.tipo_id = p.permiso_tipo
+                WHERE p.permiso_id = ?";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $permiso_id, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }

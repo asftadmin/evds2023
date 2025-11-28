@@ -93,28 +93,53 @@ function aprobar(codigo_permiso) {
 
                     let respuesta = JSON.parse(data);
 
+                    // ========================================
+                    // 1️⃣ SI NECESITA FIRMA → ABRIR MODAL
+                    // ========================================
+                    if (respuesta.need_firma) {
+
+                        // Guardamos el permiso para aprobar después
+                        window.codigo_permiso_global = codigo_permiso;
+
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Firma requerida",
+                            text: respuesta.message,
+                            confirmButtonText: "Registrar firma"
+                        }).then(() => {
+                            $("#modalFirmaJefe").modal("show");
+                            inicializarFirma();
+                        });
+
+                        return; // detener aquí
+                    }
+
+                    // ========================================
+                    // 2️⃣ APROBADO NORMALMENTE
+                    // ========================================
                     if (respuesta.success) {
 
                         Swal.fire({
                             title: "Aprobado",
-                            text: respuesta.message,
+                            text: "Permiso aprobado correctamente",
                             icon: "success",
                             timer: 1500,
                             showConfirmButton: false
                         });
 
-                        // RECARGAR DATATABLE
                         $("#tableSolicitudes").DataTable().ajax.reload();
-
-                    } else {
-
-                        Swal.fire({
-                            title: "Advertencia",
-                            text: respuesta.message,
-                            icon: "warning"
-                        });
-
+                        return;
                     }
+
+                    // ========================================
+                    // 3️⃣ Cualquier otro error
+                    // ========================================
+                    Swal.fire({
+                        title: "Advertencia",
+                        text: respuesta.error ?? "No se pudo aprobar el permiso.",
+                        icon: "warning"
+                    });
+
                 }
             ).fail(function (xhr) {
                 Swal.fire("Error", "Error en el servidor.", "error");
@@ -123,7 +148,122 @@ function aprobar(codigo_permiso) {
 
         }
     });
-    
+
+}
+
+
+function inicializarFirma() {
+    const canvas = document.getElementById("canvasFirma");
+    const ctx = canvas.getContext("2d");
+    let dibujando = false;
+
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#000";
+    ctx.lineJoin = "round";
+
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        if (e.touches) {
+            return {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        } else {
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+    }
+
+    function iniciarDibujo(e) {
+        e.preventDefault();
+        dibujando = true;
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+    }
+
+    function dibujar(e) {
+        if (!dibujando) return;
+        e.preventDefault();
+        const pos = getPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+    }
+
+    function detenerDibujo(e) {
+        e.preventDefault();
+        dibujando = false;
+    }
+
+    // Eventos mouse
+    canvas.addEventListener("mousedown", iniciarDibujo);
+    canvas.addEventListener("mousemove", dibujar);
+    canvas.addEventListener("mouseup", detenerDibujo);
+    canvas.addEventListener("mouseleave", detenerDibujo);
+
+    // Eventos touch
+    canvas.addEventListener("touchstart", iniciarDibujo);
+    canvas.addEventListener("touchmove", dibujar);
+    canvas.addEventListener("touchend", detenerDibujo);
+    canvas.addEventListener("touchcancel", detenerDibujo);
+
+    // Limpiar
+    $("#btnLimpiarFirma").off("click").on("click", function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        $("#previewFirma").html("");
+    });
+
+    // Guardar (solo visual por ahora)
+    // Guardar firma en input + mostrar preview
+    $("#btnGuardarFirma").off("click").on("click", function () {
+
+        const firmaData = canvas.toDataURL("image/png");
+
+        if (!firmaData) {
+            Swal.fire("Error", "No se pudo capturar la firma.", "error");
+            return;
+        }
+
+        // Bloqueo mientras guarda
+        Swal.fire({
+            title: "Guardando firma...",
+            text: "Por favor espere",
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        $.post(
+            "../../controller/firma.php?op=guardar",
+            { firma_base64: firmaData },
+            function (resp) {
+
+                let r = JSON.parse(resp);
+
+                if (r.success) {
+
+                    Swal.fire({
+                        icon: "success",
+                        title: r.message,
+                        timer: 1200,
+                        showConfirmButton: false
+                    });
+
+                    $("#modalFirmaJefe").modal("hide");
+
+                    // Si venimos de aprobar un permiso,
+                    // volvemos a intentar aprobarlo automáticamente
+                    if (window.codigo_permiso_global) {
+                        aprobar(window.codigo_permiso_global);
+                    }
+
+                } else {
+                    Swal.fire("Error", r.message, "error");
+                }
+            }
+        );
+    });
 }
 
 function rechazar(codigo_permiso) {

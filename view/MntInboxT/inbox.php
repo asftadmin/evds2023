@@ -62,10 +62,11 @@ if (isset($_SESSION["user_id"])) {
                                     <h3 class="card-title">Gestion Solicitudes - Permisos</h3>
                                 </div>
 
-                                <div class="card-body p-0">
+                                <div class="card-body p-2">
 
                                     <div class="table-responsive mailbox-messages">
-                                        <table class="table table-hover table-striped" id="tablaSolcRhumano">
+                                        <table class="table table-hover table-striped table-bordered display nowrap"
+                                            id="tablaSolcRhumano" style="width:100%">
                                             <thead>
                                                 <tr>
                                                     <th>Empleado</th>

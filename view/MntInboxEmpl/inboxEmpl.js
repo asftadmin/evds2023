@@ -86,8 +86,83 @@ function verPermiso(permisoId) {
     window.location.href = BASE_URL + '/view/MntInboxEmpl/detalle_permiso.php?id=' + permisoId; //http://181.204.219.154:3396/preoperacional
 }
 
+$(document).ready(function () {
+    $("#btnFirma").on("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Verificar que el modal existe en esta vista
+        if ($("#modalFirmaEmpleado").length > 0) {
+            $("#modalFirmaEmpleado").modal("show");
+        } else {
+            Swal.fire({
+                icon: "error",
+                title: "Modal no encontrado",
+                text: "El modal de firma no está cargado en esta vista."
+            });
+        }
+    });
+});
+
+//FIRMA GESTION HUMANA
+
+/* let firmaBase64 = "";
+let userId = $("#empl_idx").val();
+
+$("#firmaFile").on("change", function () {
+
+    let file = this.files[0];
+    if (!file) return;
+
+    let reader = new FileReader();
+
+    reader.onload = function (e) {
+        firmaBase64 = e.target.result; // base64 de la imagen
+
+        $("#previewFirmaEmpleado")
+            .attr("src", firmaBase64)
+            .show();
+
+        $("#btnGuardarFirmaEmpleado").prop("disabled", false);
+    };
+
+    reader.readAsDataURL(file);
+});
 
 
+$("#btnGuardarFirmaEmpleado").click(function () {
+
+    if (!firmaBase64) {
+        Swal.fire("Advertencia", "Debes seleccionar una imagen.", "warning");
+        return;
+    }
+
+    $.ajax({
+        url: "../../controller/firma.php?op=guardar",
+        type: "POST",
+        data: { firma_base64: firmaBase64 },
+        success: function (response) {
+            let res = JSON.parse(response);
+
+            if (res.success) {
+                Swal.fire("Éxito", res.message, "success");
+                $("#modalFirmaEmpleado").modal("hide");
+            } else {
+                Swal.fire("Error", res.message, "error");
+            }
+        },
+        error: function () {
+            Swal.fire("Error", "No se pudo guardar la firma.", "error");
+        }
+    });
+
+}); */
+
+
+
+
+
+/* */
 
 
 

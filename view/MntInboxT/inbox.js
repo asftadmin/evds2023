@@ -17,12 +17,12 @@ function inicializarTabla() {
             "aProcessing": true,
             "aServerSide": true,
             "searching": false,
-            "lengthChange": false,
+            "lengthChange": true,
             "colReorder": true,
             "responsive": true,
-            "bInfo": true,
-            "iDisplayLength": 7,
             "autoWidth": false,
+            "bInfo": true,
+            "pageLength": 10, 
             "order": [[1, 'desc']],
             "language": {
                 "sProcessing": "Procesando...",
@@ -93,6 +93,12 @@ function ver(permisoID) {
 function verTimeline(permisoID){
     window.location.href = BASE_URL + '/view/MntInboxEmpl/detalle_permiso.php?id=' + permisoID; //http://181.204.219.154:3396/preoperacional
     cargarTimeline(permisoID);
+}
+
+function verPdf(permisoID) {
+    console.log(permisoID);
+    var url = BASE_URL + '/view/PDF/permisoPDF.php?id=' + permisoID; //http://181.204.219.154:3396/preoperacional
+    window.open(url, '_blank');
 }
 
 

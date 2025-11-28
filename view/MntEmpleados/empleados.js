@@ -340,6 +340,7 @@ function mostrarDescripcionEstado(valor) {
     $('#estado_descripcion').text(descripciones[valor] || 'Desconocido');
 }
 
+
 /* $(document).on("click","#btnNuevoEmple",function(){
 
     $('#lblTitulo').html('Nuevo Registro');

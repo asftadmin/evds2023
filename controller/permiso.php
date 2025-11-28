@@ -2,6 +2,7 @@
 
 require_once("../config/conexion.php");
 require_once("../models/Permiso.php");
+require_once("../models/Firma.php");
 
 
 $permiso = new Permiso();
@@ -182,7 +183,9 @@ switch ($_GET["op"]) {
             $sub_array[] = date('d-m-Y', strtotime($solicitud["permiso_fecha"]));
             $sub_array[] = $solicitud["tipo_nombre"];
             $sub_array[] = $solicitud["jefe_nombre"];
-            $sub_array[] = $solicitud["fecha_actu_permiso"];
+            $sub_array[] = (!empty($solicitud["fecha_actu_permiso"]) && $solicitud["fecha_actu_permiso"] != "0000-00-00 00:00:00")
+                ? date('d-m-Y H:i:s', strtotime($solicitud["fecha_actu_permiso"]))
+                : '';
 
             $estado = $solicitud["estado_permiso"];
             $badge = '';
@@ -220,6 +223,9 @@ switch ($_GET["op"]) {
                     <button type="button" onClick="verTimeline(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-dark btn-icon " >
                         <div><i class="fas fa-stream"></i></div>
                     </button>
+                    <button type="button" onClick="verPdf(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-danger btn-icon " >
+                        <div><i class="fas fa-file-pdf"></i></div>
+                    </button>
                 </div>';
 
             $data[] = $sub_array;
@@ -236,6 +242,21 @@ switch ($_GET["op"]) {
         break;
 
     case "aprobarPermiso":
+
+        $codigo_jefe = $_SESSION["id_empl"];
+
+        $firma = new Firma();
+
+        $firma_jefe = $firma->get_by_user_id($codigo_jefe);
+
+        if (!$firma_jefe || empty($firma_jefe["firma_base64"])) {
+            echo json_encode([
+                "success" => false,
+                "need_firma" => true,
+                "message" => "Debe registrar su firma antes de aprobar el permiso."
+            ]);
+            exit;
+        }
 
         $codigo_permiso = $_POST["codigo_permiso"];
         $codigo_empleado = $_SESSION["id_empl"];
