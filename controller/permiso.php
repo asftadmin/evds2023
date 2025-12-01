@@ -137,7 +137,7 @@ switch ($_GET["op"]) {
                     $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
                     break;
                 case 'Aprobado con pendientes':
-                    $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
+                    $badge = '<span class="badge bg-warning">Aprobado con pendientes</span>';
                     break;
                 case 'Rechazado':
                     $badge = '<span class="badge bg-danger">Rechazado Jefe</span>';
@@ -201,7 +201,7 @@ switch ($_GET["op"]) {
                     $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
                     break;
                 case 'Aprobado con pendientes':
-                    $badge = '<span class="badge bg-warning">Vbo. Gestion Humana</span>';
+                    $badge = '<span class="badge bg-warning">Aprobado con pendientes</span>';
                     break;
                 case 'Rechazado':
                     $badge = '<span class="badge bg-danger">Rechazado Jefe</span>';
