@@ -1,33 +1,31 @@
 <?php
 
-class Rutas extends Conectar
-{
-    public function insertar_rutas($empleado, $jefe_id)
-    {
+class Rutas extends Conectar {
+    public function insertar_rutas($empleado, $jefes) {
         $conectar = parent::conexion();
         parent::set_names();
         // Verificar si el array de empleados no está vacío
-        if (empty($empleado)) {
+        if (empty($empleado) || empty($jefes)) {
             throw new Exception('El array de empleados está vacío.');
         }
         // Iterar sobre el array de empleados y ejecutar la consulta para cada uno
         foreach ($empleado as $empleado_id) {
-            // Preparar la consulta dentro del bucle para cada empleado
-            $sql = "INSERT INTO empleado_jefe (empleado_id, jefe_id) 
-            VALUES (:empleado_id, :jefe_id)";
-            $stmt = $conectar->prepare($sql);
+            foreach ($jefes as $jefe_id) {
+                // Preparar la consulta dentro del bucle para cada empleado
+                $sql = "INSERT INTO empleado_jefe (empleado_id, jefe_id)
+                        VALUES (:empleado_id, :jefe_id)";
+                $stmt = $conectar->prepare($sql);
 
-            // Ejecutar la consulta con los valores actualess
-            $stmt->execute([
-                ':empleado_id' => $empleado_id,
-                ':jefe_id' => $jefe_id,
-            ]);
+                // Ejecutar la consulta con los valores actualess
+                $stmt->execute([
+                    ':empleado_id' => $empleado_id,
+                    ':jefe_id' => $jefe_id,
+                ]);
+            }
         }
-        //return $resultado = $sql->fetchAll();
     }
 
-    public function mostrar_rutas()
-    {
+    public function mostrar_rutas() {
 
         $conectar = parent::Conexion();
         $sql = "SELECT 
@@ -51,8 +49,7 @@ class Rutas extends Conectar
         return $query->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function update_estado_empleado($empleado_jefe)
-    {
+    public function update_estado_empleado($empleado_jefe) {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "UPDATE empleado_jefe SET ej_estado = '2' WHERE ej_id = ? ";
