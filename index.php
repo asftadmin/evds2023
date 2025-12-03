@@ -19,7 +19,7 @@ if (isset($_POST["enviar"]) and $_POST["enviar"] == "si") {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="shortcut icon" href="public/img/icono.png">
-    <title>ASFALTART</title>
+    <title>Gestion de Personal</title>
 
     <!-- Google Font: Source Sans Pro -->
     <link rel="stylesheet"
@@ -41,7 +41,7 @@ if (isset($_POST["enviar"]) and $_POST["enviar"] == "si") {
             </div>
             <div class="card-body">
 
-                <h5 class="text-center mb-4">Evaluacion Desempeño</h5>
+                <h5 class="text-center mb-4">Gestion de Personal</h5>
 
 
                 <form action="" method="post" id="loginForm">
