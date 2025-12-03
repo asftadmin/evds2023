@@ -1,15 +1,14 @@
 <?php
 
-  require_once("config/conexion.php");
-  if(isset($_POST["enviar"]) and $_POST["enviar"]=="si"){
+require_once("config/conexion.php");
+if (isset($_POST["enviar"]) and $_POST["enviar"] == "si") {
 
     require_once("models/Usuarios.php");
 
 
     $usuario = new Usuario();
     $usuario->login();
-
-  }
+}
 
 ?>
 
@@ -19,6 +18,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="public/img/icono.png">
     <title>ASFALTART</title>
 
     <!-- Google Font: Source Sans Pro -->
@@ -46,46 +46,46 @@
 
                 <form action="" method="post" id="loginForm">
 
-                
+
 
                     <?php
-                        if(isset($_GET["m"])) {
-                          switch($_GET["m"]) {
+                    if (isset($_GET["m"])) {
+                        switch ($_GET["m"]) {
                             case "1":
-                            ?>
+                    ?>
 
-                            <div class="alert alert-danger alert-dismissible">
-                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                                <h6><i class="icon fas fa-ban"></i> Error de autenticación:</h6>
-                                Usuario y/o contraseña incorrectos. Por favor,  inténtalo nuevamente
-                            </div>
+                                <div class="alert alert-danger alert-dismissible">
+                                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                    <h6><i class="icon fas fa-ban"></i> Error de autenticación:</h6>
+                                    Usuario y/o contraseña incorrectos. Por favor, inténtalo nuevamente
+                                </div>
 
 
                             <?php
-                            break;
+                                break;
 
 
                             case "2":
-                              
+
                             ?>
-                            <div class="alert alert-danger alert-dismissible">
-                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                                <h6><i class="icon fas fa-ban"></i> Falta Informacion:</h6>
-                                Los campos se encuentran vacios. Por favor,  inténtalo nuevamente
-                            </div>
+                                <div class="alert alert-danger alert-dismissible">
+                                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                    <h6><i class="icon fas fa-ban"></i> Falta Informacion:</h6>
+                                    Los campos se encuentran vacios. Por favor, inténtalo nuevamente
+                                </div>
 
                             <?php
-                            break;
-                            
+                                break;
+
                             case "3";
                             ?>
 
-                            <?php
-                            
+                    <?php
 
-                            break;
-                          }
+
+                                break;
                         }
+                    }
                     ?>
 
                     <div class="input-group mb-3">
@@ -106,7 +106,7 @@
                         </div>
                     </div>
                     <div class="row">
-                        
+
                         <!-- /.col -->
                         <div class="col-12">
                             <input type="hidden" name="enviar" value="si">
