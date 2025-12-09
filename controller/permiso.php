@@ -88,6 +88,7 @@ switch ($_GET["op"]) {
             $sub_array[] = $solicitud["permiso_hora_salida"];
             $sub_array[] = $solicitud["permiso_hora_entrada"];
             $sub_array[] = $solicitud["tipo_nombre"];
+            $sub_array[] = $solicitud["permiso_detalle"];
 
             $sub_array[] = '<div class="button-container text-center" >
                     <button type="button" onClick="aprobar(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-success btn-icon " >
@@ -227,6 +228,12 @@ switch ($_GET["op"]) {
                         <div><i class="fas fa-file-pdf"></i></div>
                     </button>
                 </div>';
+
+            $sub_array[] = (!empty($solicitud["permiso_creado"]) && $solicitud["permiso_creado"] != "0000-00-00 00:00:00")
+                ? date('d-m-Y H:i:s', strtotime($solicitud["permiso_creado"]))
+                : '';
+
+            $sub_array[] = $solicitud["permiso_detalle"];
 
             $data[] = $sub_array;
         }

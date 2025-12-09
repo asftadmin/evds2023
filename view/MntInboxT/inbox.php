@@ -76,6 +76,8 @@ if (isset($_SESSION["user_id"])) {
                                                     <th>Fecha Aprobacion</th>
                                                     <th>Estado</th>
                                                     <th>Acciones</th>
+                                                    <th>Fecha Solicitud</th>
+                                                    <th>Justificacion</th>
                                                 </tr>
                                             </thead>
 

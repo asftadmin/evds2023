@@ -23,7 +23,7 @@ function inicializarTabla() {
             "autoWidth": false,
             "bInfo": true,
             "pageLength": 10, 
-            "order": [[1, 'desc']],
+            "order": [[7, 'desc']],
             "language": {
                 "sProcessing": "Procesando...",
                 "sLengthMenu": "Mostrar _MENU_ registros",

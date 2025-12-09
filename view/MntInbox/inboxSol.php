@@ -51,12 +51,12 @@ if (isset($_SESSION["user_id"])) {
             <div class="content">
                 <div class="container-fluid">
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
 
                             <?php require_once "carpetas.php"; ?>
 
                         </div>
-                        <div class="col-md-9">
+                        <div class="col-md-10">
                             <div class="card card-primary card-outline">
                                 <div class="card-header">
                                     <h3 class="card-title">Solicitudes Permisos</h3>
@@ -73,6 +73,7 @@ if (isset($_SESSION["user_id"])) {
                                                     <th>Hora Salida</th>
                                                     <th>Hora Entrada</th>
                                                     <th>Motivo</th>
+                                                    <th>Justificacion</th>
                                                     <th>Acciones</th>
                                                 </tr>
                                             </thead>

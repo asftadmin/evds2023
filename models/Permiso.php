@@ -101,30 +101,28 @@ class Permiso extends Conectar {
 
         $conectar = parent::Conexion();
         $sql = "SELECT 
-                    p.*, 
-                    em.nomb_empl     AS empleado_nombre,
-                    jf.nomb_empl     AS jefe_nombre,
-                    tp.*,
-                    CASE 
-                        WHEN p.permiso_estado = '1' THEN 'Pendiente Aprobacion'
-                        WHEN p.permiso_estado = '2' THEN 'Aprobado Jefe'
-                        WHEN p.permiso_estado = '3' THEN 'Vbo. Gestion Humana'
-                        WHEN p.permiso_estado = '4' THEN 'Aprobado con pendientes'
-                        WHEN p.permiso_estado = '5' THEN 'Aprobado con pendientes'
-                        WHEN p.permiso_estado = '6' THEN 'Rechazado'
-                        WHEN p.permiso_estado = '7' THEN 'Cancelado Operacion'
-                        ELSE NULL
-                    END AS estado_permiso
-                FROM permisos_personal p
-                JOIN empleado_jefe ej 
-                    ON ej.empleado_id = p.empleado_id AND ej.ej_estado = 1
-                INNER JOIN empleados em 
-                    ON em.id_empl = p.empleado_id
-                INNER JOIN empleados jf 
-                    ON jf.id_empl = ej.jefe_id
-                INNER JOIN tipo_permiso tp 
-                    ON tp.tipo_id = p.permiso_tipo
-                WHERE ej.ej_estado = 1";
+                p.*,
+                em.nomb_empl AS empleado_nombre,
+                jf.nomb_empl AS jefe_nombre,
+                tp.*,
+                CASE 
+                    WHEN p.permiso_estado = '1' THEN 'Pendiente Aprobacion'
+                    WHEN p.permiso_estado = '2' THEN 'Aprobado Jefe'
+                    WHEN p.permiso_estado = '3' THEN 'Vbo. Gestion Humana'
+                    WHEN p.permiso_estado = '4' THEN 'Aprobado con pendientes'
+                    WHEN p.permiso_estado = '5' THEN 'Aprobado con pendientes'
+                    WHEN p.permiso_estado = '6' THEN 'Rechazado'
+                    WHEN p.permiso_estado = '7' THEN 'Cancelado Operacion'
+                    ELSE NULL
+                END AS estado_permiso
+            FROM permisos_personal p
+            INNER JOIN empleados em 
+                ON em.id_empl = p.empleado_id
+            LEFT JOIN empleados jf 
+                ON jf.id_empl = p.aprobado_jefe_id
+            INNER JOIN tipo_permiso tp 
+                ON tp.tipo_id = p.permiso_tipo;
+            ";
         $stmt = $conectar->prepare($sql);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
