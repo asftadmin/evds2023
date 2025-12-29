@@ -20,7 +20,8 @@ $permiso = new Permiso();
 } */
 
 
-function ftp_mksubdirs_safe($ftp, $path) {
+function ftp_mksubdirs_safe($ftp, $path)
+{
     $parts = explode('/', trim($path, '/'));
     $fullpath = "";
 
@@ -424,7 +425,8 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado) {
+        function obtenerIconoPorEstado($estado)
+        {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
@@ -766,6 +768,7 @@ switch ($_GET["op"]) {
 
     case "updateRecursos":
 
+
         $permisoID = $_POST['permiso_id'];
 
         // ID del empleado logueado
@@ -779,15 +782,34 @@ switch ($_GET["op"]) {
         $estado = $_POST["permiso_estado"];
 
         $rrhh_id     = $_SESSION["id_empl"];
-        $fecha_actu  = date("Y-m-d H:i:s");
+        //$fecha_actu  = date("Y-m-d H:i:s");
 
-        $resultado = $permiso->actualizar_permiso_rrhh($permisoID, $fecha_permiso, $hora_salida, $hora_ingreso, $motivo, $detalle, $estado, $rrhh_id, $fecha_actu);
+        $fecha_cierre = $_POST["permiso_fecha_cierre"];
+
+        $total_horas = $_POST["permiso_total_horas"];
+
+        $resultado = $permiso->actualizar_permiso_rrhh(
+            $permisoID,
+            $fecha_permiso,
+            $hora_salida,
+            $hora_ingreso,
+            $motivo,
+            $detalle,
+            $estado,
+            $rrhh_id,
+            $fecha_cierre,
+            $total_horas
+        );
+
+
+
 
         if ($resultado) {
-            echo json_encode(["success" => true]);
+            echo json_encode(["success" => true, "message" => "Actualizado correctamente"]);
         } else {
             echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
         }
+
 
 
         break;

@@ -10,8 +10,6 @@ function init() {
     });
 
 
-    calcularHorasTrabajadas();
-
 }
 //Boton Regresar a la bandeja de Abiertos
 $('#btnVolver').click(function () {
@@ -57,6 +55,8 @@ $(document).ready(function () {
 
             cargarSoportes(permisoID);
 
+            calcularHorasAusentesJornada();
+
             // ID real guardado en el atributo data-valorbd
             var motivoBD = $("#permiso_motivo").data("valorbd");
 
@@ -75,7 +75,7 @@ $(document).ready(function () {
                 // activar select2
                 $('.select2').select2();
 
-                calcularHorasTrabajadas();
+                
             });
 
         },
@@ -298,6 +298,7 @@ function guardar(e) {
                 });
 
             } else {
+                console.log(response);
                 Swal.fire({
                     icon: "error",
                     title: "Error al guardar",
@@ -321,27 +322,114 @@ function guardar(e) {
 }
 
 
-function calcularHorasTrabajadas() {
-    let salida = $("#permiso_hora_salida").val();
-    let entrada = $("#permiso_hora_entrada_bio").val();
+function parseYMD(ymd) {
+  const [y, m, d] = ymd.split("-").map(n => parseInt(n, 10));
+  return new Date(y, m - 1, d);
+}
 
-    if (!salida || !entrada) return;
+function timeToMinutes(t) {
+  const parts = (t || "").split(":");
+  const h = parseInt(parts[0] || "0", 10);
+  const m = parseInt(parts[1] || "0", 10);
+  return h * 60 + m;
+}
 
-    let t1 = new Date("2000-01-01 " + salida);
-    let t2 = new Date("2000-01-01 " + entrada);
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
 
-    let diff = (t2 - t1) / 1000 / 60 / 60;  // horas
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
 
-    if (diff < 0) diff = 0;
+function getWorkIntervalsMinutes(dateObj) {
+  const dow = dateObj.getDay(); // 0 dom, 6 sab
 
-    $("#permiso_total_horas").val(diff.toFixed(2));
+  if (dow === 0 || dow === 6) return []; // fin de semana no cuenta
+
+  const endAfternoon = (dow === 5) ? (17 * 60) : (18 * 60); // viernes 17, lun-jue 18
+
+  return [
+    [8 * 60, 12 * 60],
+    [13 * 60, endAfternoon],
+  ];
+}
+
+function overlapMinutes(aStart, aEnd, bStart, bEnd) {
+  const start = Math.max(aStart, bStart);
+  const end = Math.min(aEnd, bEnd);
+  return Math.max(0, end - start);
+}
+
+function calcularHorasAusentesJornada() {
+  const fechaPermiso = $("#permiso_fecha").val();
+  const horaSalida   = $("#permiso_hora_salida").val();
+
+  // Fecha cierre: si no existe o viene vacía, usa fecha permiso
+  const fechaCierre  = $("#permiso_fecha_cierre").val() || fechaPermiso;
+
+  // Hora cierre: prioriza biotime si lo usas, si no, usa hora entrada del permiso
+  const horaCierre   = $("#permiso_hora_entrada").val();
+
+  // Debug útil (déjalo mientras validas)
+  // console.log({fechaPermiso, horaSalida, fechaCierre, horaCierre});
+
+  if (!fechaPermiso || !horaSalida || !fechaCierre || !horaCierre) {
+    $("#permiso_total_horas").val("");
+    return;
+  }
+
+  const startDate = parseYMD(fechaPermiso);
+  const endDate   = parseYMD(fechaCierre);
+
+  if (endDate < startDate) {
+    $("#permiso_total_horas").val("0.00");
+    return;
+  }
+
+  const startMin = timeToMinutes(horaSalida);
+  const endMin   = timeToMinutes(horaCierre);
+
+  let totalMinutes = 0;
+
+  for (let d = new Date(startDate); d <= endDate; d = addDays(d, 1)) {
+    const intervals = getWorkIntervalsMinutes(d);
+    if (intervals.length === 0) continue;
+
+    let dayStart = 0;
+    let dayEnd   = 24 * 60;
+
+    if (sameDay(d, startDate)) dayStart = startMin;
+    if (sameDay(d, endDate))   dayEnd   = endMin;
+
+    // Si es el mismo día y cierre <= salida => 0
+    if (sameDay(d, startDate) && sameDay(d, endDate) && dayEnd <= dayStart) {
+      continue;
+    }
+
+    for (const [wStart, wEnd] of intervals) {
+      totalMinutes += overlapMinutes(dayStart, dayEnd, wStart, wEnd);
+    }
+  }
+
+  $("#permiso_total_horas").val((totalMinutes / 60).toFixed(2));
 }
 
 
+
+
 // Cuando cambian las horas → actualizar cálculo
-$(document).on("input", "#permiso_hora_salida, #permiso_hora_entrada_bio", function () {
-    calcularHorasTrabajadas();
-});
+$(document).on(
+  "input change",
+  "#permiso_fecha, #permiso_hora_salida, #permiso_fecha_cierre, #permiso_hora_entrada",
+  function () {
+    calcularHorasAusentesJornada();
+  }
+);
 
 
 
