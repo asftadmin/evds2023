@@ -1,10 +1,8 @@
 <?php
 session_start();
 
-class Conectar
-{
-    public function Conexion()
-    {
+class Conectar {
+    public function Conexion() {
         $serverName = "172.16.5.2,1433"; // IP y puerto separados por coma
         $database = "BDBioAdminSQL";
         $username = "bioadmin";
@@ -25,9 +23,8 @@ class Conectar
         }
     }
 
-    public static function ruta()
-    {
-        //return "http://localhost/evds2023/";
-        return "http://181.204.219.154:3396/evds2023/";
+    public static function ruta() {
+        return "http://localhost/evds2023/";
+        //return "http://181.204.219.154:3396/evds2023/";
     }
 }

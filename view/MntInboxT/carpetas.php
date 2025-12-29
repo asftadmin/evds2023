@@ -15,6 +15,11 @@
                     <i class="fas fa-lock-open"></i> Solicitudes
                     <!-- <span class="badge bg-primary float-right">12</span> -->
                 </a>
+                <a href="ausentismo.php" class="nav-link" id="ausentismo-btn">
+                    <i class="fas fa-file-contract"></i> Ausentismo
+                    <!-- <span class="badge bg-primary float-right">12</span> -->
+
+                </a>
             </li>
 
         </ul>

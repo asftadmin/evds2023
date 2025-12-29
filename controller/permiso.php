@@ -368,8 +368,23 @@ switch ($_GET["op"]) {
                 <option value="4" ' . ($row['permiso_estado'] == 4 ? 'selected' : '') . '>Aprobado con Pendientes</option>
               </select>';
 
+        $html .= '<hr><hr>';
+        $html .= '<h3 class="card-title"><b>Información de ausentismo completada por Gestión Humana</b></h3></br>';
+
+        // fecha
+        $html .= '<label class="mt-2">Fecha Cierre Permiso:</label>';
+        $html .= '<input type="date" id="permiso_fecha_cierre" name="permiso_fecha_cierre" class="form-control" data-target="#reservationdate_fecha" value="' . $row['permiso_fecha'] . '">';
+        $html .= '<div class="input-group-append" data-target="#reservationdate_fecha" data-toggle="datetimepicker">';
+        $html .= '</div>';
+
+        $html .= '<label class="mt-2">Total Horas:</label>';
+        $html .= '<input type="text" id="permiso_total_horas" name="permiso_total_horas" class="form-control" autocomplete="off" value="" readonly>';
+
         $html .= '</div>';
         $html .= '</form>';
+
+        $html .= '<hr><hr>';
+        $html .= '<h3 class="card-title"><b>Adjuntar soportes documentales de permisos</b></h3></br>';
 
         $html .= '<ul id="listaSoportes" class="list-group mt-3 mb-3"></ul>';
 
@@ -380,6 +395,7 @@ switch ($_GET["op"]) {
         $html .= '<div style="font-size: 18px; font-weight: bold; margin-top: 10px; text-aling: center;"> Arrastra tus archivos o haz clic aquí </div>';
         $html .= '</button>';
         $html .= '</div>';
+
         $html .= '</form>';
 
 
@@ -707,7 +723,7 @@ switch ($_GET["op"]) {
         $nombre_archivo = basename($ruta_remota);
 
         // Carpeta temporal local
-        $temp_local = "D:\\xampp\\htdocs\\evds2023\\public\\temp\\";
+        $temp_local = "C:\\xampp\\htdocs\\evds2023\\public\\temp\\";
         if (!is_dir($temp_local)) {
             mkdir($temp_local, 0777, true);
         }
@@ -715,8 +731,8 @@ switch ($_GET["op"]) {
         $ruta_local = $temp_local . $nombre_archivo;
 
         // Script temporal
-        $scriptPath = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_descarga.txt";
-        $winscpCom  = "D:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+        $scriptPath = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_descarga.txt";
+        $winscpCom  = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
 
         // Script FTP
         $scriptContent =

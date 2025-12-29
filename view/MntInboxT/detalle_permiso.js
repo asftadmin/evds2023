@@ -9,6 +9,9 @@ function init() {
         guardar(e);
     });
 
+
+    calcularHorasTrabajadas();
+
 }
 //Boton Regresar a la bandeja de Abiertos
 $('#btnVolver').click(function () {
@@ -71,6 +74,8 @@ $(document).ready(function () {
 
                 // activar select2
                 $('.select2').select2();
+
+                calcularHorasTrabajadas();
             });
 
         },
@@ -314,6 +319,30 @@ function guardar(e) {
     });
 
 }
+
+
+function calcularHorasTrabajadas() {
+    let salida = $("#permiso_hora_salida").val();
+    let entrada = $("#permiso_hora_entrada_bio").val();
+
+    if (!salida || !entrada) return;
+
+    let t1 = new Date("2000-01-01 " + salida);
+    let t2 = new Date("2000-01-01 " + entrada);
+
+    let diff = (t2 - t1) / 1000 / 60 / 60;  // horas
+
+    if (diff < 0) diff = 0;
+
+    $("#permiso_total_horas").val(diff.toFixed(2));
+}
+
+
+// Cuando cambian las horas → actualizar cálculo
+$(document).on("input", "#permiso_hora_salida, #permiso_hora_entrada_bio", function () {
+    calcularHorasTrabajadas();
+});
+
 
 
 
