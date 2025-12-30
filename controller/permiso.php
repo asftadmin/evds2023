@@ -21,8 +21,7 @@ $permiso = new Permiso();
 } */
 
 
-function ftp_mksubdirs_safe($ftp, $path)
-{
+function ftp_mksubdirs_safe($ftp, $path) {
     $parts = explode('/', trim($path, '/'));
     $fullpath = "";
 
@@ -48,8 +47,7 @@ function ftp_mksubdirs_safe($ftp, $path)
     return true;
 }
 
-function obtenerSalarioSiesa($cedula)
-{
+/* function obtenerSalarioSiesa($cedula) {
     $cedula = trim((string)$cedula);
     if ($cedula === "") return 0;
 
@@ -102,6 +100,73 @@ function obtenerSalarioSiesa($cedula)
     }
 
     return 0;
+} */
+
+
+function obtenerSalarioSiesa($cedula) {
+    $cedula = trim($cedula);
+
+    // OJO: sin espacios en "cedula=..."
+    $url  = "idCompania=6026";
+    $url .= "&descripcion=asfaltart_salarioxempleado";
+    $url .= "&paginacion=" . urlencode("numPag=1|tamPag=100");
+    $url .= "&parametros=" . urlencode("cedula={$cedula}");
+
+    $method = "GET";
+
+    // Esta es tu misma función CURL que ya usas con SIESA
+    $response = CurlController::requestEstandar($url, $method);
+
+    // Si por alguna razón viene string JSON
+    if (is_string($response)) {
+        $decoded = json_decode($response);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $response = $decoded;
+        }
+    }
+
+    // Validación básica
+    if (!isset($response->codigo) || $response->codigo != 0) {
+        return [
+            "success" => false,
+            "cedula"  => $cedula,
+            "salario" => 0,
+            "message" => "Error consultando Siesa",
+            "debug"   => $response
+        ];
+    }
+
+    // Siesa a veces devuelve Datos, otras Table (según consulta)
+    $rows = [];
+    if (isset($response->detalle->Datos) && is_array($response->detalle->Datos)) {
+        $rows = $response->detalle->Datos;
+    } elseif (isset($response->detalle->Table) && is_array($response->detalle->Table)) {
+        $rows = $response->detalle->Table;
+    }
+
+    if (empty($rows) || !isset($rows[0])) {
+        return [
+            "success" => true,
+            "cedula"  => $cedula,
+            "salario" => 0,
+            "message" => "Sin datos para esa cédula",
+            "debug"   => $response
+        ];
+    }
+
+    $row = $rows[0];
+
+    // Campo que tú indicaste
+    $salario_raw = $row->c0550_salario ?? 0;
+
+    // Normalizar salario (por si viene con separadores)
+    $salario = (float) str_replace([",", " "], ["", ""], (string)$salario_raw);
+
+    return [
+        "success" => true,
+        "cedula"  => $cedula,
+        "salario" => $salario
+    ];
 }
 
 
@@ -497,8 +562,7 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado)
-        {
+        function obtenerIconoPorEstado($estado) {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
@@ -889,12 +953,14 @@ switch ($_GET["op"]) {
 
     case "listarAusentismo":
 
+        error_log("POST recibido: " . print_r($_POST, true));
+
         // Recibe del daterangepicker (en formato YYYY-MM-DD)
-        $fecha_ini   = $_POST["fecha_ini"] ?? "";
-        $fecha_fin   = $_POST["fecha_fin"] ?? "";
+        $empleado_id = $_POST["empleado_id"] ?? "";
+        $fecha_ini = $_POST["fecha_ini"] ?? $_POST["fecha_desde"] ?? "";
+        $fecha_fin = $_POST["fecha_fin"] ?? $_POST["fecha_hasta"] ?? "";
 
-        $datos = $permiso->get_ausentismo($fecha_ini, $fecha_fin);
-
+        $datos = $permiso->get_ausentismo($fecha_ini, $fecha_fin, $empleado_id);
 
         $data = [];
         $cacheSalarios = [];
@@ -904,10 +970,11 @@ switch ($_GET["op"]) {
             $cedula = $row["cedu_empl"] ?? "";
 
             if (!isset($cacheSalarios[$cedula])) {
-                $cacheSalarios[$cedula] = obtenerSalarioSiesa($cedula); // usa c0550_salario
+                $cacheSalarios[$cedula] = obtenerSalarioSiesa($cedula); // Esto devuelve un array
             }
 
-            $salario = (float)$cacheSalarios[$cedula];
+            // CORRECCIÓN: Acceder correctamente al salario del array
+            $salario = (float)($cacheSalarios[$cedula]["salario"] ?? 0);
             $ibc_hora = ($salario > 0) ? ($salario / 30 / 7.34) : 0;
 
             $horas = (float)($row["permiso_total_horas"] ?? 0);
