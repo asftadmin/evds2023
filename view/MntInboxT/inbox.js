@@ -1,7 +1,21 @@
-let tablaOpen;
+let tablaOpen = null;
 
-function init(){
+function init() {
     inicializarTabla();
+    cargarEmpleadosActivos();
+
+    $('.select2').select2({ width: '100%' });
+
+    $("#btnFiltrar").off("click").on("click", function () {
+        if (tablaOpen) tablaOpen.ajax.reload();
+    });
+
+    $("#btnLimpiarFiltros").off("click").on("click", function () {
+        $("#filtroEmpleado").val("").trigger("change");
+        $("#filtroFecha").val("");
+
+        if (tablaOpen) tablaOpen.ajax.reload();
+    });
 }
 
 $('#solicitudes-btn').on('click', function () {
@@ -10,6 +24,12 @@ $('#solicitudes-btn').on('click', function () {
 });
 
 function inicializarTabla() {
+
+    if ($.fn.DataTable.isDataTable("#tablaSolcRhumano")) {
+        tablaOpen = $("#tablaSolcRhumano").DataTable();
+        return;
+    }
+
     if (tablaOpen) {
         tablaOpen.clear(); // Limpiar la tabla existente
     } else {
@@ -22,7 +42,7 @@ function inicializarTabla() {
             "responsive": true,
             "autoWidth": false,
             "bInfo": true,
-            "pageLength": 10, 
+            "pageLength": 10,
             "order": [[7, 'desc']],
             "language": {
                 "sProcessing": "Procesando...",
@@ -44,16 +64,24 @@ function inicializarTabla() {
                 url: '../../controller/permiso.php?op=listarSolicitudesRecursos',
                 type: "POST",
                 dataType: "json",
-                success: function (response) {
-                    console.log(response);
 
-                    if (response && response.aaData) {
-                        tablaOpen.clear().rows.add(response.aaData).draw(); // Añadir los datos a la tabla
-                    }
+                data: function (d) {
+                    d.empleado_id = $("#filtroEmpleado").val();
+                    d.fecha_permiso = $("#filtroFecha").val();
                 },
                 error: function (e) {
                     console.log(e.responseText);
                 }
+                /*                 success: function (response) {
+                                    console.log(response);
+                
+                                    if (response && response.aaData) {
+                                        tablaOpen.clear().rows.add(response.aaData).draw(); // Añadir los datos a la tabla
+                                    }
+                                },
+                                error: function (e) {
+                                    console.log(e.responseText);
+                                } */
             }
         });
     }
@@ -70,7 +98,7 @@ function cargarSolicitudesR(tipo = 'Recursos') {
 }
 
 
-var getURLParameter = function(sParam) {
+var getURLParameter = function (sParam) {
     var sPageURL = decodeURIComponent(window.location.search.substring(1));
     var sURLVariables = sPageURL.split('&');
     var sParameterName;
@@ -90,7 +118,7 @@ function ver(permisoID) {
 }
 
 
-function verTimeline(permisoID){
+function verTimeline(permisoID) {
     window.location.href = BASE_URL + '/view/MntInboxEmpl/detalle_permiso.php?id=' + permisoID; //http://181.204.219.154:3396/preoperacional
     cargarTimeline(permisoID);
 }
@@ -101,6 +129,13 @@ function verPdf(permisoID) {
     window.open(url, '_blank');
 }
 
+function cargarEmpleadosActivos() {
+    $.post("../../controller/empleado.php?op=comboRol", function (html) {
+        $("#filtroEmpleado")
+            .html('<option value="">Todos</option>' + html)
+            .trigger("change");
+    });
+}
 
 
 

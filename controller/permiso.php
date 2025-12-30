@@ -20,8 +20,7 @@ $permiso = new Permiso();
 } */
 
 
-function ftp_mksubdirs_safe($ftp, $path)
-{
+function ftp_mksubdirs_safe($ftp, $path) {
     $parts = explode('/', trim($path, '/'));
     $fullpath = "";
 
@@ -46,6 +45,8 @@ function ftp_mksubdirs_safe($ftp, $path)
 
     return true;
 }
+
+
 
 
 switch ($_GET["op"]) {
@@ -176,7 +177,10 @@ switch ($_GET["op"]) {
 
     case "listarSolicitudesRecursos":
 
-        $datos = $permiso->get_solicitudes_recursos();
+        $empleado_id   = $_POST["empleado_id"] ?? "";
+        $fecha_permiso = $_POST["fecha_permiso"] ?? "";
+
+        $datos = $permiso->get_solicitudes_recursos($empleado_id, $fecha_permiso);
         $data = array();
         //$tickets = [];
         foreach ($datos as $solicitud) {
@@ -358,6 +362,15 @@ switch ($_GET["op"]) {
         $html .= '</select>';
         //<option value='".$row['tipo_id']."'>".$row['tipo_nombre']."</option>
 
+        //incapacidad oculto
+
+        $html .= '<div id="bloqueIncapacidad" style="display:none;">';
+        $html .= '<label class="mt-2">Tipo de Incapacidad:</label>';
+        $html .= '<select id="incapacidad_id" name="incapacidad_id" class="form-control select2" data-valorbd="' . $row["perm_inca_id"] . '">';
+        $html .= '<option value="">Seleccione una incapacidad</option>';
+        $html .= '</select>';
+        $html .= '</div>';
+
         // justificación 
         $html .= '<label class="mt-2">Justificación:</label>';
         $html .= '<textarea id="permiso_justificacion" name="permiso_justificacion" class="form-control">' . $row['permiso_detalle'] . '</textarea>';
@@ -425,8 +438,7 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado)
-        {
+        function obtenerIconoPorEstado($estado) {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
@@ -788,6 +800,8 @@ switch ($_GET["op"]) {
 
         $total_horas = $_POST["permiso_total_horas"];
 
+        $incapacidad_id = $_POST["incapacidad_id"] ?? null;
+
         $resultado = $permiso->actualizar_permiso_rrhh(
             $permisoID,
             $fecha_permiso,
@@ -798,10 +812,9 @@ switch ($_GET["op"]) {
             $estado,
             $rrhh_id,
             $fecha_cierre,
-            $total_horas
+            $total_horas,
+            $incapacidad_id
         );
-
-
 
 
         if ($resultado) {
@@ -812,5 +825,8 @@ switch ($_GET["op"]) {
 
 
 
+        break;
+
+    case "listarAusentismo":
         break;
 }

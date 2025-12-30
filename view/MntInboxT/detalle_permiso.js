@@ -419,9 +419,6 @@ function calcularHorasAusentesJornada() {
   $("#permiso_total_horas").val((totalMinutes / 60).toFixed(2));
 }
 
-
-
-
 // Cuando cambian las horas → actualizar cálculo
 $(document).on(
   "input change",
@@ -430,6 +427,38 @@ $(document).on(
     calcularHorasAusentesJornada();
   }
 );
+
+//funcion cargar incapacidades
+
+function cargarComboIncapacidades() {
+  $.post("../../controller/incapacidad.php?op=comboIncapacidades", function(html){
+    $("#incapacidad_id").html(html);
+
+    // Seleccionar el valor de BD si existe
+    let valorBd = $("#incapacidad_id").attr("data-valorbd");
+    if (valorBd) {
+      $("#incapacidad_id").val(valorBd).trigger("change");
+    }
+  }).fail(function(xhr){
+    console.log(xhr.responseText);
+    Swal.fire("Error", "No se pudo cargar la lista de incapacidades.", "error");
+  });
+}
+
+
+$(document).on("change", "#permiso_motivo", function () {
+  const motivo = $(this).val();
+
+  if (motivo == '3') {
+    $("#bloqueIncapacidad").show();
+    cargarComboIncapacidades();
+  } else {
+    $("#bloqueIncapacidad").hide();
+    $("#incapacidad_id").val("").trigger("change");
+  }
+});
+
+
 
 
 

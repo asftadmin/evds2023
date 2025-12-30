@@ -41,7 +41,7 @@ if (isset($_SESSION["user_id"])) {
                             <div class="col-sm-6">
                                 <ol class="breadcrumb float-sm-right">
                                     <li class="breadcrumb-item"><a href="#">Inicio</a></li>
-                                    <li class="breadcrumb-item active">Inbox</li>
+                                    <li class="breadcrumb-item active">Ausentismo</li>
                                 </ol>
                             </div><!-- /.col -->
                         </div><!-- /.row -->
@@ -60,27 +60,28 @@ if (isset($_SESSION["user_id"])) {
                             <div class="col-md-10">
                                 <div class="card card-primary card-outline">
                                     <div class="card-header">
-                                        <h3 class="card-title">Gestion Solicitudes - Permisos</h3><br>
+                                        <h3 class="card-title">Gestion Solicitudes - Ausentismo</h3><br>
                                         <hr>
                                         <div class="row w-100 mt-2">
                                             <div class="col-md-4">
                                                 <label class="mb-0">Empleado:</label>
-                                                <select id="filtroEmpleado" class="form-control select2">
+                                                <select id="filtroEmpleadoA" name="filtroEmpleadoA"
+                                                    class="form-control select2">
                                                     <option value="">Todos</option>
                                                 </select>
                                             </div>
 
                                             <div class="col-md-4">
-                                                <label class="mb-0">Fecha permiso:</label>
-                                                <input type="date" id="filtroFecha" class="form-control">
+                                                <label class="mb-0">Fecha:</label>
+                                                <input type="text" id="filtroFecha" name="filtroFecha" class="form-control">
                                             </div>
 
                                             <div class="col-md-4 d-flex align-items-end">
-                                                <button type="button" id="btnFiltrar" class="btn btn-info mr-2">
+                                                <button type="button" id="btnFiltrarAusentismo" class="btn btn-info mr-2">
                                                     <i class="fas fa-search"></i> Filtrar
                                                 </button>
 
-                                                <button type="button" id="btnLimpiarFiltros" class="btn btn-default">
+                                                <button type="button" id="btnLimpiarAusentismo" class="btn btn-default">
                                                     Limpiar
                                                 </button>
                                             </div>
@@ -91,18 +92,21 @@ if (isset($_SESSION["user_id"])) {
 
                                         <div class="table-responsive mailbox-messages">
                                             <table class="table table-hover table-striped table-bordered display nowrap"
-                                                id="tablaSolcRhumano" style="width:100%">
+                                                id="tablaAusentismo" style="width:100%">
                                                 <thead>
                                                     <tr>
-                                                        <th>Empleado</th>
-                                                        <th>Fecha permiso</th>
+                                                        <th>ITEM</th>
+                                                        <th>FECHA DESDE</th>
+                                                        <th>FECHA HASTA</th>
+                                                        <th>CEDULA</th>
+                                                        <th>NOMBRE DEL EMPLEADO</th>
                                                         <th>Motivo</th>
-                                                        <th>Jefe / Supervisor</th>
-                                                        <th>Fecha Aprobacion</th>
-                                                        <th>Estado</th>
-                                                        <th>Acciones</th>
-                                                        <th>Fecha Solicitud</th>
-                                                        <th>Justificacion</th>
+                                                        <th>IBC</th>
+                                                        <th>IBC HORA</th>
+                                                        <th>HORAS PERMISO</th>
+                                                        <th>COSTO</th>
+                                                        <th>COD. CIE</th>
+                                                        <th>DIAGNOSTICO</th>
                                                     </tr>
                                                 </thead>
 
@@ -131,7 +135,7 @@ if (isset($_SESSION["user_id"])) {
 
         <?php require_once "../MainJS/JS.php" ?>
         <script src="../../config/config.js"></script>
-        <script type="text/javascript" src="inbox.js"></script>
+        <script type="text/javascript" src="ausentismo.js"></script>
         <!-- date-range-picker -->
         <!-- SweetAlert -->
         <script src="../../public/plugins/sweetalert2/sweetalert2.js"></script>
