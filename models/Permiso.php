@@ -1,6 +1,7 @@
 <?php
 
-class Permiso extends Conectar {
+class Permiso extends Conectar
+{
 
 
     public function insertar_permiso(
@@ -43,7 +44,8 @@ class Permiso extends Conectar {
         return $stmt->execute();
     }
 
-    public function get_solicitudes($codigo_empleado) {
+    public function get_solicitudes($codigo_empleado)
+    {
 
         $conectar = parent::Conexion();
         $sql = "SELECT p.*, em.*, tp.*
@@ -58,7 +60,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function get_permiso($codigo_permiso) {
+    public function get_permiso($codigo_permiso)
+    {
         $conectar = parent::Conexion();
         $sql = "SELECT permiso_id,
                     permiso_creado,
@@ -73,7 +76,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function get_solicitudes_jefe($codigo_empleado) {
+    public function get_solicitudes_jefe($codigo_empleado)
+    {
 
         $conectar = parent::Conexion();
         $sql = "SELECT p.*, em.*, tp.*,
@@ -97,7 +101,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function get_solicitudes_recursos($empleado_id = "", $fecha_permiso = "") {
+    public function get_solicitudes_recursos($empleado_id = "", $fecha_permiso = "")
+    {
 
         $conectar = parent::Conexion();
 
@@ -150,7 +155,8 @@ class Permiso extends Conectar {
     }
 
 
-    public function get_detalle_permiso($permiso_id) {
+    public function get_detalle_permiso($permiso_id)
+    {
         $conectar = parent::Conexion();
         $sql = "SELECT 
                 p.*,
@@ -170,7 +176,8 @@ class Permiso extends Conectar {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function update_aprobado($codigo_permiso, $codigo_empleado) {
+    public function update_aprobado($codigo_permiso, $codigo_empleado)
+    {
         $conectar = parent::Conexion();
         $sql = "UPDATE permisos_personal SET permiso_estado = '2', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ? WHERE permiso_id = ? ";
         $stmt = $conectar->prepare($sql);
@@ -180,7 +187,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function update_rechazo($codigo_permiso, $codigo_empleado, $motivo) {
+    public function update_rechazo($codigo_permiso, $codigo_empleado, $motivo)
+    {
         $conectar = parent::Conexion();
         $sql = "UPDATE permisos_personal SET permiso_estado = '6', fecha_actu_permiso = NOW(),  aprobado_jefe_id = ?, rechazo_permiso = ? WHERE permiso_id = ? ";
         $stmt = $conectar->prepare($sql);
@@ -191,7 +199,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function registrar_soporte_permiso($permiso_id, $nombre_archivo, $ruta_remota) {
+    public function registrar_soporte_permiso($permiso_id, $nombre_archivo, $ruta_remota)
+    {
         $conectar = parent::Conexion();
         parent::set_names();
 
@@ -207,7 +216,8 @@ class Permiso extends Conectar {
         return $stmt->execute();
     }
 
-    public function get_soportes_permiso($permiso_id) {
+    public function get_soportes_permiso($permiso_id)
+    {
         $conectar = parent::Conexion();
         parent::set_names();
 
@@ -222,7 +232,8 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function get_permiso_by_id($permiso_id) {
+    public function get_permiso_by_id($permiso_id)
+    {
         $conectar = parent::Conexion();
         $sql = "SELECT p.*, e.nomb_empl
             FROM permisos_personal p
@@ -297,7 +308,8 @@ class Permiso extends Conectar {
         ];
     }
 
-    public function get_detalle_PDF($permiso_id) {
+    public function get_detalle_PDF($permiso_id)
+    {
         $conectar = parent::Conexion();
         $sql = "SELECT 
                     p.*,
@@ -332,5 +344,44 @@ class Permiso extends Conectar {
         $stmt->bindValue(1, $permiso_id, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function get_ausentismo($fecha_ini = "", $fecha_fin = "")
+    {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "SELECT
+                p.permiso_id,
+                p.permiso_fecha,
+                p.perm_fecha_cierre,
+                p.permiso_total_horas,
+                inc.inca_codigo,          
+                inc.inca_nombre,  
+                em.nomb_empl,
+                em.cedu_empl, 
+                tp.tipo_nombre
+            FROM permisos_personal p
+            INNER JOIN empleados em ON em.id_empl = p.empleado_id
+            INNER JOIN tipo_permiso tp ON tp.tipo_id = p.permiso_tipo
+            INNER JOIN incapacidades inc ON inc.inca_id = p.perm_inca_id
+            WHERE 1=1";
+
+        if (!empty($fecha_ini) && !empty($fecha_fin)) {
+            $sql .= " AND p.permiso_fecha BETWEEN :fecha_ini AND :fecha_fin ";
+        }
+
+        $sql .= " ORDER BY p.permiso_fecha ASC, em.nomb_empl ASC ";
+
+        $stmt = $conectar->prepare($sql);
+
+        if (!empty($fecha_ini) && !empty($fecha_fin)) {
+            $stmt->bindValue(":fecha_ini", $fecha_ini);
+            $stmt->bindValue(":fecha_fin", $fecha_fin);
+        }
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

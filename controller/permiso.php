@@ -3,6 +3,7 @@
 require_once("../config/conexion.php");
 require_once("../models/Permiso.php");
 require_once("../models/Firma.php");
+require_once("curl.php");
 
 
 $permiso = new Permiso();
@@ -20,7 +21,8 @@ $permiso = new Permiso();
 } */
 
 
-function ftp_mksubdirs_safe($ftp, $path) {
+function ftp_mksubdirs_safe($ftp, $path)
+{
     $parts = explode('/', trim($path, '/'));
     $fullpath = "";
 
@@ -45,6 +47,63 @@ function ftp_mksubdirs_safe($ftp, $path) {
 
     return true;
 }
+
+function obtenerSalarioSiesa($cedula)
+{
+    $cedula = trim((string)$cedula);
+    if ($cedula === "") return 0;
+
+    $idCompania  = 6026;
+    $descripcion = "asfaltart_salarioxempleado";
+
+    $paginacion = urlencode("numPag=1|tamPag=100");
+    $parametros = urlencode("cedula={$cedula}");
+
+    $url  = "idCompania={$idCompania}";
+    $url .= "&descripcion={$descripcion}";
+    $url .= "&paginacion={$paginacion}";
+    $url .= "&parametros={$parametros}";
+
+    $response = CurlController::requestEstandar($url, "GET");
+
+    if (!isset($response->codigo) || (int)$response->codigo !== 0 || !isset($response->detalle)) {
+        return 0;
+    }
+
+    // puede venir en Datos o Table
+    $rows = [];
+    if (isset($response->detalle->Datos) && is_array($response->detalle->Datos)) {
+        $rows = $response->detalle->Datos;
+    } elseif (isset($response->detalle->Table) && is_array($response->detalle->Table)) {
+        $rows = $response->detalle->Table;
+    }
+
+    if (empty($rows)) return 0;
+
+    $row = $rows[0];
+
+    // función para convertir a número (por si viene con puntos/comas)
+    $toFloat = function ($val) {
+        if ($val === null) return 0;
+        $s = (string)$val;
+        $s = str_replace(["$", "COP", " "], "", $s);
+        $s = str_replace(["."], "", $s);   // miles
+        $s = str_replace([","], ".", $s);  // decimales
+        return is_numeric($s) ? (float)$s : 0;
+    };
+
+    // campo exacto
+    if (is_object($row) && isset($row->c0550_salario)) {
+        return $toFloat($row->c0550_salario);
+    }
+
+    if (is_array($row) && isset($row["c0550_salario"])) {
+        return $toFloat($row["c0550_salario"]);
+    }
+
+    return 0;
+}
+
 
 
 
@@ -438,7 +497,8 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado) {
+        function obtenerIconoPorEstado($estado)
+        {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
@@ -828,5 +888,56 @@ switch ($_GET["op"]) {
         break;
 
     case "listarAusentismo":
+
+        // Recibe del daterangepicker (en formato YYYY-MM-DD)
+        $fecha_ini   = $_POST["fecha_ini"] ?? "";
+        $fecha_fin   = $_POST["fecha_fin"] ?? "";
+
+        $datos = $permiso->get_ausentismo($fecha_ini, $fecha_fin);
+
+
+        $data = [];
+        $cacheSalarios = [];
+
+        foreach ($datos as $row) {
+
+            $cedula = $row["cedu_empl"] ?? "";
+
+            if (!isset($cacheSalarios[$cedula])) {
+                $cacheSalarios[$cedula] = obtenerSalarioSiesa($cedula); // usa c0550_salario
+            }
+
+            $salario = (float)$cacheSalarios[$cedula];
+            $ibc_hora = ($salario > 0) ? ($salario / 30 / 7.34) : 0;
+
+            $horas = (float)($row["permiso_total_horas"] ?? 0);
+            $costo = $ibc_hora * $horas;
+
+            $sub = [];
+            $sub[] = $row["permiso_id"];
+            $sub[] = !empty($row["permiso_fecha"]) ? date("d/m/Y", strtotime($row["permiso_fecha"])) : "";
+            $sub[] = !empty($row["perm_fecha_cierre"]) ? date("d/m/Y", strtotime($row["perm_fecha_cierre"])) : "";
+            $sub[] = $cedula;
+            $sub[] = $row["nomb_empl"] ?? "";
+            $sub[] = $row["tipo_nombre"] ?? "";
+
+            $sub[] = number_format($salario, 2, ".", ",");
+            $sub[] = number_format($ibc_hora, 2, ".", ",");
+            $sub[] = number_format($horas, 2, ".", ",");
+            $sub[] = number_format($costo, 2, ".", ",");
+
+            $sub[] = $row["inca_codigo"] ?? "";
+            $sub[] = $row["inca_nombre"] ?? "";
+
+            $data[] = $sub;
+        }
+
+        echo json_encode([
+            "sEcho" => 1,
+            "iTotalRecords" => count($data),
+            "iTotalDisplayRecords" => count($data),
+            "aaData" => $data
+        ]);
+
         break;
 }
