@@ -91,14 +91,26 @@ $cargo = isset($permiso['cargo']) ? $permiso['cargo'] : 'N/A';
 $rrhh = isset($permiso['recurso_humano']) ? $permiso['recurso_humano'] : 'N/A';
 $firma_jefe = isset($permiso['firma_jefe']) ? $permiso['firma_jefe'] : 'N/A';
 $firma_rrhh = isset($permiso['firma_rrhh']) ? $permiso['firma_rrhh'] : 'N/A';
+$estado_permiso = isset($permiso['permiso_estado']) ? (int)$permiso['permiso_estado'] : 0;
+
 
 $temp_empleado = base64_to_png_temp($firma);
-$temp_jefe     = base64_to_png_temp($firma_jefe);
 $temp_rrhh     = base64_to_png_temp($firma_rrhh);
 
 $hora_salida_ampm  = date("g:i A", strtotime($hora_salida));
 $hora_entrada_ampm = date("g:i A", strtotime($hora_entrada));
 
+
+$temp_jefe     = null;
+
+
+// Mostrar firma del jefe SOLO si el permiso fue aprobado por él
+if (
+    !empty($firma_jefe) &&
+    in_array($estado_permiso, [2, 3, 4, 5]) // aprobado jefe o posteriores
+) {
+    $temp_jefe = base64_to_png_temp($firma_jefe);
+}
 
 
 $pdf = new PDF('L', 'mm', 'Letter');

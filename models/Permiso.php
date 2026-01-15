@@ -345,8 +345,7 @@ class Permiso extends Conectar {
                     ON em.id_empl = p.empleado_id
                 INNER JOIN cargo cg 
                     ON cg.codi_carg = em.carg_empl
-                LEFT JOIN empleado_jefe ej 
-                    ON ej.empleado_id = p.empleado_id
+                LEFT JOIN empleado_jefe ej  
                 LEFT JOIN empleados jf 
                     ON jf.id_empl = ej.jefe_id
                 LEFT JOIN firma_usuario fj 
