@@ -107,7 +107,7 @@ $temp_jefe     = null;
 // Mostrar firma del jefe SOLO si el permiso fue aprobado por él
 if (
     !empty($firma_jefe) &&
-    in_array($estado_permiso, [2, 3, 4, 5]) // aprobado jefe o posteriores
+    in_array($estado_permiso, [2, 4, 5]) // aprobado jefe o posteriores
 ) {
     $temp_jefe = base64_to_png_temp($firma_jefe);
 }
