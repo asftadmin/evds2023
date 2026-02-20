@@ -283,7 +283,7 @@ switch ($_GET["op"]) {
         $nombre_empleado = $_SESSION["nomb_empl"];
 
         $asunto = "Nueva solicitud de permiso";
-        $url = "http://localhost/evds2023/view/MntInboxT/inbox.php";
+        $url = "http://181.204.219.154:3396/evds2023/view/MntInboxT/inbox.php";
 
         $mensaje = "
         <div style='font-family: Arial, sans-serif; background-color:#f4f6f9; padding:20px;'>
@@ -345,7 +345,7 @@ switch ($_GET["op"]) {
         }
 
         error_log("Enviando correo con " . count($adjuntos) . " adjuntos");
-        MailHelper::enviar("soporte@asfaltart.com", $asunto, $mensaje, $adjuntos);
+        MailHelper::enviar("rhumano@asfaltart.com", $asunto, $mensaje, $adjuntos);
 
         error_log("=== FIN GUARDAR PERMISO ===\n");
         echo json_encode(["success" => true]);
