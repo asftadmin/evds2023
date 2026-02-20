@@ -273,6 +273,101 @@ function guardar(e) {
 
 }
 
+Dropzone.autoDiscover = false;
+
+let permiso_token = $("#permiso_token").val();
+
+let myDropzone = new Dropzone(".dropzone", {
+
+  url: BASE_URL + "/controller/permiso.php?op=subirSoporte",
+  maxFilesize: 10,
+  acceptedFiles: ".jpg,.jpeg,.png,.pdf",
+  addRemoveLinks: true,
+  dictRemoveFile: "Eliminar",
+
+  init: function () {
+
+    var dz = this;
+
+    this.on("sending", function (file, xhr, formData) {
+
+      if (!permiso_token) {
+        Swal.fire("Error", "Token no generado", "error");
+        xhr.abort();
+        return;
+      }
+
+      formData.append("permiso_token", permiso_token);
+    });
+
+    this.on("success", function (file, response) {
+
+      // Swal.fire({
+      //   icon: "success",
+      //   title: "Archivo cargado",
+      //   showConfirmButton: false,
+      //   timer: 1000
+      // });
+      //
+      // setTimeout(function () {
+      //   dz.removeFile(file);
+      // }, 1000);
+
+      // SOLO MOSTRAR NOTIFICACIÓN, NO ELIMINAR
+      Swal.fire({
+        icon: "success",
+        title: "Archivo cargado",
+        showConfirmButton: false,
+        timer: 1000
+      });
+      
+      // El archivo SE QUEDA visible en Dropzone
+    });
+
+    this.on("error", function (file, message) {
+
+      Swal.fire("Error", message, "error");
+
+      // SOLO ELIMINAR SI HAY ERROR
+      setTimeout(function () {
+        dz.removeFile(file);
+      }, 1000);
+    });
+
+  }
+
+});
+
+
+
+function cargarSoportes(permiso_id) {
+
+  $.ajax({
+    url: BASE_URL + "/controller/permiso.php?op=listarSoportes",
+    type: "POST",
+    data: { permiso_id: permiso_id },
+    success: function (response) {
+
+      let lista = JSON.parse(response);
+      let html = "";
+
+      lista.forEach(s => {
+
+        html += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="../../controller/permiso.php?op=descargarSoporte&file=${encodeURIComponent(s.soporte_ruta)}" target="_blank">
+                            ${s.soporte_nombre}
+                        </a>
+                        <span class="badge badge-secondary">${s.soporte_fecha}</span>
+                    </li>
+                `;
+      });
+
+      $("#listaSoportes").html(html);
+    }
+  });
+}
+
 init();
 
 

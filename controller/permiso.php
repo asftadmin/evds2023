@@ -3,10 +3,13 @@
 require_once("../config/conexion.php");
 require_once("../models/Permiso.php");
 require_once("../models/Firma.php");
+require_once("../models/TipoPermiso.php");
+require_once("../config/MailHelper.php");
 require_once("curl.php");
 
 
 $permiso = new Permiso();
+$tipo_permiso = new TipoPermiso();
 
 
 /**
@@ -47,60 +50,6 @@ function ftp_mksubdirs_safe($ftp, $path) {
     return true;
 }
 
-/* function obtenerSalarioSiesa($cedula) {
-    $cedula = trim((string)$cedula);
-    if ($cedula === "") return 0;
-
-    $idCompania  = 6026;
-    $descripcion = "asfaltart_salarioxempleado";
-
-    $paginacion = urlencode("numPag=1|tamPag=100");
-    $parametros = urlencode("cedula={$cedula}");
-
-    $url  = "idCompania={$idCompania}";
-    $url .= "&descripcion={$descripcion}";
-    $url .= "&paginacion={$paginacion}";
-    $url .= "&parametros={$parametros}";
-
-    $response = CurlController::requestEstandar($url, "GET");
-
-    if (!isset($response->codigo) || (int)$response->codigo !== 0 || !isset($response->detalle)) {
-        return 0;
-    }
-
-    // puede venir en Datos o Table
-    $rows = [];
-    if (isset($response->detalle->Datos) && is_array($response->detalle->Datos)) {
-        $rows = $response->detalle->Datos;
-    } elseif (isset($response->detalle->Table) && is_array($response->detalle->Table)) {
-        $rows = $response->detalle->Table;
-    }
-
-    if (empty($rows)) return 0;
-
-    $row = $rows[0];
-
-    // función para convertir a número (por si viene con puntos/comas)
-    $toFloat = function ($val) {
-        if ($val === null) return 0;
-        $s = (string)$val;
-        $s = str_replace(["$", "COP", " "], "", $s);
-        $s = str_replace(["."], "", $s);   // miles
-        $s = str_replace([","], ".", $s);  // decimales
-        return is_numeric($s) ? (float)$s : 0;
-    };
-
-    // campo exacto
-    if (is_object($row) && isset($row->c0550_salario)) {
-        return $toFloat($row->c0550_salario);
-    }
-
-    if (is_array($row) && isset($row["c0550_salario"])) {
-        return $toFloat($row["c0550_salario"]);
-    }
-
-    return 0;
-} */
 
 
 function obtenerSalarioSiesa($cedula) {
@@ -177,7 +126,6 @@ switch ($_GET["op"]) {
 
     case 'guardarPermiso':
 
-        // ID del empleado logueado
         $id_empleado = $_POST["empleado_codi"];
         $fecha_permiso = $_POST["fecha_permiso"];
         $hora_salida = $_POST["timepicker_salida"];
@@ -187,18 +135,220 @@ switch ($_GET["op"]) {
         $motivo = $_POST["permiso_motivo"];
         $detalle = $_POST["permiso_detalle"];
         $firma_base64 = $_POST["firma"];
+        $permiso_token   = $_POST["permiso_token"] ?? null;
 
-        // Llamar al modelo
-        $resultado = $permiso->insertar_permiso($id_empleado, $fecha_permiso, $hora_salida, $hora_ingreso, $motivo, $detalle, $firma_base64);
+        // LOG PARA DEPURAR
+        error_log("=== INICIO GUARDAR PERMISO ===");
+        error_log("Token recibido: " . ($permiso_token ?? 'NO HAY TOKEN'));
+        error_log("ID Empleado: $id_empleado");
+        error_log("Nombre sesión: " . $_SESSION["nomb_empl"]);
 
-        if ($resultado) {
-            echo json_encode(["success" => true]);
-        } else {
-            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+        // =================================================
+        // 1️⃣ CREAR PERMISO
+        // =================================================
+        $permiso_id = $permiso->insertar_permiso(
+            $id_empleado,
+            $fecha_permiso,
+            $hora_salida,
+            $hora_ingreso,
+            $motivo,
+            $detalle,
+            $firma_base64
+        );
+
+        error_log("Permiso creado con ID: " . ($permiso_id ? $permiso_id : 'FALLO'));
+
+        if (!$permiso_id) {
+            echo json_encode([
+                "success" => false,
+                "error"   => "No se pudo guardar el permiso."
+            ]);
+            exit;
         }
 
+        // =================================================
+        // MIGRAR SOPORTES TEMPORALES
+        // =================================================
+        if (!empty($permiso_token)) {
 
+            error_log("=== INICIO MIGRACIÓN PARA TOKEN: $permiso_token ===");
 
+            // 1️⃣ Obtener soportes temporales desde BD
+            $soportes_temp = $permiso->get_soportes_temp_por_token($permiso_token);
+
+            error_log("Soportes temporales encontrados: " . count($soportes_temp));
+
+            if (!empty($soportes_temp)) {
+
+                // 2️⃣ Usar el nombre de empleado de la sesión (ya viene del login)
+                $nomb_empl = str_replace(" ", "_", trim($_SESSION["nomb_empl"]));
+                $fecha_actual = date("Y-m-d");
+
+                error_log("Nombre empleado para ruta: $nomb_empl");
+                error_log("Fecha actual: $fecha_actual");
+
+                // 3️⃣ Conectar FTP
+                $ftp_server = "172.16.5.3";
+                $ftp_user   = "asfaltart_admin";
+                $ftp_pass   = "s1st3m4s19..";
+
+                $ftp = ftp_connect($ftp_server);
+
+                if ($ftp && ftp_login($ftp, $ftp_user, $ftp_pass)) {
+                    ftp_pasv($ftp, true);
+                    error_log("Conexión FTP exitosa");
+
+                    // 4️⃣ Crear carpeta definitiva
+                    $remotePathDef = "data01/permisos/$nomb_empl/$fecha_actual";
+                    error_log("Creando carpeta definitiva: $remotePathDef");
+
+                    if (ftp_mksubdirs_safe($ftp, $remotePathDef)) {
+                        error_log("Carpeta definitiva creada/existe");
+
+                        // 5️⃣ Migrar cada archivo
+                        foreach ($soportes_temp as $temp) {
+                            $ruta_origen = $temp["soporte_ruta"];
+                            $nombre_archivo = $temp["soporte_nombre"];
+                            $ruta_destino = "/$remotePathDef/$nombre_archivo";
+
+                            error_log("Intentando mover:");
+                            error_log("  ORIGEN: $ruta_origen");
+                            error_log("  DESTINO: $ruta_destino");
+
+                            // Verificar si el archivo origen existe en FTP
+                            $file_size = ftp_size($ftp, $ruta_origen);
+                            error_log("  Tamaño archivo origen: " . ($file_size !== -1 ? $file_size : 'NO EXISTE'));
+
+                            if ($file_size !== -1) {
+                                // Mover archivo en FTP
+                                if (ftp_rename($ftp, $ruta_origen, $ruta_destino)) {
+                                    error_log(" MOVIMIENTO EXITOSO");
+
+                                    // Registrar en BD definitiva
+                                    $registro_bd = $permiso->registrar_soporte_permiso(
+                                        $permiso_id,
+                                        $nombre_archivo,
+                                        $ruta_destino
+                                    );
+                                    error_log("  Registro en BD: " . ($registro_bd ? 'EXITOSO' : 'FALLÓ'));
+                                } else {
+                                    error_log("FALLÓ EL MOVIMIENTO");
+                                    // Intentar copiar y luego borrar como alternativa
+                                    error_log("  Intentando método alternativo...");
+                                    if (ftp_get($ftp, "temp_local_" . $nombre_archivo, $ruta_origen, FTP_BINARY)) {
+                                        if (ftp_put($ftp, $ruta_destino, "temp_local_" . $nombre_archivo, FTP_BINARY)) {
+                                            ftp_delete($ftp, $ruta_origen);
+                                            unlink("temp_local_" . $nombre_archivo);
+                                            $permiso->registrar_soporte_permiso($permiso_id, $nombre_archivo, $ruta_destino);
+                                            error_log("  ✅ MÉTODO ALTERNATIVO EXITOSO");
+                                        }
+                                    }
+                                }
+                            } else {
+                                error_log("ARCHIVO ORIGEN NO EXISTE EN FTP");
+                            }
+                        }
+                    } else {
+                        error_log("No se pudo crear carpeta definitiva");
+                    }
+
+                    ftp_close($ftp);
+                } else {
+                    error_log("No se pudo conectar al FTP");
+                }
+
+                // 6️⃣ Eliminar registros temporales de BD
+                $eliminados = $permiso->eliminar_soportes_temp_por_token($permiso_token);
+                error_log("Registros temporales eliminados: " . ($eliminados ? 'SI' : 'NO'));
+            } else {
+                error_log("No hay soportes temporales para este token");
+            }
+        } else {
+            error_log("No hay token para migrar");
+        }
+
+        // =================================================
+        // OBTENER SOPORTES DEFINITIVOS
+        // =================================================
+        $soportes = $permiso->get_soportes_permiso($permiso_id);
+        error_log("Soportes definitivos encontrados: " . count($soportes));
+        foreach ($soportes as $s) {
+            error_log("  Ruta guardada: " . $s["soporte_ruta"]);
+        }
+
+        // =================================================
+        // PREPARAR CORREO
+        // =================================================
+        $nomb_motiv = $tipo_permiso->listar_tipo_permiso_x_id($motivo);
+        $nombre_empleado = $_SESSION["nomb_empl"];
+
+        $asunto = "Nueva solicitud de permiso";
+        $url = "http://localhost/evds2023/view/MntInboxT/inbox.php";
+
+        $mensaje = "
+        <div style='font-family: Arial, sans-serif; background-color:#f4f6f9; padding:20px;'>
+            <div style='max-width:600px; margin:auto; background:#ffffff; border-radius:8px; padding:25px; box-shadow:0 2px 8px rgba(0,0,0,0.1);'>
+                
+                <div style='text-align:center; margin-bottom:20px;'>
+                    <h2 style='color:#009BA9;'>Nueva Solicitud de Permiso</h2>
+                </div>
+
+                <table width='100%' cellpadding='8' style='border-collapse:collapse;'>
+                    <tr>
+                        <td><strong>Empleado:</strong></td>
+                        <td>{$nombre_empleado}</td>
+                    </tr>
+                    <tr style='background:#f9f9f9;'>
+                        <td><strong>Fecha:</strong></td>
+                        <td>{$fecha_permiso}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Hora salida:</strong></td>
+                        <td>{$hora_salida}</td>
+                    </tr>
+                    <tr style='background:#f9f9f9;'>
+                        <td><strong>Hora entrada:</strong></td>
+                        <td>{$hora_ingreso}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Motivo:</strong></td>
+                        <td>{$nomb_motiv}</td>
+                    </tr>
+                    <tr style='background:#f9f9f9;'>
+                        <td><strong>Detalle:</strong></td>
+                        <td>{$detalle}</td>
+                    </tr>
+                </table>
+
+                <div style='text-align:center; margin-top:25px;'>
+                    <a href='{$url}' 
+                    style='background:#009BA9; color:#ffffff; padding:12px 20px; 
+                            text-decoration:none; border-radius:5px; font-weight:bold;'>
+                        Ver Solicitud
+                    </a>
+                </div>
+
+                <div style='margin-top:30px; font-size:12px; color:#888; text-align:center;'>
+                    Este es un mensaje automatico del Sistema de Permisos.<br>
+                    No responda a este correo.
+                </div>
+            </div>
+        </div>
+    ";
+
+        // =================================================
+        // ENVIAR CORREO CON ADJUNTOS
+        // =================================================
+        $adjuntos = [];
+        foreach ($soportes as $s) {
+            $adjuntos[] = $s["soporte_ruta"];
+        }
+
+        error_log("Enviando correo con " . count($adjuntos) . " adjuntos");
+        MailHelper::enviar("soporte@asfaltart.com", $asunto, $mensaje, $adjuntos);
+
+        error_log("=== FIN GUARDAR PERMISO ===\n");
+        echo json_encode(["success" => true]);
         break;
 
 
@@ -738,7 +888,7 @@ switch ($_GET["op"]) {
 
         break;
 
-    case "subirSoporte":
+    /*    case "subirSoporte":
 
         $permiso_id   = $_POST["permiso_id"];
 
@@ -823,6 +973,162 @@ switch ($_GET["op"]) {
                 $fileName,
                 $remoteFullPath
             );
+
+            echo json_encode([
+                "success" => true,
+                "message" => "Soporte subido correctamente"
+            ]);
+        } else {
+
+            echo json_encode([
+                "success" => false,
+                "message" => "Error subiendo archivo",
+                "debug"   => $output
+            ]);
+        }
+
+        break; */
+
+    case "subirSoporte":
+
+        $permiso_id    = $_POST["permiso_id"] ?? null;
+        $permiso_token = $_POST["permiso_token"] ?? null;
+
+        // ===========================
+        // VALIDAR ARCHIVO
+        // ===========================
+
+        if (!isset($_FILES["file"])) {
+            echo json_encode([
+                "success" => false,
+                "message" => "No se recibió archivo."
+            ]);
+            exit;
+        }
+
+        $tmpFile  = $_FILES["file"]["tmp_name"];
+        $fileName = $_FILES["file"]["name"];
+        $fecha    = date("Y-m-d");
+
+        // ===========================
+        // ESCENARIO 1: YA EXISTE PERMISO
+        // ===========================
+
+        if (!empty($permiso_id)) {
+
+            $datosPermiso = $permiso->get_permiso_by_id($permiso_id);
+
+            if (!$datosPermiso) {
+                echo json_encode([
+                    "success" => false,
+                    "message" => "Permiso no encontrado."
+                ]);
+                exit;
+            }
+
+            $nomb_empl = str_replace(" ", "_", trim($datosPermiso["nomb_empl"]));
+            $remotePath = "data01/permisos/$nomb_empl/$fecha";
+        }
+
+        // ===========================
+        // ESCENARIO 2: TOKEN TEMPORAL
+        // ===========================
+
+        elseif (!empty($permiso_token)) {
+
+            // 🔹 NUEVO: Guardamos en carpeta temporal usando token
+            $remotePath = "data01/permisos/temp/$permiso_token/$fecha";
+        } else {
+
+            echo json_encode([
+                "success" => false,
+                "message" => "No se recibió permiso_id ni permiso_token."
+            ]);
+            exit;
+        }
+
+        $remoteFullPath = "/$remotePath/$fileName";
+
+        // ===========================
+        // CREAR CARPETAS FTP
+        // ===========================
+
+        $ftp_server = "172.16.5.3";
+        $ftp_user   = "asfaltart_admin";
+        $ftp_pass   = "s1st3m4s19..";
+
+        $ftp = ftp_connect($ftp_server);
+
+        if (!$ftp || !ftp_login($ftp, $ftp_user, $ftp_pass)) {
+            echo json_encode([
+                "success" => false,
+                "message" => "No se pudo conectar al servidor FTP."
+            ]);
+            exit;
+        }
+
+        ftp_pasv($ftp, true);
+
+        if (!ftp_mksubdirs_safe($ftp, $remotePath)) {
+            echo json_encode([
+                "success" => false,
+                "message" => "No fue posible crear las carpetas en el NAS."
+            ]);
+            ftp_close($ftp);
+            exit;
+        }
+
+        ftp_close($ftp);
+
+        // ===========================
+        // SUBIR CON WinSCP
+        // ===========================
+
+        $scriptPath = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_temp.txt";
+        $winscpCom  = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+
+        $scriptContent =
+            "open ftp://$ftp_user:$ftp_pass@$ftp_server\n" .
+            "put \"$tmpFile\" \"$remoteFullPath\"\n" .
+            "exit\n";
+
+        file_put_contents($scriptPath, $scriptContent);
+
+        $cmd = "\"$winscpCom\" /ini=nul /script=\"$scriptPath\"";
+        exec($cmd . " 2>&1", $output, $resultCode);
+
+        unlink($scriptPath);
+
+        // ===========================
+        // RESULTADO
+        // ===========================
+
+        if ($resultCode === 0) {
+
+            // 🔹 CASO 1: Permiso ya existe
+            if (!empty($permiso_id)) {
+
+                // Guardar directamente en tabla definitiva
+                $permiso->registrar_soporte_permiso(
+                    $permiso_id,
+                    $fileName,
+                    $remoteFullPath
+                );
+            }
+
+            // 🔹 CASO 2: Es temporal (ANTES de crear permiso)
+            elseif (!empty($permiso_token)) {
+
+                // ===================================================
+                // NUEVO: Registrar en tabla temporal
+                // Esto permite luego migrarlo cuando se cree el permiso
+                // ===================================================
+                $permiso->registrar_soporte_temp(
+                    $permiso_token,
+                    $fileName,
+                    $remoteFullPath
+                );
+            }
 
             echo json_encode([
                 "success" => true,

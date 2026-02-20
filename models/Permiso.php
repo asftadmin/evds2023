@@ -13,6 +13,7 @@ class Permiso extends Conectar {
         $firma_base64
     ) {
         $conectar = parent::Conexion();
+        parent::set_names();
 
         $sql = "INSERT INTO permisos_personal(
                 empleado_id,
@@ -25,22 +26,24 @@ class Permiso extends Conectar {
                 permiso_creado,
                 permiso_firma
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+            RETURNING permiso_id";
 
         $stmt = $conectar->prepare($sql);
 
-        // Enlazamos los parámetros en el orden correcto
         $stmt->bindValue(1, $id_empleado, PDO::PARAM_INT);
         $stmt->bindValue(2, $fecha_permiso, PDO::PARAM_STR);
         $stmt->bindValue(3, $hora_salida, PDO::PARAM_STR);
         $stmt->bindValue(4, $hora_ingreso, PDO::PARAM_STR);
         $stmt->bindValue(5, $motivo, PDO::PARAM_STR);
         $stmt->bindValue(6, $detalle, PDO::PARAM_STR);
-        $stmt->bindValue(7, '1', PDO::PARAM_STR); // estado inicial
+        $stmt->bindValue(7, '1', PDO::PARAM_STR);
         $stmt->bindValue(8, $firma_base64, PDO::PARAM_STR);
 
-        // Ejecutamos la consulta y devolvemos el resultado
-        return $stmt->execute();
+        $stmt->execute();
+
+        // 🔥 AQUÍ ESTÁ LA CLAVE
+        return $stmt->fetchColumn(); // devuelve el permiso_id real
     }
 
     public function get_solicitudes($codigo_empleado) {
@@ -414,5 +417,47 @@ class Permiso extends Conectar {
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function registrar_soporte_temp($token, $nombre, $ruta) {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "INSERT INTO permisos_soportes_temp
+            (permiso_token, soporte_nombre, soporte_ruta)
+            VALUES (?, ?, ?)";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->execute([$token, $nombre, $ruta]);
+
+        return true;
+    }
+
+    // OBTENER SOPORTES TEMPORALES POR TOKEN
+    public function get_soportes_temp_por_token($token) {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "SELECT soporte_nombre, soporte_ruta 
+            FROM permisos_soportes_temp 
+            WHERE permiso_token = :token";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(":token", $token, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ELIMINAR SOPORTES TEMPORALES POR TOKEN
+    public function eliminar_soportes_temp_por_token($token) {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "DELETE FROM permisos_soportes_temp WHERE permiso_token = :token";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(":token", $token, PDO::PARAM_STR);
+
+        return $stmt->execute();
     }
 }
