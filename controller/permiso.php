@@ -4,12 +4,15 @@ require_once("../config/conexion.php");
 require_once("../models/Permiso.php");
 require_once("../models/Firma.php");
 require_once("../models/TipoPermiso.php");
+require_once("../models/Asignacion.php");
 require_once("../config/MailHelper.php");
 require_once("curl.php");
 
 
 $permiso = new Permiso();
 $tipo_permiso = new TipoPermiso();
+$asignacion = new Asignacion();
+
 
 
 /**
@@ -277,20 +280,26 @@ switch ($_GET["op"]) {
         }
 
         // =================================================
+        // OBTENER JEFE INMEDIATO (DESDE MODEL)
+        // =================================================
+        $jefes = $asignacion->obtener_jefe_inmediato($id_empleado);
+
+
+        // =================================================
         // PREPARAR CORREO
         // =================================================
         $nomb_motiv = $tipo_permiso->listar_tipo_permiso_x_id($motivo);
         $nombre_empleado = $_SESSION["nomb_empl"];
 
         $asunto = "Nueva solicitud de permiso";
-        $url = "http://181.204.219.154:3396/evds2023/view/MntInboxT/inbox.php";
+        $url = "http://181.204.219.154:3396/evds2023/view/MntInbox/inboxSol.php";
 
         $mensaje = "
         <div style='font-family: Arial, sans-serif; background-color:#f4f6f9; padding:20px;'>
             <div style='max-width:600px; margin:auto; background:#ffffff; border-radius:8px; padding:25px; box-shadow:0 2px 8px rgba(0,0,0,0.1);'>
                 
                 <div style='text-align:center; margin-bottom:20px;'>
-                    <h2 style='color:#009BA9;'>Nueva Solicitud de Permiso</h2>
+                    <h2 style='color:#009BA9;'>Nueva Solicitud de Permiso - $nombre_empleado - Estado Pendiente Aprobación</h2>
                 </div>
 
                 <table width='100%' cellpadding='8' style='border-collapse:collapse;'>
@@ -345,7 +354,33 @@ switch ($_GET["op"]) {
         }
 
         error_log("Enviando correo con " . count($adjuntos) . " adjuntos");
-        MailHelper::enviar("rhumano@asfaltart.com", $asunto, $mensaje, $adjuntos);
+        // =================================================
+        // ENVIAR SOLO AL JEFE
+        // =================================================
+        if (!empty($jefes)) {
+
+            foreach ($jefes as $jefe) {
+
+                if (!empty($jefe->correo_jefe)) {
+
+                    error_log("Enviando correo al jefe: " . $jefe->correo_jefe);
+
+                    MailHelper::enviar(
+                        $jefe->correo_jefe,
+                        $asunto,
+                        $mensaje,
+                        $adjuntos
+                    );
+                } else {
+
+                    error_log("Jefe sin correo configurado: " . $jefe->nombre_jefe);
+                }
+            }
+        } else {
+
+            error_log("No se encontraron jefes para el empleado");
+        }
+        //MailHelper::enviar("rhumano@asfaltart.com", $asunto, $mensaje, $adjuntos);
 
         error_log("=== FIN GUARDAR PERMISO ===\n");
         echo json_encode(["success" => true]);
@@ -549,6 +584,95 @@ switch ($_GET["op"]) {
         $datos = $permiso->update_aprobado($codigo_permiso, $codigo_empleado);
 
         if ($datos) {
+            $info_permiso = $permiso->get_permiso_by_id($codigo_permiso);
+            $nombre_empleado = $info_permiso["nomb_empl"];
+            $fecha_permiso   = $info_permiso["permiso_fecha"];
+            $hora_salida     = $info_permiso["permiso_hora_salida"];
+            $hora_ingreso     = $info_permiso["permiso_hora_entrada"];
+            $motivo          = $info_permiso["permiso_detalle"];
+            $nombre_jefe     = $_SESSION["nomb_empl"];
+
+            $asunto = "Permiso Aprobado - $nombre_empleado";
+            $url = "http://181.204.219.154:3396/evds2023/view/MntInboxT/inbox.php"; //181.204.219.154:3396
+
+            $mensaje = "
+                        <div style='background-color:#f4f6f9; padding:30px 0; font-family: Arial, sans-serif;'>
+
+                        <div style='max-width:650px; margin:0 auto; background:#ffffff; 
+                                    border-radius:10px; padding:30px; 
+                                    box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
+
+                            <div style='text-align:center; margin-bottom:25px;'>
+                            <h2 style='color:#009BA9; margin:0; font-size:22px;'>
+                                Permiso Aprobado - {$nombre_empleado}
+                            </h2>
+                            </div>
+
+                            <table width='100%' cellpadding='10' 
+                                style='border-collapse:collapse; font-size:14px;'>
+
+                            <tr>
+                                <td style='font-weight:bold;'>Empleado:</td>
+                                <td>{$nombre_empleado}</td>
+                            </tr>
+
+                            <tr style='background:#f9f9f9;'>
+                                <td style='font-weight:bold;'>Fecha:</td>
+                                <td>{$fecha_permiso}</td>
+                            </tr>
+
+                            <tr>
+                                <td style='font-weight:bold;'>Hora salida:</td>
+                                <td>{$hora_salida}</td>
+                            </tr>
+
+                            <tr style='background:#f9f9f9;'>
+                                <td style='font-weight:bold;'>Hora entrada:</td>
+                                <td>{$hora_ingreso}</td>
+                            </tr>
+
+                            <tr>
+                                <td style='font-weight:bold;'>Motivo:</td>
+                                <td>{$motivo}</td>
+                            </tr>
+
+                            <tr style='background:#f9f9f9;'>
+                                <td style='font-weight:bold;'>Aprobado por:</td>
+                                <td>{$nombre_jefe}</td>
+                            </tr>
+
+                            </table>
+
+                            <div style='text-align:center; margin:30px 0;'>
+                            <a href='{$url}' 
+                                style='background:#009BA9; 
+                                        color:#ffffff; 
+                                        padding:12px 28px; 
+                                        text-decoration:none; 
+                                        border-radius:6px; 
+                                        font-weight:bold; 
+                                        display:inline-block;'>
+                                Ver Solicitud
+                            </a>
+                            </div>
+
+                            <div style='font-size:12px; color:#888; text-align:center; 
+                                        border-top:1px solid #eee; padding-top:15px;'>
+                            Este es un mensaje automático del Sistema de Permisos.<br>
+                            No responda a este correo.
+                            </div>
+
+                        </div>
+                        </div>
+                        ";
+
+            //ENVIAR A RRHH
+            MailHelper::enviar(
+                "soporte@asfaltart.com",
+                $asunto,
+                $mensaje,
+                [] // sin adjuntos
+            );
             echo json_encode(["success" => true]);
         } else {
             echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);

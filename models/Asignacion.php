@@ -1,10 +1,8 @@
 <?php
 
-class Asignacion extends Conectar
-{
+class Asignacion extends Conectar {
 
-    public function insertar_asignacion($nombre_evaluador, $nombre_empleado, $mes, $anio)
-    {
+    public function insertar_asignacion($nombre_evaluador, $nombre_empleado, $mes, $anio) {
         $conectar = parent::conexion();
         parent::set_names();
         // Verificar si el array de empleados no está vacío
@@ -31,8 +29,7 @@ class Asignacion extends Conectar
 
 
 
-    public function editar_asig($codi_evaluador_asig, $codi_evaluado_asig, $mes_asig, $año_asig, $codi_asig)
-    {
+    public function editar_asig($codi_evaluador_asig, $codi_evaluado_asig, $mes_asig, $año_asig, $codi_asig) {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "UPDATE asignaciones SET codi_evaluador_asig = ?, codi_evaluado_asig = ?, mes_asig=?, año_asig=? WHERE codi_asig = ? ";
@@ -48,8 +45,7 @@ class Asignacion extends Conectar
     }
 
 
-    public function mostrar_asignacion()
-    {
+    public function mostrar_asignacion() {
 
         $conectar = parent::Conexion();
         $sql = "SELECT
@@ -73,8 +69,7 @@ class Asignacion extends Conectar
         return $query->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function delete_asignacion($codig_asignacion)
-    {
+    public function delete_asignacion($codig_asignacion) {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "DELETE FROM asignaciones WHERE codi_asig=?";
@@ -84,8 +79,7 @@ class Asignacion extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function listar_asignacion_x_id($codigo_asignacion)
-    {
+    public function listar_asignacion_x_id($codigo_asignacion) {
 
         $conectar = parent::Conexion();
         $sql = "SELECT 
@@ -111,5 +105,24 @@ class Asignacion extends Conectar
         $sql->bindValue(1, $codigo_asignacion);
         $sql->execute();
         return $resultado = $sql->fetchAll();
+    }
+
+    public function obtener_jefe_inmediato($id_empleado) {
+        $conectar = parent::Conexion();
+
+        $sql = "SELECT 
+                e.id_empl      AS jefe_id,
+                e.nomb_empl    AS nombre_jefe,
+                e.email_empl   AS correo_jefe
+            FROM empleado_jefe ej
+            INNER JOIN empleados e 
+                ON ej.jefe_id = e.id_empl
+            WHERE ej.empleado_id = ?";
+
+        $query = $conectar->prepare($sql);
+        $query->bindValue(1, $id_empleado);
+        $query->execute();
+
+        return $query->fetchAll(PDO::FETCH_OBJ);
     }
 }

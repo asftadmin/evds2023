@@ -194,8 +194,9 @@ function inicializarFirma() {
 }
 
 function guardar(e) {
-  e.preventDefault(); // Evitar recarga
-  // Validación: firma obligatoria
+
+  e.preventDefault();
+
   if ($("#firma").val() === "") {
     Swal.fire({
       icon: "warning",
@@ -214,52 +215,87 @@ function guardar(e) {
     data: formData,
     contentType: false,
     processData: false,
-    beforeSend: function () {
-      Swal.fire({
-        title: "Guardando...",
-        text: "Por favor espere un momento",
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
-    },
-    success: function (response) {
-      Swal.close(); // cerrar la animación de carga
 
-      console.log("Respuesta del servidor:", response);
+    beforeSend: function () {
+
+      Swal.fire({
+        title: "Procesando solicitud",
+        html: `
+          <div id="estadoProceso" style="text-align:left;">
+            <p>🔄 Validando información...</p>
+          </div>
+        `,
+        showConfirmButton: false,
+        allowOutsideClick: false
+      });
+
+      // Simulación de pasos progresivos
+      setTimeout(() => {
+        $("#estadoProceso").html("<p>✅ Información validada</p><p>🔄 Guardando en base de datos...</p>");
+      }, 800);
+
+      setTimeout(() => {
+        $("#estadoProceso").html("<p>✅ Información validada</p><p>✅ Guardado en base de datos</p><p>🔄 Procesando archivos...</p>");
+      }, 1600);
+
+      setTimeout(() => {
+        $("#estadoProceso").html("<p>✅ Información validada</p><p>✅ Guardado en base de datos</p><p>✅ Archivos procesados</p><p>🔄 Enviando notificación...</p>");
+      }, 2400);
+    },
+
+    success: function (response) {
+
       var data = JSON.parse(response);
 
-      if (data.success) {
-        Swal.fire({
-          icon: "success",
-          title: "Permiso registrado",
-          text: "El permiso se guardó correctamente.",
-          confirmButtonColor: "#28a745"
-        }).then(() => {
-          // Resetear formulario y botones
-          $("#form_permiso")[0].reset();
-          $("#previewFirma").attr("src", "");
-          $("#btnGuardar").prop("disabled", true);
-          $("#btnRegistrarFirma").prop("disabled", false);
+      $("#estadoProceso").html(`
+        <p>✅ Información validada</p>
+        <p>✅ Guardado en base de datos</p>
+        <p>✅ Archivos procesados</p>
+        <p>✅ Notificación enviada</p>
+      `);
 
-          // 🕐 Luego de un breve retardo, recargar la página
-          setTimeout(function () {
-            location.reload();
-          }, 500); // medio segundo para que se note el reset
-        });
+      setTimeout(() => {
 
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: "Error al guardar",
-          text: data.error || "No se pudo guardar el permiso.",
-          confirmButtonColor: "#dc3545"
-        });
-      }
+        Swal.close();
+
+        if (data.success) {
+
+          Swal.fire({
+            icon: "success",
+            title: "Permiso registrado",
+            text: "El permiso se guardó correctamente.",
+            confirmButtonColor: "#28a745"
+          }).then(() => {
+
+            $("#form_permiso")[0].reset();
+            $("#previewFirma").attr("src", "");
+            $("#btnGuardar").prop("disabled", true);
+            $("#btnRegistrarFirma").prop("disabled", false);
+
+            setTimeout(function () {
+              location.reload();
+            }, 500);
+
+          });
+
+        } else {
+
+          Swal.fire({
+            icon: "error",
+            title: "Error al guardar",
+            text: data.error || "No se pudo guardar el permiso.",
+            confirmButtonColor: "#dc3545"
+          });
+
+        }
+
+      }, 800);
     },
+
     error: function (xhr, status, error) {
+
       Swal.close();
+
       Swal.fire({
         icon: "error",
         title: "Error AJAX",
@@ -267,11 +303,76 @@ function guardar(e) {
         footer: error,
         confirmButtonColor: "#dc3545"
       });
+
     }
+
   });
 
-
 }
+
+/*  $.ajax({
+   url: "../../controller/permiso.php?op=guardarPermiso",
+   type: "POST",
+   data: formData,
+   contentType: false,
+   processData: false,
+   beforeSend: function () {
+     Swal.fire({
+       title: "Guardando...",
+       text: "Por favor espere un momento",
+       allowOutsideClick: false,
+       didOpen: () => {
+         Swal.showLoading();
+       }
+     });
+   },
+   success: function (response) {
+     Swal.close(); // cerrar la animación de carga
+
+     console.log("Respuesta del servidor:", response);
+     var data = JSON.parse(response);
+
+     if (data.success) {
+       Swal.fire({
+         icon: "success",
+         title: "Permiso registrado",
+         text: "El permiso se guardó correctamente.",
+         confirmButtonColor: "#28a745"
+       }).then(() => {
+         // Resetear formulario y botones
+         $("#form_permiso")[0].reset();
+         $("#previewFirma").attr("src", "");
+         $("#btnGuardar").prop("disabled", true);
+         $("#btnRegistrarFirma").prop("disabled", false);
+
+         // 🕐 Luego de un breve retardo, recargar la página
+         setTimeout(function () {
+           location.reload();
+         }, 500); // medio segundo para que se note el reset
+       });
+
+     } else {
+       Swal.fire({
+         icon: "error",
+         title: "Error al guardar",
+         text: data.error || "No se pudo guardar el permiso.",
+         confirmButtonColor: "#dc3545"
+       });
+     }
+   },
+   error: function (xhr, status, error) {
+     Swal.close();
+     Swal.fire({
+       icon: "error",
+       title: "Error AJAX",
+       text: "Hubo un problema al enviar la solicitud.",
+       footer: error,
+       confirmButtonColor: "#dc3545"
+     });
+   }
+ }); */
+
+
 
 Dropzone.autoDiscover = false;
 
@@ -320,7 +421,7 @@ let myDropzone = new Dropzone(".dropzone", {
         showConfirmButton: false,
         timer: 1000
       });
-      
+
       // El archivo SE QUEDA visible en Dropzone
     });
 

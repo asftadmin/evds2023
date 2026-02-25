@@ -6,8 +6,10 @@ use PHPMailer\PHPMailer\Exception;
 require_once __DIR__ . '/../vendor/autoload.php';
 
 class MailHelper {
-    public static function enviar($destinatario, $asunto, $mensaje, $adjuntos) {
+    public static function enviar($destinatario, $asunto, $mensaje, $adjuntos = []) {
         $mail = new PHPMailer(true);
+
+        $archivos_temp = [];
 
         try {
             $mail->isSMTP();
@@ -20,6 +22,9 @@ class MailHelper {
 
             $mail->setFrom('admin@asfaltart.com', 'Sistema Permisos');
 
+            $mail->CharSet = 'UTF-8';
+            $mail->Encoding = 'base64';
+
             $mail->addAddress($destinatario);
 
             $mail->isHTML(true);
@@ -27,7 +32,7 @@ class MailHelper {
             $mail->Body    = $mensaje;
 
             // Adjuntar archivos
-            if (!empty($adjuntos)) {
+            if (!empty($adjuntos) && is_array($adjuntos)) {
                 foreach ($adjuntos as $ruta) {
                     // Siempre son rutas FTP, descargar temporalmente
                     $ruta_local = self::descargar_de_ftp($ruta);
@@ -40,9 +45,17 @@ class MailHelper {
 
             $mail->send();
 
+            if (!empty($archivos_temp)) {
+                foreach ($archivos_temp as $temp) {
+                    if (file_exists($temp)) {
+                        unlink($temp);
+                    }
+                }
+            }
+            /* 
             foreach ($archivos_temp as $temp) {
                 if (file_exists($temp)) unlink($temp);
-            }
+            } */
 
 
             return true;
