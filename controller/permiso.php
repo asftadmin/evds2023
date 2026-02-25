@@ -668,7 +668,7 @@ switch ($_GET["op"]) {
 
             //ENVIAR A RRHH
             MailHelper::enviar(
-                "soporte@asfaltart.com",
+                "rhumano@asfaltart.com",
                 $asunto,
                 $mensaje,
                 [] // sin adjuntos
