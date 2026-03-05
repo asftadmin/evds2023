@@ -91,7 +91,7 @@ class Permiso extends Conectar {
                         ELSE NULL
                     END AS estado_permiso
                 FROM permisos_personal p
-                INNER JOIN empleados em ON p.aprobado_jefe_id = em.id_empl
+                LEFT JOIN empleados em ON p.aprobado_jefe_id = em.id_empl
                 INNER JOIN tipo_permiso tp ON tp.tipo_id = p.permiso_tipo
                 WHERE p.empleado_id = ? ORDER BY p.permiso_fecha ASC";
         $stmt = $conectar->prepare($sql);
