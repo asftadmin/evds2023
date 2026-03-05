@@ -93,7 +93,7 @@ class Permiso extends Conectar {
                 FROM permisos_personal p
                 LEFT JOIN empleados em ON p.aprobado_jefe_id = em.id_empl
                 INNER JOIN tipo_permiso tp ON tp.tipo_id = p.permiso_tipo
-                WHERE p.empleado_id = ? ORDER BY p.permiso_fecha ASC";
+                WHERE p.empleado_id = ? ORDER BY p.permiso_fecha DESC";
         $stmt = $conectar->prepare($sql);
         $stmt->bindValue(1, $codigo_empleado, PDO::PARAM_INT);
         $stmt->execute();
