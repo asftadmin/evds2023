@@ -61,7 +61,7 @@ function inicializarTabla() {
 
 
 function cargarSolicitudesP(tipo = 'Jefe') {
-    const nuevaURL = `../../controller/tickets.php?op=listarSolicitudes${tipo}`;
+    const nuevaURL = `../../controller/permisos.php?op=listarSolicitudes${tipo}`;
     if (tablaOpen) {
         tablaOpen.ajax.url(nuevaURL).load(); // recarga datos sin reiniciar tabla
     } else {
