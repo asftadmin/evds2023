@@ -1,11 +1,9 @@
 <?php
 
-class Usuario extends Conectar
-{
+class Usuario extends Conectar {
 
 
-    public function login()
-    {
+    public function login() {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -28,11 +26,11 @@ class Usuario extends Conectar
                     $_SESSION["user_id"] = $result["user_id"];
                     $_SESSION["user_nick"] = $result["user_nick"];
                     $_SESSION["id_empl"] = $result["id_empl"];
-					$_SESSION["user_empl"] = $result["user_empl"];
+                    $_SESSION["user_empl"] = $result["user_empl"];
                     $_SESSION["nomb_empl"] = $result["nomb_empl"];
                     $_SESSION["user_rol"] = $result["user_rol"];
 
-                    header("Location:" . conectar::ruta() . "view/evaluacion/evaluacion.php");
+                    header("Location:" . conectar::ruta() . "view/home/home2.php");
                     exit();
                 } else {
                     header("Location:" . conectar::ruta() . "index.php?m=1");
