@@ -11,10 +11,10 @@ class PDF extends FPDF {
         // Imagen decorativa derecha ocupando todo el alto
         $this->Image(
             __DIR__ . '/../../public/img/proforma_header.jpg',
-            $this->GetPageWidth() - 25, // pegado derecha
+            $this->GetPageWidth() - 30, // pegado derecha
             0,
-            25,   // ancho
-            50  // alto completo
+            30,   // ancho
+            60  // alto completo
         );
 
         $this->Image(
@@ -53,19 +53,40 @@ class PDF extends FPDF {
         );
 
         // ICONOS CERTIFICACIONES (DERECHA)
-        $y = $this->GetY() - 20;
-        $this->Image(__DIR__ . '/../../public/img/iso 9001.png', 130, $y, 18);
-        $this->Image(__DIR__ . '/../../public/img/iso 14001.png', 150, $y, 18);
-        $this->Image(__DIR__ . '/../../public/img/iso 45001.png', 170, $y, 18);
+        //$y = $this->GetY() - 20;
+        $this->Image(__DIR__ . '/../../public/img/iso 9001.png', 130, 248, 18);
+        $this->Image(__DIR__ . '/../../public/img/iso 14001.png', 150, 248, 18);
+        $this->Image(__DIR__ . '/../../public/img/iso 45001.png', 170, 248, 18);
         //this->Image(__DIR__ . '/../../public/img/norsok.png', 190, $y, 18);
     }
+
+    function WriteHTML($html)
+{
+    $html = str_replace("\n",' ',$html);
+    $a = preg_split('/<(.*)>/U',$html,-1,PREG_SPLIT_DELIM_CAPTURE);
+    foreach($a as $i=>$e)
+    {
+        if($i%2==0)
+        {
+            if($e!='')
+                $this->MultiCell(0,6,utf8_decode($e),0,'J');
+        }
+        else
+        {
+            if($e=='b')
+                $this->SetFont('','B');
+            elseif($e=='/b')
+                $this->SetFont('','');
+        }
+    }
+}
 }
 
 $pdf = new PDF('P', 'mm', 'Letter');
-$pdf->AddPage();
 $pdf->SetMargins(15, 40, 15);
+$pdf->AddPage();
 $pdf->SetFont('Arial', '', 11);
-$pdf->Ln(40);
+$pdf->Ln(20);
 
 // =============================
 // TÍTULO SUPERIOR
@@ -96,7 +117,53 @@ $pdf->Ln(8);
 // =======================================
 // CUERPO DEL CERTIFICADO
 // =======================================
-$lineHeight = 6;
+
+$pdf->SetFont('Arial','',11);
+
+$html = "
+Que el señor <b>CRISTIAN GIOVANNY ARCINIEGAS PORTILLA</b>, identificado con cedula de ciudadanía número 1.095.934.409 de Girón, labora a través de un contrato de trabajo a término fijo desde el veinte (20) de septiembre de 2021 y hasta la fecha, desempeñando el cargo de <b>COORDINADOR DE SISTEMAS</b> devengando un salario básico mensual de <b>DOS MILLONES SETECIENTOS MIL PESOS M/CTE. ($2.700.000), más AUXILIO DE TRANSPORTE POR DOSCIENTOS CUARENTA Y NUEVE MIL NOVENTA Y CINCO PESOS M/TE ($249.095)</b>.
+";
+
+$pdf->WriteHTML($html);
+
+$pdf->Ln(12);
+
+$pdf->MultiCell(
+    0,
+    6,
+    utf8_decode("Se expide a solicitud del interesado, en San Juan de Girón (Santander) el día veintiséis (26) de febrero de dos mil veintiséis (2026)."),
+    0,
+    'J'
+);
+/* $lineHeight = 8;
+$pdf->SetFont('Arial', '', 11);
+
+// Primera parte
+$pdf->Write($lineHeight, utf8_decode("Que el señor "));
+
+// Nombre en negrilla
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Write($lineHeight, utf8_decode("CRISTIAN GIOVANNY ARCINIEGAS PORTILLA, "));
+
+// Volver a normal
+$pdf->SetFont('Arial', '', 11);
+$pdf->Write($lineHeight, utf8_decode("identificado con cedula de ciudadanía número 1.095.934.409 de Girón, labora a través de un contrato de trabajo a término fijo desde el veinte (20) de septiembre de 2021 y hasta la fecha, desempeñando el cargo de "));
+
+// Cargo en negrilla
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Write($lineHeight, utf8_decode("COORDINADOR DE SISTEMAS "));
+
+// Normal
+$pdf->SetFont('Arial', '', 11);
+$pdf->Write($lineHeight, utf8_decode("devengando un salario básico mensual de "));
+
+// Salario en negrilla
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Write($lineHeight, utf8_decode("DOS MILLONES SETECIENTOS MIL PESOS M/CTE. ($2.700.000), más AUXILIO DE TRANSPORTE POR DOSCIENTOS CUARENTA Y NUEVE MIL NOVENTA Y CINCO PESOS M/TE ($249.095)."));
+
+$pdf->Ln(12); */
+
+/* $lineHeight = 8;
 
 // Guardar posición inicial
 $y = $pdf->GetY();
@@ -109,21 +176,18 @@ $pdf->SetFont('Arial', 'B', 11);
 $pdf->Cell($pdf->GetStringWidth("CRISTIAN GIOVANNY ARCINIEGAS PORTILLA, "), $lineHeight, utf8_decode("CRISTIAN GIOVANNY ARCINIEGAS PORTILLA, "), 0, 0, 'L');
 
 $pdf->SetFont('Arial', '', 11);
-$remainingText = utf8_decode("identificado con cedula de ciudadanía número 1.095.934.409 de Girón, labora a través de un contrato de trabajo a término fijo desde el veinte (20) de septiembre de 2021 y hasta la fecha, desempeñando el cargo de COORDINADOR DE SISTEMAS devengando un salario básico mensual de DOS MILLONES SETECIENTOS MIL PESOS M/CTE. ($2.700.000), más AUXILIO DE TRANSPORTE POR DOSCIENTOS CUARENTA Y NUEVE MIL NOVENTA Y CINCO PESOS M/TE ($249.095).");
+$pdf->Cell($pdf->GetStringWidth("identificado con cedula de ciudadanía"), $lineHeight, utf8_decode("identificado con cedula de ciudadanía"), 0, 0, 'L');
+
+$pdf->SetFont('Arial', '', 11);
+$pdf->Ln($lineHeight);
+$pdf->SetX(15);
+$remainingText = utf8_decode("número 1.095.934.409 de Girón, labora a través de un contrato de trabajo a término fijo desde el veinte (20) de septiembre de 2021 y hasta la fecha, desempeñando el cargo de COORDINADOR DE SISTEMAS devengando un salario básico mensual de DOS MILLONES SETECIENTOS MIL PESOS M/CTE. ($2.700.000), más AUXILIO DE TRANSPORTE POR DOSCIENTOS CUARENTA Y NUEVE MIL NOVENTA Y CINCO PESOS M/TE ($249.095).");
 
 $pdf->MultiCell(0, $lineHeight, $remainingText, 0, 'J');
 
-$pdf->Ln(4);
+$pdf->Ln(4); */
 
-$pdf->MultiCell(
-    0,
-    6,
-    utf8_decode("Se expide a solicitud del interesado, en San Juan de Girón (Santander) el día veintiséis (26) de febrero de dos mil veintiséis (2026)."),
-    0,
-    'J'
-);
 
-$pdf->Ln(12);
 $pdf->Cell(0, 6, 'Atentamente,', 0, 1);
 $pdf->Ln(18);
 

@@ -13,7 +13,7 @@ switch ($_GET["op"]) {
         if (isset($_POST['id_empl'])) {
 
             $id_empl = $_POST['id_empl'];
-            require '../view/PDF/certificados.php';
+            require '../view/PDF/certificado_tcpdf.php';
         } else {
             echo "ID de empleado no recibido.";
         }
