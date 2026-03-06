@@ -185,9 +185,9 @@ $pdf->MultiCell(
     0,
     5,
     "Para confirmar esta información comunicarse al 3134008506 o 3175424050
-Correos: rhumano@asfaltart.com | dirhumano@asfaltart.com",
+Correos: rhumano@asfaltart.com | dirhumano@asfaltart.com |",
     0,
     'L'
 );
 
-$pdf->Output('Certificado_Laboral.pdf', 'I');
+$pdf->Output('Certificado_Laboral.pdf', 'I'); 
