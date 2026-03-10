@@ -26,3 +26,20 @@
 .card-body .form-group .select {
     margin-left: 0px; /* Elimina el margen superior del select */
 }
+
+   /* ── Small section header ── */
+.form-group .section-subheader {
+    display: block !important;
+    width: 100% !important;
+    float: none !important;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 4px;
+    padding-top: 0;
+}
+
+.input-erp  { border-left:4px solid #343a40 !important; background:#f8f9fa; }
+
+.pane { display:none; }
+.pane.active { display:block; }
