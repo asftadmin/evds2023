@@ -43,3 +43,39 @@
 
 .pane { display:none; }
 .pane.active { display:block; }
+
+/* ── Tabs Historia Laboral ── */
+.tabs-laboral .nav-link {
+    color: rgba(255, 255, 255, 0.7);
+}
+.tabs-laboral .nav-link:hover {
+    color: rgba(255, 255, 255, 1);
+}
+.tabs-laboral .nav-link.active {
+    color: #343a40;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+.tabs-laboral .nav-link.active i {
+    color: #343a40;
+}
+.tabs-laboral .nav-link i {
+    color: inherit;
+}
+
+/* ── Modo edición — campos habilitados ── */
+.input-editando {
+    background-color: #fffde7 !important;  /* amarillo pastel */
+    border-color: #ffc107 !important;
+    color: #343a40 !important;
+}
+
+/* Select2 en modo edición */
+.select2-editando.select2-selection {
+    background-color: #fffde7 !important;
+    border-color: #ffc107 !important;
+}
+
+#txt_observaciones {
+    resize: none;
+}
