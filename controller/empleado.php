@@ -18,6 +18,7 @@ switch ($_REQUEST["op"]) {
         $fecha_nacimiento = convertirFecha($_POST["txt_fecha_nacimiento"] ?? '');
         $fecha_exp        = convertirFecha($_POST["txt_fecha_exp"]        ?? '');
         $fecha_ingreso    = convertirFecha($_POST["txt_fecha_ingreso"]    ?? '');
+        $fecha_retiro     = convertirFecha($_POST["txt_fecha_retiro"] ?? '');
 
         $genero          = (!empty($_POST["txt_genero"])             && $_POST["txt_genero"]             != 'NULL') ? $_POST["txt_genero"]             : null;
         $nivel_educativo = (!empty($_POST["txt_nivel"])              && $_POST["txt_nivel"]              != 'NULL') ? $_POST["txt_nivel"] : null;
@@ -30,6 +31,7 @@ switch ($_REQUEST["op"]) {
         $tipo_contrato   = (!empty($_POST["select_tipo_contrato"])   && $_POST["select_tipo_contrato"]   != 'NULL') ? $_POST["select_tipo_contrato"]   : null;
         $dependencia     = (!empty($_POST["select_dependencia"])     && $_POST["select_dependencia"]     != 'NULL') ? $_POST["select_dependencia"]     : null;
         $email           = (!empty($_POST["txt_correo"])             && $_POST["txt_correo"]             != 'NULL') ? $_POST["txt_correo"]             : null;
+
 
         // ── Salario — quitar formato colombiano ────────────────────────
         $salario = !empty($_POST["txt_salario"])
@@ -80,7 +82,9 @@ switch ($_REQUEST["op"]) {
                 $anio_grado,
                 $tipo_contrato,
                 $salario,
-                $dependencia
+                $dependencia,
+                $fecha_retiro
+
             );
 
             echo json_encode([
@@ -378,6 +382,10 @@ switch ($_REQUEST["op"]) {
                 $output["txt_cargo_firmante"]       = 'Director de Gestión Humana y Jurídico.';
                 $output["txt_telefono_empresa"]     = '3134008506 o 3175424050';
                 $output["txt_correo_empresa"]       = 'rhumano@asfaltart.com o dirhumano@asfaltart.com';
+
+                $output["txt_fecha_retiro"] = $row["fecha_retiro_empl"]
+                    ? (new DateTime($row["fecha_retiro_empl"]))->format('d/m/Y')
+                    : null;
             }
             echo json_encode($output);
         }
@@ -531,5 +539,43 @@ switch ($_REQUEST["op"]) {
         } else {
             echo json_encode(["error" => "Empleado no encontrado"]);
         }
+        break;
+
+    case 'exportar_egreso_pdf':
+        $codigo   = $_GET["codigo"]   ?? null;
+        $radicado = $_GET["radicado"] ?? '';
+
+        if (!$codigo) {
+            echo json_encode(['success' => false, 'error' => 'Código de empleado requerido']);
+            break;
+        }
+
+        // ── Obtener datos del empleado ──
+        $datos = $empleado->get_empledo_x_id($codigo);
+
+        if (!$datos || count($datos) == 0) {
+            echo json_encode(['success' => false, 'error' => 'Empleado no encontrado']);
+            break;
+        }
+
+        $row = $datos[0];
+
+        // ── Preparar variables para la vista PDF ──
+        $pdf_nombre          = $row["nomb_empl"]           ?? '';
+        $pdf_cedula          = $row["cedu_empl"]            ?? '';
+        $pdf_lugar_exp       = $row["lugar_desc"]           ?? '';
+        $pdf_fecha_retiro    = fechaALetras($row["fecha_retiro_empl"] ?? '');
+        $pdf_fecha_retiro_fmt = $row["fecha_retiro_empl"]
+            ? (new DateTime($row["fecha_retiro_empl"]))->format('d/m/Y')
+            : '';
+        $pdf_cargo           = $row["cargo_desc"]           ?? '';
+        $pdf_radicado        = $radicado;
+        $pdf_fecha_carta     = fechaALetras(date('Y-m-d'));
+        $pdf_ciudad          = 'San Juan de Girón (Santander)';
+        $pdf_nombre_firmante = 'JORGE CARDENAS';
+        $pdf_cargo_firmante  = 'Director de Gestión Humana y Jurídico.';
+
+        // ── Incluir vista PDF ──
+        require_once '../view/PDF/examen_egreso.php';
         break;
 }

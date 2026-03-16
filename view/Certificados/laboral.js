@@ -1,4 +1,5 @@
 let tabla;
+var modoEdicion = false;
 
 function init() {
 
@@ -222,6 +223,8 @@ function editar(codigo_empleado) {
                 $('#txt_correo').val(data.txt_correo);
                 $('#txt_fecha_nacimiento').val(data.txt_fecha_nacimiento);
                 $('#txt_fecha_exp').val(data.txt_fecha_exp);
+                $('#txt_fecha_retiro').val(data.txt_fecha_retiro);
+                $('#txt_fecha_retiro_egreso').val(data.txt_fecha_retiro);
                 $('#txt_fecha_ingreso').val(data.txt_fecha_ingreso);
                 $('#txt_profesion').val(data.txt_profesion);
                 $('#txt_anio_grado').val(data.txt_anio_grado);
@@ -275,6 +278,16 @@ function editar(codigo_empleado) {
 
                 // ── Preview certificado ───────────────────────
                 llenarPreview(data);
+                // ── Mostrar tab egreso si tiene fecha de retiro ──
+                if (data.txt_fecha_retiro) {
+                    $('#tab_egreso').show();
+                } else {
+                    $('#tab_egreso').hide();
+                    // Si estaba en el pane egreso, volver a datos básicos
+                    if ($('#pane-egreso').is(':visible')) {
+                        $('#mainTabs .nav-link[data-pane="erp"]').trigger('click');
+                    }
+                }
 
             } catch (error) {
                 console.error('Error parsing JSON:', error);
@@ -300,7 +313,8 @@ const camposBasicos = [
     '#txt_anio_grado',
     '#txt_salario',
     '#txt_fecha_nacimiento',
-    '#txt_observaciones'
+    '#txt_observaciones',
+    '#txt_fecha_retiro'
 ];
 
 const selectsBasicos = [
@@ -313,7 +327,8 @@ const selectsBasicos = [
     '#select_cargo_empleado',
     '#txt_nivel',
     '#select_dependencia',
-    '#select_tipo_contrato'
+    '#select_tipo_contrato',
+    '#select_esta_empl'
 ];
 
 // ── Habilitar edición ──
@@ -341,8 +356,10 @@ $('#btn_editar_basicos').on('click', function () {
     initDatePicker('#txt_fecha_exp');
     initDatePicker('#txt_fecha_ingreso');
     initDatePicker('#txt_fecha_nacimiento');
+    initDatePicker('#txt_fecha_retiro');
 
     //Inicializar tabla bonificaciones
+    modoEdicion = true;
     listarBonificaciones();
 
     // Intercambiar botones
@@ -376,6 +393,9 @@ $('#btn_cancelar_basicos').on('click', function () {
             .removeClass('select2-editando');
     });
 
+    modoEdicion = false;
+    listarBonificaciones(); // recargar tabla sin botones
+
     // Intercambiar botones
     $('#btn_guardar_basicos').hide();
     $('#btn_cancelar_basicos').hide();
@@ -396,6 +416,7 @@ $('#btn_cancelar_bonif').on('click', function () {
     $('#formBonif select').val(null).trigger('change');
     $('#formBonif textarea').val('');
 });
+
 
 $('#btn_toggle_form_aux').on('click', function () {
     // tu lógica aquí
@@ -782,30 +803,30 @@ let tablaBonificaciones;
 function initTablaBonificaciones() {
     tablaBonificaciones = $('#tablaBonificaciones').DataTable({
         language: {
-            decimal:        ',',
-            thousands:      '.',
-            emptyTable:     'No hay bonificaciones registradas',
-            info:           'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty:      'Mostrando 0 a 0 de 0 registros',
-            infoFiltered:   '(filtrado de _MAX_ registros totales)',
-            lengthMenu:     'Mostrar _MENU_ registros',
+            decimal: ',',
+            thousands: '.',
+            emptyTable: 'No hay bonificaciones registradas',
+            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
+            infoEmpty: 'Mostrando 0 a 0 de 0 registros',
+            infoFiltered: '(filtrado de _MAX_ registros totales)',
+            lengthMenu: 'Mostrar _MENU_ registros',
             loadingRecords: 'Cargando...',
-            processing:     'Procesando...',
-            search:         'Buscar:',
-            zeroRecords:    'No se encontraron registros',
+            processing: 'Procesando...',
+            search: 'Buscar:',
+            zeroRecords: 'No se encontraron registros',
             paginate: {
-                first:    'Primero',
-                last:     'Último',
-                next:     'Siguiente',
+                first: 'Primero',
+                last: 'Último',
+                next: 'Siguiente',
                 previous: 'Anterior'
             }
         },
-        pageLength  : 6,
+        pageLength: 6,
         lengthChange: false,
-        responsive  : true,
-        searching   : false,
-        info        : false,
-        ordering    : false,
+        responsive: true,
+        searching: false,
+        info: false,
+        ordering: false,
         columns: [
             { data: 'bonif_concepto' },
             {
@@ -820,7 +841,10 @@ function initTablaBonificaciones() {
             {
                 data: 'bonif_fecha_ini',
                 render: function (data) {
-                    return data ? new Date(data).toLocaleDateString('es-CO') : '—';
+                    // ── YYYY-MM-DD → DD/MM/YYYY ──
+                    if (!data) return '—';
+                    const partes = data.split('-');
+                    return partes[2] + '/' + partes[1] + '/' + partes[0];
                 }
             },
             {
@@ -833,16 +857,32 @@ function initTablaBonificaciones() {
             },
             { data: 'bonif_observ', defaultContent: '—' },
             {
-                data     : null,
+                data: null,
                 orderable: false,
-                render   : function (data, type, row) {
+                render: function (data, type, row) {
+
+                    if (!modoEdicion) return '—';
+
+                    // ── Fecha formateada para data-fecha ──
+                    let fechaFormateada = '';
+                    if (row.bonif_fecha_ini) {
+                        const partes = row.bonif_fecha_ini.split('-');
+                        fechaFormateada = partes[2] + '/' + partes[1] + '/' + partes[0];
+                    }
+
+                    // ── Valor sin decimales para data-valor ──
+                    const valorFormateado = parseFloat(row.bonif_valor).toLocaleString('es-CO', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                    });
+
                     return `
                         <button class="btn btn-xs btn-warning btn-editar-bonif mr-1"
                             data-id="${row.bonif_id}"
                             data-concepto="${row.bonif_concepto}"
-                            data-valor="${row.bonif_valor}"
+                            data-valor="${valorFormateado}"
                             data-periocidad="${row.bonif_periocidad ?? ''}"
-                            data-fecha="${row.bonif_fecha_ini ?? ''}"
+                            data-fecha="${fechaFormateada}"
                             data-observ="${row.bonif_observ ?? ''}"
                             data-estado="${row.bonif_estado}">
                             <i class="fas fa-edit"></i>
@@ -864,11 +904,11 @@ function listarBonificaciones() {
     if (!empleado_id) return;
 
     $.ajax({
-        url    : '../../controller/bonificaciones.php?op=listarBonificaciones',
-        type   : 'POST',
-        data   : { empleado_id: empleado_id },
+        url: '../../controller/bonificaciones.php?op=listarBonificaciones',
+        type: 'POST',
+        data: { empleado_id: empleado_id },
         success: function (datos) {
-                console.log('Raw listarBonificaciones:', datos); // ← ver qué llega
+            console.log('Raw listarBonificaciones:', datos); // ← ver qué llega
             try {
                 const data = JSON.parse(datos.trim());
 
@@ -924,20 +964,20 @@ function guardarBonificacion() {
     }
 
     const bonif_id = $('#formBonif').data('bonif_id') ?? '';
-    const op       = bonif_id ? 'actualizarBonificacion' : 'guardarBonificacion';
+    const op = bonif_id ? 'actualizarBonificacion' : 'guardarBonificacion';
 
 
     $.ajax({
-        url    : '../../controller/bonificaciones.php?op=' + op,
-        type   : 'POST',
-        data   : {
-            empleado_id      : empleado_id,
-            bonif_id         : bonif_id,
-            txt_concepto     : $('#txt_concepto').val(),
-            txt_valor        : $('#txt_valor').val().trim().replace(/[.,]/g, ''),
+        url: '../../controller/bonificaciones.php?op=' + op,
+        type: 'POST',
+        data: {
+            empleado_id: empleado_id,
+            bonif_id: bonif_id,
+            txt_concepto: $('#txt_concepto').val(),
+            txt_valor: $('#txt_valor').val().trim().replace(/[.,]/g, ''),
             select_periocidad: $('#select_periocidad').val(),
-            txt_fecha_inicio : $('#txt_fecha_inicio').val(),
-            txt_observaciones: $('#txt_observaciones').val()
+            txt_fecha_inicio: $('#txt_fecha_inicio_bonif').val(),
+            txt_observaciones: $('#txt_observ_bonif').val().trim()
         },
         success: function (datos) {
             console.log('Raw guardarBonificacion:', datos);
@@ -952,12 +992,12 @@ function guardarBonificacion() {
                     cancelarFormBonif();
                     listarBonificaciones();
                     Swal.fire({
-                        title            : 'Guardado',
-                        text             : bonif_id ? 'Bonificación actualizada correctamente' : 'Bonificación guardada correctamente',
-                        icon             : 'success',
-                        timer            : 1500,
-                        timerProgressBar : true,
-                        showConfirmButton : false
+                        title: 'Guardado',
+                        text: bonif_id ? 'Bonificación actualizada correctamente' : 'Bonificación guardada correctamente',
+                        icon: 'success',
+                        timer: 1500,
+                        timerProgressBar: true,
+                        showConfirmButton: false
                     });
                 } else {
                     Swal.fire({ title: 'Error', text: data.error, icon: 'error' });
@@ -1007,11 +1047,12 @@ $('#btn_cancelar_bonif').on('click', function () {
 // ── Botón editar fila ───────────────────────────────────
 $(document).on('click', '.btn-editar-bonif', function () {
     const $btn = $(this);
+    initDatePicker('#txt_fecha_inicio_bonif');
     $('#formBonif').data('bonif_id', $btn.data('id'));
     $('#txt_concepto').val($btn.data('concepto'));
     $('#txt_valor').val($btn.data('valor'));
     $('#select_periocidad').val($btn.data('periocidad'));
-    $('#txt_fecha_inicio').val($btn.data('fecha'));
+    $('#txt_fecha_inicio_bonif').val($btn.data('fecha'));
     $('#txt_observaciones').val($btn.data('observ'));
     $('#formBonif').show();
     $('#btn_guardar_basicos').prop('disabled', true);
@@ -1023,19 +1064,19 @@ $(document).on('click', '.btn-eliminar-bonif', function () {
     const bonif_id = $(this).data('id');
 
     Swal.fire({
-        title             : '¿Eliminar bonificación?',
-        text              : 'Esta acción no se puede deshacer',
-        icon              : 'warning',
-        showCancelButton  : true,
+        title: '¿Eliminar bonificación?',
+        text: 'Esta acción no se puede deshacer',
+        icon: 'warning',
+        showCancelButton: true,
         confirmButtonColor: '#d33',
-        cancelButtonText  : 'Cancelar',
-        confirmButtonText : 'Sí, eliminar'
+        cancelButtonText: 'Cancelar',
+        confirmButtonText: 'Sí, eliminar'
     }).then((result) => {
         if (result.isConfirmed) {
             $.ajax({
-                url    : '../../controller/bonificaciones.php?op=eliminarBonificacion',
-                type   : 'POST',
-                data   : { bonif_id: bonif_id },
+                url: '../../controller/bonificaciones.php?op=eliminarBonificacion',
+                type: 'POST',
+                data: { bonif_id: bonif_id },
                 success: function (datos) {
                     try {
                         const data = JSON.parse(datos.trim());
@@ -1062,6 +1103,28 @@ $(document).on('click', '.btn-eliminar-bonif', function () {
 // ── Cargar al entrar al tab ─────────────────────────────
 $(document).on('click', '#mainTabs .nav-link[data-pane="bonificaciones"]', function () {
     listarBonificaciones();
+});
+
+$('#btn_exportar_egreso').on('click', function () {
+    const codigo   = $('#txt_codigo_empleado').val();
+    const radicado = $('#txt_radicado_egreso').val().trim();
+
+    if (!codigo) {
+        Swal.fire({ title: 'Atención', text: 'Debe seleccionar un empleado', icon: 'warning' });
+        return;
+    }
+    if (!radicado) {
+        Swal.fire({ title: 'Atención', text: 'Debe ingresar el radicado', icon: 'warning' });
+        return;
+    }
+
+    const params = new URLSearchParams({
+        op       : 'exportar_egreso_pdf',
+        codigo   : codigo,
+        radicado : radicado
+    });
+
+    window.open('../../controller/empleado.php?' + params.toString(), '_blank');
 });
 
 

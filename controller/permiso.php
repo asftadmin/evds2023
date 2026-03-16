@@ -27,7 +27,8 @@ $asignacion = new Asignacion();
 } */
 
 
-function ftp_mksubdirs_safe($ftp, $path) {
+function ftp_mksubdirs_safe($ftp, $path)
+{
     $parts = explode('/', trim($path, '/'));
     $fullpath = "";
 
@@ -55,7 +56,8 @@ function ftp_mksubdirs_safe($ftp, $path) {
 
 
 
-function obtenerSalarioSiesa($cedula) {
+function obtenerSalarioSiesa($cedula)
+{
     $cedula = trim($cedula);
 
     // OJO: sin espacios en "cedula=..."
@@ -836,7 +838,8 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado) {
+        function obtenerIconoPorEstado($estado)
+        {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
@@ -1436,5 +1439,34 @@ switch ($_GET["op"]) {
             "aaData" => $data
         ]);
 
+        break;
+
+
+    /*=====================================
+
+PERMISOS JEFE INMEDIATO
+
+================================*/
+
+    case 'listarConFiltros':
+        $jefe_id     = $_SESSION["id_empl"];
+        $busqueda    = $_POST["busqueda"]    ?? '';
+        $fecha_desde = $_POST["fecha_desde"] ?? null;
+        $fecha_hasta = $_POST["fecha_hasta"] ?? null;
+        $estado      = $_POST["estado"]      ?? null;
+
+        // Limpiar vacíos
+        $fecha_desde = !empty($fecha_desde) ? $fecha_desde : null;
+        $fecha_hasta = !empty($fecha_hasta) ? $fecha_hasta : null;
+        $estado      = ($estado !== null && $estado !== '') ? $estado : null;
+
+        $datos = $permiso->get_solicitudes_filtradas(
+            $jefe_id,
+            $busqueda,
+            $fecha_desde,
+            $fecha_hasta,
+            $estado
+        );
+        echo json_encode($datos);
         break;
 }

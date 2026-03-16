@@ -130,6 +130,11 @@ if (isset($_SESSION["user_id"])) {
                                         <i class="fas fa-eye mr-1"></i>Vista Previa
                                     </a>
                                 </li>
+                                <li class="nav-item" id="tab_egreso" style="display:none;">
+                                    <a class="nav-link" href="#" data-pane="egreso">
+                                        <i class="fas fa-door-open mr-1"></i>Egreso
+                                    </a>
+                                </li>
                                 <!--                                 <li class="nav-item">
                                     <a class="nav-link" href="#" onclick="showPane('historial');tabActive(this);return false;">
                                         <i class="fas fa-history mr-1"></i>Historial
@@ -360,13 +365,23 @@ if (isset($_SESSION["user_id"])) {
                                                     <input type="text" class="form-control input-erp"
                                                         name="txt_fecha_ingreso" id="txt_fecha_ingreso" readonly>
                                                 </div>
+
+                                                <div class="col-md-2 d-flex flex-column mb-3">
+                                                    <label class="section-subheader">
+                                                        <i class="fas fa-calendar-times mr-1 text-dark"></i>Fecha Retiro
+                                                    </label>
+                                                    <input type="text" class="form-control input-erp"
+                                                        name="txt_fecha_retiro" id="txt_fecha_retiro" readonly>
+                                                </div>
+
                                                 <div class="col-md-2 d-flex flex-column mb-3">
                                                     <label class="section-subheader"><i
                                                             class="fas fa-dollar-sign mr-1"></i>Salario Base</label>
                                                     <input type="text" class="form-control input-erp" name="txt_salario"
                                                         id="txt_salario" readonly>
                                                 </div>
-                                                <div class="col-md-3 d-flex flex-column mb-3">
+
+                                                <div class="col-md-4 d-flex flex-column mb-3">
                                                     <label class="section-subheader"><i
                                                             class="fas fa-briefcase mr-1"></i>Cargo</label>
                                                     <select class="form-control select2bs4" style="width: 100%;"
@@ -374,12 +389,22 @@ if (isset($_SESSION["user_id"])) {
 
                                                     </select>
                                                 </div>
-                                                <div class="col-md-3 d-flex flex-column mb-3">
+                                                <div class="col-md-4 d-flex flex-column mb-3">
                                                     <label class="section-subheader"><i
                                                             class="fas fa-sitemap mr-1"></i>Dependencia / Area</label>
                                                     <select class="form-control select2bs4" style="width: 100%;"
                                                         name="select_dependencia" id="select_dependencia" disabled>
 
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-2 d-flex flex-column mb-3">
+                                                    <label class="section-subheader">
+                                                        <i class="fas fa-toggle-on mr-1"></i>Estado
+                                                    </label>
+                                                    <select class="form-control select2bs4" style="width: 100%;"
+                                                        name="select_esta_empl" id="select_esta_empl" disabled>
+                                                        <option value="1">Activo</option>
+                                                        <option value="0">Retirado</option>
                                                     </select>
                                                 </div>
                                                 <div class="col-md-12 d-flex flex-column mb-3">
@@ -466,14 +491,14 @@ if (isset($_SESSION["user_id"])) {
                                                 </div>
                                                 <div class="col-md-2 d-flex flex-column mb-3">
                                                     <label class="section-subheader">Fecha Inicio</label>
-                                                    <input type="text" class="form-control" name="txt_fecha_inicio"
-                                                        id="txt_fecha_inicio">
+                                                    <input type="text" class="form-control" name="txt_fecha_inicio_bonif"
+                                                        id="txt_fecha_inicio_bonif">
                                                 </div>
                                                 <div class="col-md-3 d-flex flex-column mb-3">
                                                     <label class="section-subheader">Observaciones</label>
                                                     <input type="text" class="form-control"
-                                                        placeholder="Acto administrativo…" name="txt_observaciones"
-                                                        id="txt_observaciones">
+                                                        placeholder="Acto administrativo…" name="txt_observ_bonif"
+                                                        id="txt_observ_bonif">
                                                 </div>
                                             </div>
                                             <button type="button" id="btn_guardar_bonif" class="btn btn-dark btn-sm"><i
@@ -583,6 +608,44 @@ if (isset($_SESSION["user_id"])) {
                                     </div>
                                 </div>
                             </div><!-- /pane-auxilios -->
+                            <!-- ════════════════ PANE EGRESO ════════════════ -->
+                            <div class="pane" id="pane-egreso" style="display:none;">
+                                <div class="card card-outline card-danger mb-3 shadow-sm">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="fas fa-door-open mr-2 text-danger"></i>Exámenes de Egreso
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label class="section-subheader">
+                                                        <i class="fas fa-hashtag mr-1"></i>Radicado
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="txt_radicado_egreso"
+                                                        placeholder="Ej: ASF-GH-2.6-0035-26">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label class="section-subheader">
+                                                        <i class="fas fa-calendar-alt mr-1"></i>Fecha de Retiro
+                                                    </label>
+                                                    <input type="text" class="form-control input-erp" name="txt_fecha_retiro_egreso"
+                                                        id="txt_fecha_retiro_egreso" readonly>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-end mt-3">
+                                            <button class="btn btn-danger" id="btn_exportar_egreso">
+                                                <i class="fas fa-file-pdf mr-1"></i>Exportar PDF
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <!-- ══ PANE VISTA PREVIA ══ -->
                             <div class="pane" id="pane-preview" style="display:none;">
 

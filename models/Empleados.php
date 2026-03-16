@@ -1,8 +1,10 @@
 <?php
 
-class Empleado extends Conectar {
+class Empleado extends Conectar
+{
 
-    public function get_empledo() {
+    public function get_empledo()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados";
@@ -11,7 +13,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_empledo_activo() {
+    public function get_empledo_activo()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados WHERE esta_empl = 1 ORDER BY nomb_empl";
@@ -20,7 +23,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_empledo_grupo() {
+    public function get_empledo_grupo()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados em INNER JOIN cargo cg ON cg.codi_carg = em.carg_empl 
@@ -30,7 +34,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_genero() {
+    public function get_genero()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM genero";
@@ -39,7 +44,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_estado_civil() {
+    public function get_estado_civil()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM estado_civil";
@@ -48,7 +54,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_grupo_sanguineo() {
+    public function get_grupo_sanguineo()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM grupo_sanguineo";
@@ -57,7 +64,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_estrato_socie() {
+    public function get_estrato_socie()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM estrato";
@@ -66,7 +74,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_lugar_exp() {
+    public function get_lugar_exp()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM lugar_expedicion";
@@ -75,7 +84,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_nivel_educativo() {
+    public function get_nivel_educativo()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM nivel_educativo";
@@ -84,7 +94,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_tipo_contrato() {
+    public function get_tipo_contrato()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM tipo_contrato";
@@ -93,7 +104,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_tipo_dependencia() {
+    public function get_tipo_dependencia()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM dependencia";
@@ -104,7 +116,8 @@ class Empleado extends Conectar {
 
 
 
-    public function get_empledo_tipo_documento() {
+    public function get_empledo_tipo_documento()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados em INNER JOIN tipo_documento tp ON em.tpdc_empl = tp.codi_tpdc";
@@ -113,7 +126,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_empledo_x_id($codigo_empleado) {
+    public function get_empledo_x_id($codigo_empleado)
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT  
@@ -153,7 +167,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function insertar_empleado($tipo_documento, $numero_documento, $nombre_empleado, $telefono_empleado, $direccion_empleado, $cargo_empleado, $fecha_ingreso) {
+    public function insertar_empleado($tipo_documento, $numero_documento, $nombre_empleado, $telefono_empleado, $direccion_empleado, $cargo_empleado, $fecha_ingreso)
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "INSERT INTO empleados (tpdc_empl, cedu_empl, nomb_empl, tele_empl, dire_empl, carg_empl, fecha_ingreso_empl, esta_empl) VALUES (?,?,?,?,?,?,?,'1')";
@@ -169,7 +184,8 @@ class Empleado extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function insertarEmplNuevo($data) {
+    public function insertarEmplNuevo($data)
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "INSERT INTO empleados (cedu_empl, nomb_empl, fecha_ingreso_empl, fecha_naci_empl, dire_empl, tele_empl, esta_empl, tpdc_empl) VALUES (:cedu, :nomb, :fein, :fena, :dire, :celu, 1, 2)";
@@ -208,7 +224,8 @@ class Empleado extends Conectar {
         $anio_grado      = null,
         $tipo_contrato   = null,
         $salario         = null,
-        $dependencia     = null
+        $dependencia     = null,
+        $fecha_retiro    = null
     ) {
         $conectar = parent::conexion();
         parent::set_names();
@@ -235,7 +252,8 @@ class Empleado extends Conectar {
                 anio_grado_empl     = ?,
                 tipo_contrato_empl  = ?,
                 salario_empl        = ?,
-                depen_empl          = ?
+                depen_empl          = ?,
+                fecha_retiro_empl   = ?
             WHERE id_empl = ?";
 
         $stmt = $conectar->prepare($sql);
@@ -261,13 +279,15 @@ class Empleado extends Conectar {
         $stmt->bindValue(20, $tipo_contrato, $tipo_contrato ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(21, $salario,      $salario    ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $stmt->bindValue(22, $dependencia,  $dependencia ? PDO::PARAM_INT : PDO::PARAM_NULL);
-        $stmt->bindValue(23, $id_empl,                          PDO::PARAM_INT);
+        $stmt->bindValue(23, $fecha_retiro,  $fecha_retiro  ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmt->bindValue(24, $id_empl,                                  PDO::PARAM_INT);
 
         $stmt->execute();
         return $stmt->rowCount() > 0;
     }
 
-    public function inactivar_empleados($ids) {
+    public function inactivar_empleados($ids)
+    {
         $conectar = parent::conexion();
         parent::set_names();
 
@@ -278,7 +298,8 @@ class Empleado extends Conectar {
     }
 
 
-    public function get_empleado_por_id($id) {
+    public function get_empleado_por_id($id)
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT * FROM empleados 

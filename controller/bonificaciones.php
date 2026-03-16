@@ -21,8 +21,8 @@ switch ($_REQUEST["op"]) {
         $concepto    = $_POST["txt_concepto"]      ?? null;
         $valor       = $_POST["txt_valor"]         ?? null;
         $periocidad  = $_POST["select_periocidad"] != 'NULL' ? $_POST["select_periocidad"] : null;
-        $fecha_ini   = convertirFecha($_POST["txt_fecha_inicio"] ?? '');
-        $observ      = !empty($_POST["txt_observaciones"]) ? $_POST["txt_observaciones"] : null;
+        $fecha_ini   = convertirFecha($_POST["txt_fecha_inicio_bonif"] ?? '');
+        $observ      = !empty($_POST["txt_observaciones_bonif"]) ? $_POST["txt_observaciones"] : null;
 
         if (empty($concepto) || empty($valor)) {
             echo json_encode(['success' => false, 'error' => 'Concepto y valor son obligatorios']);
@@ -47,15 +47,25 @@ switch ($_REQUEST["op"]) {
         break;
 
     case 'actualizarBonificacion':
+
         $bonif_id   = $_POST["bonif_id"];
         $concepto   = $_POST["txt_concepto"]      ?? null;
         $valor      = $_POST["txt_valor"]         ?? null;
         $periocidad = $_POST["select_periocidad"] != 'NULL' ? $_POST["select_periocidad"] : null;
         $fecha_ini  = convertirFecha($_POST["txt_fecha_inicio"] ?? '');
-        $observ     = !empty($_POST["txt_observaciones"]) ? $_POST["txt_observaciones"] : null;
+        $observ     = !empty($_POST["txt_observaciones"]) ? $_POST["txt_observaciones"] : '';
         $estado     = $_POST["bonif_estado"] ?? 1;
 
-        $valor = str_replace(['.', ','], ['', '.'], $valor);
+        // ── Limpiar valor en dos pasos ──
+        $valor = $_POST["txt_valor"] ?? '0';
+        //var_dump('ANTES: ' . $valor);
+
+        $valor = preg_replace('/[^0-9.]/', '', $valor);
+        //var_dump('DESPUES str1: ' . $valor);
+
+        //exit;
+
+
 
         $resultado = $bonificacion->update_bonificacion($bonif_id, $concepto, $valor, $periocidad, $fecha_ini, $observ, $estado);
         echo json_encode([

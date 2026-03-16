@@ -1,7 +1,13 @@
 let tablaOpen = null;
 
+let fecha_desde = null;
+let fecha_hasta = null;
+
+
 function init() {
+    initDateRangePicker();
     inicializarTabla();
+    aplicarFiltros();
 }
 
 $('#abiertos-btn').on('click', function () {
@@ -339,6 +345,110 @@ function rechazar(codigo_permiso) {
 }
 
 
+/*====================================
+
+LISTAR APROBACIONES JEFE
+
+=====================================*/
+
+// ── DateRangePicker ────────────────────────────────────
+function initDateRangePicker() {
+    $('#filtro_fechas').daterangepicker({
+        autoUpdateInput: false,
+        locale: {
+            cancelLabel : 'Limpiar',
+            applyLabel  : 'Aplicar',
+            format      : 'DD/MM/YYYY',
+            daysOfWeek  : ['Do','Lu','Ma','Mi','Ju','Vi','Sa'],
+            monthNames  : ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                           'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+            firstDay    : 1
+        }
+    })
+    .on('apply.daterangepicker', function (ev, picker) {
+        $(this).val(
+            picker.startDate.format('DD/MM/YYYY') + ' — ' +
+            picker.endDate.format('DD/MM/YYYY')
+        );
+        fecha_desde = picker.startDate.format('YYYY-MM-DD');
+        fecha_hasta = picker.endDate.format('YYYY-MM-DD');
+    })
+    .on('cancel.daterangepicker', function () {
+        $(this).val('');
+        fecha_desde = null;
+        fecha_hasta = null;
+    });
+}
+
+// ── Aplicar filtros ────────────────────────────────────
+function aplicarFiltros() {
+    const estado = $('.carpeta-item.active').data('estado') ?? '';
+    const busqueda = $('#filtro_busqueda').val().trim();
+
+    $.ajax({
+        url: '../../controller/permiso.php?op=listarConFiltros',
+        type: 'POST',
+        data: {
+            busqueda: busqueda,
+            fecha_desde: fecha_desde ?? '',
+            fecha_hasta: fecha_hasta ?? '',
+            estado: estado
+        },
+        success: function (datos) {
+            try {
+                const lista = JSON.parse(datos.trim());
+                renderLista(lista);
+            } catch (e) {
+                console.error('Error listarConFiltros:', e);
+                console.log('Raw:', datos);
+            }
+        }
+    });
+}
+
+// ── Render lista ───────────────────────────────────────
+function renderLista(lista) {
+    const $lista = $('#lista-solicitudes');
+    $lista.empty();
+
+    $('#lista-contador').text(lista.length + ' solicitud' + (lista.length !== 1 ? 'es' : ''));
+
+    if (lista.length === 0) {
+        $lista.html(`
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-inbox fa-2x mb-2 d-block" style="opacity:0.3;"></i>
+                Sin solicitudes
+            </div>`);
+        return;
+    }
+
+    lista.forEach(function (p) {
+        const badgeClass = p.permiso_estado == '1' ? 'badge-pendiente'
+            : p.permiso_estado == '2' ? 'badge-aprobado'
+                : 'badge-rechazado';
+        const badgeText = p.permiso_estado == '1' ? 'Pendiente'
+            : p.permiso_estado == '2' ? 'Aprobado'
+                : 'Rechazado';
+
+        const fecha = p.permiso_fecha
+            ? new Date(p.permiso_fecha + 'T00:00:00').toLocaleDateString('es-CO')
+            : '—';
+
+        $lista.append(`
+            <div class="solicitud-item" data-id="${p.permiso_id}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <span class="nombre">${p.nombre_empleado}</span>
+                    <span class="${badgeClass}">${badgeText}</span>
+                </div>
+                <div class="meta">${p.cedula_empleado}</div>
+                <div class="meta">
+                    <i class="fas fa-calendar-alt mr-1"></i>${fecha}
+                    &nbsp;·&nbsp;
+                    <i class="fas fa-tag mr-1"></i>${p.tipo_permiso ?? '—'}
+                </div>
+            </div>`);
+    });
+}
 
 
 
