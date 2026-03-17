@@ -27,8 +27,7 @@ $asignacion = new Asignacion();
 } */
 
 
-function ftp_mksubdirs_safe($ftp, $path)
-{
+function ftp_mksubdirs_safe($ftp, $path) {
     $parts = explode('/', trim($path, '/'));
     $fullpath = "";
 
@@ -56,8 +55,7 @@ function ftp_mksubdirs_safe($ftp, $path)
 
 
 
-function obtenerSalarioSiesa($cedula)
-{
+function obtenerSalarioSiesa($cedula) {
     $cedula = trim($cedula);
 
     // OJO: sin espacios en "cedula=..."
@@ -123,12 +121,13 @@ function obtenerSalarioSiesa($cedula)
     ];
 }
 
-
-
-
-
 switch ($_GET["op"]) {
 
+    /*======================================================
+
+PERMISOS EMPLEADO
+
+========================================================*/
     case 'guardarPermiso':
 
         $id_empleado = $_POST["empleado_codi"];
@@ -387,45 +386,39 @@ switch ($_GET["op"]) {
         error_log("=== FIN GUARDAR PERMISO ===\n");
         echo json_encode(["success" => true]);
         break;
+    /*========= FIN GUARDAR PERMISOS================*/
 
+    /**============================================= 
+     * 
+     * FUNCIONES PARA BUZON DE EMPLEADOS
+     * 
+     *============================================== */
 
-    case "listarSolicitudesPendientes":
+    case 'listarMisPermisos':
         $empleado_id = $_SESSION["id_empl"];
-        $datos = $permiso->get_solicitudes($empleado_id);
-        $data = array();
-        //$tickets = [];
-        foreach ($datos as $solicitud) {
-            $sub_array = array();
-            $sub_array[] = $solicitud["nomb_empl"];
-            $sub_array[] = date('d-m-Y', strtotime($solicitud["permiso_fecha"]));
-            $sub_array[] = $solicitud["permiso_hora_salida"];
-            $sub_array[] = $solicitud["permiso_hora_entrada"];
-            $sub_array[] = $solicitud["tipo_nombre"];
-            $sub_array[] = $solicitud["permiso_detalle"];
+        $fecha_desde = !empty($_POST["fecha_desde"]) ? $_POST["fecha_desde"] : null;
+        $fecha_hasta = !empty($_POST["fecha_hasta"]) ? $_POST["fecha_hasta"] : null;
+        $estados_raw = $_POST["estados"] ?? '';
+        $estados     = !empty($estados_raw)
+            ? array_map('trim', explode(',', $estados_raw))
+            : null;
 
-            $sub_array[] = '<div class="button-container text-center" >
-                    <button type="button" onClick="aprobar(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-success btn-icon " >
-                        <div><i class="fas fa-stamp"></i></div>
-                    </button>
-                    <button type="button" onClick="rechazar(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-danger btn-icon " >
-                        <div><i class="fas fa-ban"></i></div>
-                    </button>
-                </div>';
-
-            $data[] = $sub_array;
-        }
-
-        $results = array(
-            "sEcho" => 1,
-            "iTotalRecords" => count($data),
-            "iTotalDisplayRecords" => count($data),
-            "aaData" => $data
+        $datos = $permiso->get_mis_permisos(
+            $empleado_id,
+            $fecha_desde,
+            $fecha_hasta,
+            $estados
         );
-        echo json_encode($results);
-
-
-
+        echo json_encode($datos);
         break;
+
+    case 'getPermisoEmpleado':
+        $permiso_id = $_POST["permiso_id"];
+        $datos      = $permiso->get_permiso_empleado($permiso_id);
+        echo json_encode($datos);
+        break;
+
+    /**FIN FUNCIONES BUZON EMPLEADOS */
 
     case "listarSolicitudesJefe":
         $empleado_id = $_SESSION["id_empl"];
@@ -564,141 +557,7 @@ switch ($_GET["op"]) {
 
         break;
 
-    case "aprobarPermiso":
 
-        $codigo_jefe = $_SESSION["id_empl"];
-
-        $firma = new Firma();
-
-        $firma_jefe = $firma->get_by_user_id($codigo_jefe);
-
-        if (!$firma_jefe || empty($firma_jefe["firma_base64"])) {
-            echo json_encode([
-                "success" => false,
-                "need_firma" => true,
-                "message" => "Debe registrar su firma antes de aprobar el permiso."
-            ]);
-            exit;
-        }
-
-        $codigo_permiso = $_POST["codigo_permiso"];
-        $codigo_empleado = $_SESSION["id_empl"];
-        $datos = $permiso->update_aprobado($codigo_permiso, $codigo_empleado);
-
-        if ($datos) {
-            $info_permiso = $permiso->get_permiso_by_id($codigo_permiso);
-            $nombre_empleado = $info_permiso["nomb_empl"];
-            $fecha_permiso   = $info_permiso["permiso_fecha"];
-            $hora_salida     = $info_permiso["permiso_hora_salida"];
-            $hora_ingreso     = $info_permiso["permiso_hora_entrada"];
-            $motivo          = $info_permiso["permiso_detalle"];
-            $nombre_jefe     = $_SESSION["nomb_empl"];
-
-            $asunto = "Permiso Aprobado - $nombre_empleado";
-            $url = "http://181.204.219.154:3396/evds2023/view/MntInboxT/inbox.php"; //181.204.219.154:3396
-
-            $mensaje = "
-                        <div style='background-color:#f4f6f9; padding:30px 0; font-family: Arial, sans-serif;'>
-
-                        <div style='max-width:650px; margin:0 auto; background:#ffffff; 
-                                    border-radius:10px; padding:30px; 
-                                    box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
-
-                            <div style='text-align:center; margin-bottom:25px;'>
-                            <h2 style='color:#009BA9; margin:0; font-size:22px;'>
-                                Permiso Aprobado - {$nombre_empleado}
-                            </h2>
-                            </div>
-
-                            <table width='100%' cellpadding='10' 
-                                style='border-collapse:collapse; font-size:14px;'>
-
-                            <tr>
-                                <td style='font-weight:bold;'>Empleado:</td>
-                                <td>{$nombre_empleado}</td>
-                            </tr>
-
-                            <tr style='background:#f9f9f9;'>
-                                <td style='font-weight:bold;'>Fecha:</td>
-                                <td>{$fecha_permiso}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='font-weight:bold;'>Hora salida:</td>
-                                <td>{$hora_salida}</td>
-                            </tr>
-
-                            <tr style='background:#f9f9f9;'>
-                                <td style='font-weight:bold;'>Hora entrada:</td>
-                                <td>{$hora_ingreso}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='font-weight:bold;'>Motivo:</td>
-                                <td>{$motivo}</td>
-                            </tr>
-
-                            <tr style='background:#f9f9f9;'>
-                                <td style='font-weight:bold;'>Aprobado por:</td>
-                                <td>{$nombre_jefe}</td>
-                            </tr>
-
-                            </table>
-
-                            <div style='text-align:center; margin:30px 0;'>
-                            <a href='{$url}' 
-                                style='background:#009BA9; 
-                                        color:#ffffff; 
-                                        padding:12px 28px; 
-                                        text-decoration:none; 
-                                        border-radius:6px; 
-                                        font-weight:bold; 
-                                        display:inline-block;'>
-                                Ver Solicitud
-                            </a>
-                            </div>
-
-                            <div style='font-size:12px; color:#888; text-align:center; 
-                                        border-top:1px solid #eee; padding-top:15px;'>
-                            Este es un mensaje automático del Sistema de Permisos.<br>
-                            No responda a este correo.
-                            </div>
-
-                        </div>
-                        </div>
-                        ";
-
-            //ENVIAR A RRHH
-            MailHelper::enviar(
-                "rhumano@asfaltart.com",
-                $asunto,
-                $mensaje,
-                [] // sin adjuntos
-            );
-            echo json_encode(["success" => true]);
-        } else {
-            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
-        }
-
-
-        break;
-
-
-    case "rechazarPermiso":
-
-        $codigo_permiso = $_POST["codigo_permiso"];
-        $codigo_empleado = $_SESSION["id_empl"];
-        $motivo = $_POST["motivo_rechazo"];
-        $datos = $permiso->update_rechazo($codigo_permiso, $codigo_empleado, $motivo);
-
-        if ($datos) {
-            echo json_encode(["success" => true]);
-        } else {
-            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
-        }
-
-
-        break;
 
     case "detallePermiso":
         if (!isset($_GET['id'])) {
@@ -838,8 +697,7 @@ switch ($_GET["op"]) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado)
-        {
+        function obtenerIconoPorEstado($estado) {
 
             $iconos = [
                 "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
@@ -1015,106 +873,6 @@ switch ($_GET["op"]) {
 
         break;
 
-    /*    case "subirSoporte":
-
-        $permiso_id   = $_POST["permiso_id"];
-
-        $datosPermiso = $permiso->get_permiso_by_id($permiso_id);
-
-        if (!$datosPermiso) {
-            echo json_encode([
-                "success" => false,
-                "message" => "Permiso no encontrado."
-            ]);
-            exit;
-        }
-
-        $empleado_id  = $datosPermiso["empleado_id"];
-        $nomb_empl    = str_replace(" ", "_", trim($datosPermiso["nomb_empl"]));
-
-        // ===========================
-        // 2. DATOS DEL ARCHIVO
-        // ===========================
-
-        $tmpFile      = $_FILES["file"]["tmp_name"];
-        $fileName     = $_FILES["file"]["name"];
-
-        $fecha        = date("Y-m-d");
-
-        // Ruta remota final donde irá el archivo
-        $remotePath     = "data01/permisos/$nomb_empl/$fecha";
-        $remoteFullPath = "/$remotePath/$fileName";
-
-        // ===========================
-        // 3. CREAR CARPETAS VÍA FTP
-        // ===========================
-
-        $ftp_server   = "172.16.5.3";
-        $ftp_user     = "asfaltart_admin";
-        $ftp_pass     = "s1st3m4s19..";
-
-        $ftp = ftp_connect($ftp_server);
-        ftp_login($ftp, $ftp_user, $ftp_pass);
-
-        // Modo pasivo recomendado
-        ftp_pasv($ftp, true);
-
-        // Crear recursivamente: data01/permisos/{empleado}/{fecha}
-        // Crear recursivamente: data01/permisos/{empleado}/{fecha}
-        if (!ftp_mksubdirs_safe($ftp, "data01/permisos/$nomb_empl/$fecha")) {
-            echo json_encode([
-                "success" => false,
-                "message" => "No fue posible crear las carpetas en el NAS."
-            ]);
-            ftp_close($ftp);
-            exit;
-        }
-
-        ftp_close($ftp);
-
-
-        // ===========================
-        // 2. SUBIR ARCHIVO CON WinSCP
-        // ===========================
-
-        $scriptPath = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_temp.txt";
-        $winscpCom  = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
-
-        $scriptContent =
-            "open ftp://$ftp_user:$ftp_pass@$ftp_server\n" .
-            "put \"$tmpFile\" \"$remoteFullPath\"\n" .
-            "exit\n";
-
-        file_put_contents($scriptPath, $scriptContent);
-
-        $cmd = "\"$winscpCom\" /ini=nul /script=\"$scriptPath\"";
-        exec($cmd . " 2>&1", $output, $resultCode);
-
-        unlink($scriptPath);
-
-
-        if ($resultCode === 0) {
-
-            $permiso->registrar_soporte_permiso(
-                $permiso_id,
-                $fileName,
-                $remoteFullPath
-            );
-
-            echo json_encode([
-                "success" => true,
-                "message" => "Soporte subido correctamente"
-            ]);
-        } else {
-
-            echo json_encode([
-                "success" => false,
-                "message" => "Error subiendo archivo",
-                "debug"   => $output
-            ]);
-        }
-
-        break; */
 
     case "subirSoporte":
 
@@ -1442,11 +1200,11 @@ switch ($_GET["op"]) {
         break;
 
 
-    /*=====================================
+    /*=============================================================================
 
 PERMISOS JEFE INMEDIATO
 
-================================*/
+===============================================================================*/
 
     case 'listarConFiltros':
         $jefe_id     = $_SESSION["id_empl"];
@@ -1458,15 +1216,169 @@ PERMISOS JEFE INMEDIATO
         // Limpiar vacíos
         $fecha_desde = !empty($fecha_desde) ? $fecha_desde : null;
         $fecha_hasta = !empty($fecha_hasta) ? $fecha_hasta : null;
-        $estado      = ($estado !== null && $estado !== '') ? $estado : null;
+
+        // ── Convertir string de estados a array ──
+        $estados_raw = $_POST["estados"] ?? '';
+        $estados     = !empty($estados_raw)
+            ? array_map('trim', explode(',', $estados_raw))
+            : null;
+
 
         $datos = $permiso->get_solicitudes_filtradas(
             $jefe_id,
             $busqueda,
             $fecha_desde,
             $fecha_hasta,
-            $estado
+            $estados
         );
         echo json_encode($datos);
+        break;
+
+    case 'contarPorEstado':
+        $jefe_id = $_SESSION["id_empl"];
+        $datos   = $permiso->get_conteo_por_estado($jefe_id);
+        echo json_encode($datos);
+        break;
+
+    case 'getPermiso':
+        $permiso_id = $_POST["permiso_id"];
+        $datos      = $permiso->detalle_permiso_id($permiso_id);
+        echo json_encode($datos);
+        break;
+
+    case "aprobarPermiso":
+
+        $codigo_jefe = $_SESSION["id_empl"];
+
+        $firma = new Firma();
+
+        $firma_jefe = $firma->get_by_user_id($codigo_jefe);
+
+        if (!$firma_jefe || empty($firma_jefe["firma_base64"])) {
+            echo json_encode([
+                "success" => false,
+                "need_firma" => true,
+                "message" => "Debe registrar su firma antes de aprobar el permiso."
+            ]);
+            exit;
+        }
+
+        $codigo_permiso = $_POST["codigo_permiso"];
+        $codigo_empleado = $_SESSION["id_empl"];
+        $datos = $permiso->update_aprobado($codigo_permiso, $codigo_empleado);
+
+        if ($datos) {
+            $info_permiso = $permiso->get_permiso_by_id($codigo_permiso);
+            $nombre_empleado = $info_permiso["nomb_empl"];
+            $fecha_permiso   = $info_permiso["permiso_fecha"];
+            $hora_salida     = $info_permiso["permiso_hora_salida"];
+            $hora_ingreso     = $info_permiso["permiso_hora_entrada"];
+            $motivo          = $info_permiso["permiso_detalle"];
+            $nombre_jefe     = $_SESSION["nomb_empl"];
+
+            $asunto = "Permiso Aprobado - $nombre_empleado";
+            $url = "http://181.204.219.154:3396/evds2023/view/MntInboxT/inbox.php"; //181.204.219.154:3396
+
+            $mensaje = "
+                        <div style='background-color:#f4f6f9; padding:30px 0; font-family: Arial, sans-serif;'>
+
+                        <div style='max-width:650px; margin:0 auto; background:#ffffff; 
+                                    border-radius:10px; padding:30px; 
+                                    box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
+
+                            <div style='text-align:center; margin-bottom:25px;'>
+                            <h2 style='color:#009BA9; margin:0; font-size:22px;'>
+                                Permiso Aprobado - {$nombre_empleado}
+                            </h2>
+                            </div>
+
+                            <table width='100%' cellpadding='10' 
+                                style='border-collapse:collapse; font-size:14px;'>
+
+                            <tr>
+                                <td style='font-weight:bold;'>Empleado:</td>
+                                <td>{$nombre_empleado}</td>
+                            </tr>
+
+                            <tr style='background:#f9f9f9;'>
+                                <td style='font-weight:bold;'>Fecha:</td>
+                                <td>{$fecha_permiso}</td>
+                            </tr>
+
+                            <tr>
+                                <td style='font-weight:bold;'>Hora salida:</td>
+                                <td>{$hora_salida}</td>
+                            </tr>
+
+                            <tr style='background:#f9f9f9;'>
+                                <td style='font-weight:bold;'>Hora entrada:</td>
+                                <td>{$hora_ingreso}</td>
+                            </tr>
+
+                            <tr>
+                                <td style='font-weight:bold;'>Motivo:</td>
+                                <td>{$motivo}</td>
+                            </tr>
+
+                            <tr style='background:#f9f9f9;'>
+                                <td style='font-weight:bold;'>Aprobado por:</td>
+                                <td>{$nombre_jefe}</td>
+                            </tr>
+
+                            </table>
+
+                            <div style='text-align:center; margin:30px 0;'>
+                            <a href='{$url}' 
+                                style='background:#009BA9; 
+                                        color:#ffffff; 
+                                        padding:12px 28px; 
+                                        text-decoration:none; 
+                                        border-radius:6px; 
+                                        font-weight:bold; 
+                                        display:inline-block;'>
+                                Ver Solicitud
+                            </a>
+                            </div>
+
+                            <div style='font-size:12px; color:#888; text-align:center; 
+                                        border-top:1px solid #eee; padding-top:15px;'>
+                            Este es un mensaje automático del Sistema de Permisos.<br>
+                            No responda a este correo.
+                            </div>
+
+                        </div>
+                        </div>
+                        ";
+
+            //ENVIAR A RRHH
+            MailHelper::enviar(
+                "rhumano@asfaltart.com",
+                $asunto,
+                $mensaje,
+                [] // sin adjuntos
+            );
+            echo json_encode(["success" => true]);
+        } else {
+            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+        }
+
+
+        break;
+
+
+    case "rechazarPermiso":
+
+        $codigo_permiso = $_POST["codigo_permiso"];
+        $codigo_empleado = $_SESSION["id_empl"];
+        $motivo = $_POST["motivo_rechazo"];
+        $datos = $permiso->update_rechazo($codigo_permiso, $codigo_empleado, $motivo);
+
+        if ($datos) {
+            echo json_encode(["success" => true]);
+        } else {
+            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+        }
+
+
         break;
 }

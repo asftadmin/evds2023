@@ -1,0 +1,171 @@
+.inbox-wrapper {
+    display: flex;
+    height: calc(100vh - 155px);
+    overflow: hidden;
+}
+
+.inbox-lista {
+    width: 320px;
+    flex-shrink: 0;
+    border-right: 1px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+}
+
+.inbox-lista .lista-body {
+    overflow-y: auto;
+    flex: 1;
+}
+
+.inbox-detalle {
+    flex: 1;
+    overflow-y: auto;
+    background: #f4f6f9;
+    padding: 16px;
+}
+
+.solicitud-item {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f0f2f5;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+}
+
+.solicitud-item:hover {
+    background: #f8f9fa;
+}
+
+.solicitud-item.active {
+    background: #e8f4fd;
+    border-left-color: #007bff;
+}
+
+.solicitud-item .nombre {
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.solicitud-item .meta {
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 2px;
+}
+
+.justif-box {
+    border-left: 3px solid #007bff;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    font-size: 13px;
+    border-radius: 4px;
+}
+
+/* Badges */
+.badge-orange {
+    background-color: #fd7e14;
+    color: #fff;
+}
+
+.badge-purple {
+    background-color: #6f42c1;
+    color: #fff;
+}
+
+/* Timeline aprobación */
+.estado-timeline {
+    display: flex;
+    align-items: flex-start;
+    margin-top: 8px;
+}
+
+.estado-step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+}
+
+.estado-step::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: #dee2e6;
+    z-index: 0;
+}
+
+.estado-step:last-child::after {
+    display: none;
+}
+
+.estado-step .step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #dee2e6;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 6px;
+    font-size: 12px;
+    position: relative;
+    z-index: 1;
+}
+
+.estado-step.done .step-dot {
+    background: #28a745;
+    color: #fff;
+}
+
+.estado-step.active .step-dot {
+    background: #007bff;
+    color: #fff;
+}
+
+.estado-step.danger .step-dot {
+    background: #dc3545;
+    color: #fff;
+}
+
+.estado-step .step-label {
+    font-size: 10px;
+    color: #6c757d;
+    line-height: 1.3;
+}
+
+.estado-step.done .step-label {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.estado-step.active .step-label {
+    color: #007bff;
+    font-weight: 600;
+}
+
+.estado-step.danger .step-label {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .inbox-wrapper {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .inbox-lista {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
+        max-height: 320px;
+    }
+
+    .inbox-detalle {
+        padding: 12px;
+    }
+}

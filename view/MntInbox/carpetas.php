@@ -1,24 +1,23 @@
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Bandeja Entrada</h3>
-
-        <div class="card-tools">
-            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                <i class="fas fa-minus"></i>
-            </button>
-        </div>
+<!-- ══ SIDEBAR CARPETAS ══ -->
+<div class="inbox-sidebar bg-white">
+    <div class="px-3 pt-3 pb-1">
+        <small class="text-uppercase text-muted font-weight-bold" style="letter-spacing:1px;">Bandeja</small>
     </div>
-    <div class="card-body p-0">
-        <ul class="nav nav-pills flex-column">
-            <li class="nav-item active">
-                <a href="inboxSol.php" class="nav-link" id="abiertos-btn">
-                    <i class="fas fa-lock-open"></i> Solicitudes
-                    <span class="badge bg-primary float-right">12</span>
-                </a>
-            </li>
 
-        </ul>
-
-
+    <div class="carpeta-item active" data-estado="1">
+        <span><i class="fas fa-clock mr-2 text-warning"></i>Pendientes</span>
+        <span class="badge badge-warning" id="badge-pendientes">3</span>
+    </div>
+    <div class="carpeta-item" data-estado="2">
+        <span><i class="fas fa-check mr-2 text-info"></i>Aprobados</span>
+        <span class="badge badge-info" id="badge-aprobados">8</span>
+    </div>
+    <div class="carpeta-item" data-estado="6">
+        <span><i class="fas fa-times mr-2 text-danger"></i>Rechazados</span>
+        <span class="badge badge-danger" id="badge-rechazados">2</span>
+    </div>
+    <div class="carpeta-item" data-estado="">
+        <span><i class="fas fa-list mr-2 text-secondary"></i>Todos</span>
+        <span class="badge badge-secondary" id="badge-todos">13</span>
     </div>
 </div>

@@ -30,6 +30,19 @@ class Usuario extends Conectar {
                     $_SESSION["nomb_empl"] = $result["nomb_empl"];
                     $_SESSION["user_rol"] = $result["user_rol"];
 
+                    // ── Si es empleado verificar si es jefe inmediato ──
+                    if ($result["user_rol"] == 4) {
+                        $sql_jefe = "SELECT COUNT(*) FROM empleado_jefe 
+                     WHERE jefe_id = ? AND ej_estado = 1";
+                        $stmt_jefe = $conectar->prepare($sql_jefe);
+                        $stmt_jefe->bindValue(1, $result["id_empl"], PDO::PARAM_INT);
+                        $stmt_jefe->execute();
+
+                        if ($stmt_jefe->fetchColumn() > 0) {
+                            $_SESSION["user_rol"] = 5; // ← rol jefe en sesión
+                        }
+                    }
+
                     header("Location:" . conectar::ruta() . "view/home/home2.php");
                     exit();
                 } else {

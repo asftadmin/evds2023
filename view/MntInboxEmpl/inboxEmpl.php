@@ -1,120 +1,132 @@
 <?php
 require_once "../../config/conexion.php";
 if (isset($_SESSION["user_id"])) {
-
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
-
 <?php require_once "../MainHead/head.php"; ?>
-<link rel="stylesheet" href="../../public/css/inicio.css">
-<!-- SweetAlert -->
-<link rel="stylesheet" href="../../public/plugins/sweetalert2/sweetalert2.css">
+<link rel="stylesheet" href="../../public/css/inboxEmpleados.css">
 
-
-<title>Gestion Personal</title>
+<title>Mis Permisos</title>
 </head>
 
-
-<body class="hold-transition sidebar-mini">
-
+<body class="hold-transition sidebar-mini layout-fixed layout-fixed-footer">
     <div class="wrapper">
 
-        <!-- Navbar -->
         <?php require_once "../MainNav/nav.php"; ?>
-        <!-- /.navbar -->
-
-        <!-- Main Sidebar Container -->
         <?php require_once "../MainMenu/menu.php"; ?>
 
-        <!-- Content Wrapper. Contains page content -->
         <div class="content-wrapper">
-            <!-- Content Header (Page header) -->
+
+            <!-- Breadcrumb -->
             <div class="content-header">
                 <div class="container-fluid">
                     <div class="row mb-2">
                         <div class="col-sm-6">
-                            <h1 class="m-0">Bandeja de Entrada</h1>
-                        </div><!-- /.col -->
+                            <h1 class="m-0">
+                                <i class="fas fa-clipboard-list mr-2"></i>Mis Permisos
+                            </h1>
+                        </div>
                         <div class="col-sm-6">
                             <ol class="breadcrumb float-sm-right">
-                                <li class="breadcrumb-item"><a href="#">Inicio</a></li>
-                                <li class="breadcrumb-item active">Inbox</li>
+                                <li class="breadcrumb-item"><a href="../home/home2.php">Inicio</a></li>
+                                <li class="breadcrumb-item active">Mis Permisos</li>
                             </ol>
-                        </div><!-- /.col -->
-                    </div><!-- /.row -->
-                </div><!-- /.container-fluid -->
-            </div><!-- /.content-header -->
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <!-- Main content -->
+            <!-- Contenido -->
             <div class="content">
                 <div class="container-fluid">
                     <div class="row">
-                        <div class="col-md-2">
+                        <div class="col-12">
 
-                            <?php require_once "carpetasEmpl.php"; ?>
+                            <div class="card card-outline card-info mb-2" style="height: calc(100vh - 155px);">
+                                <div class="card-body p-0" style="height:100%; overflow:hidden;">
+                                    <div class="inbox-wrapper" style="height:100%;">
 
-                        </div>
-                        <div class="col-md-10">
-                            <div class="card card-primary card-outline">
-                                <div class="card-header">
-                                    <h3 class="card-title">Solicitudes Permisos</h3>
-                                </div>
+                                        <!-- ══ PANEL LISTA ══ -->
+                                        <div class="inbox-lista">
 
-                                <div class="card-body p-0">
+                                            <!-- Filtros -->
+                                            <div class="p-2 border-bottom">
+                                                <!-- Reemplazar el input de búsqueda por esto -->
+                                                <div class="form-group mb-2">
+                                                    <input type="text" class="form-control form-control-sm"
+                                                        id="filtro_fechas_empl" placeholder="Rango de fechas…">
+                                                </div>
+                                                <div class="form-group mb-2">
+                                                    <select class="form-control form-control-sm"
+                                                        id="filtro_estado_empl">
+                                                        <option value="">Todos los estados</option>
+                                                        <option value="1">Pendiente</option>
+                                                        <option value="2,3,4,5">Aprobados</option>
+                                                        <option value="6">Rechazados</option>
+                                                        <option value="7">Cancelados</option>
+                                                    </select>
+                                                </div>
+                                                <div class="d-flex" style="gap:6px;">
+                                                    <button class="btn btn-sm btn-primary flex-fill"
+                                                        id="btn_filtrar_empl">
+                                                        <i class="fas fa-filter mr-1"></i>Filtrar
+                                                    </button>
+                                                    <button class="btn btn-sm btn-default flex-fill"
+                                                        id="btn_limpiar_empl">
+                                                        <i class="fas fa-undo mr-1"></i>Limpiar
+                                                    </button>
+                                                </div>
+                                            </div>
 
-                                    <div class="table-responsive mailbox-messages">
-                                        <table class="table table-hover table-striped" id="tablaSolcEmpl">
-                                            <thead>
-                                                <tr>
-                                                    <th>Fecha Permiso</th>
-                                                    <th>Motivo</th>
-                                                    <th>Jefe / Supervisor</th>
-                                                    <th>Estado</th>
-                                                    <th>Acciones</th>
-                                                </tr>
-                                            </thead>
+                                            <!-- Contador -->
+                                            <div class="px-3 py-2 border-bottom">
+                                                <small class="text-muted" id="lista-contador-empl">
+                                                    0 solicitudes
+                                                </small>
+                                            </div>
 
-                                            <tbody>
-                                                <!-- Las filas se llenarán dinámicamente con JS -->
-                                            </tbody>
-                                        </table>
+                                            <!-- Lista dinámica -->
+                                            <div class="lista-body" id="lista-permisos-empl">
+                                                <div class="text-center text-muted py-4">
+                                                    <i class="fas fa-inbox fa-2x mb-2 d-block" style="opacity:0.3;"></i>
+                                                    Sin solicitudes
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                        <!-- ══ PANEL DETALLE ══ -->
+                                        <div class="inbox-detalle" id="panel-detalle-empl">
+                                            <div class="text-center text-muted" style="padding:60px 0;">
+                                                <i class="fas fa-hand-pointer fa-2x mb-2 d-block"
+                                                    style="opacity:0.3;"></i>
+                                                Selecciona una solicitud para ver el detalle
+                                            </div>
+                                        </div>
 
                                     </div>
                                 </div>
                             </div>
+
                         </div>
-                        <!-- /.container-fluid -->
                     </div>
                 </div>
-                <!-- /.content -->
             </div>
-            <!-- /.content-wrapper -->
-        </div>
 
+        </div><!-- /.content-wrapper -->
 
-        <?php require_once("../MainFooter/footer.php") ?>
+        <?php require_once "../MainFooter/footer.php"; ?>
 
-        <!-- ./wrapper -->
-    </div>
+    </div><!-- /.wrapper -->
 
-
-
-
-    <?php require_once "../MainJS/JS.php" ?>
+    <?php require_once "../MainJS/JS.php"; ?>
     <script src="../../config/config.js"></script>
-    <script type="text/javascript" src="inboxEmpl.js"></script>
-    <!-- date-range-picker -->
-    <!-- SweetAlert -->
-    <script src="../../public/plugins/sweetalert2/sweetalert2.js"></script>
-
-
+    <script src="inboxEmpl.js"></script>
 
 </body>
 
 </html>
-
 <?php
 } else {
     header("location:" . Conectar::ruta() . "index.php");
