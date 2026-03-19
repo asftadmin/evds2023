@@ -14,6 +14,7 @@ $('#reservationdate_fecha').daterangepicker({
   drops: 'down',
   minYear: '1900',
   maxYear: '2090',
+  minDate: moment(),
   locale: {
     format: 'YYYY-MM-DD',
     applyLabel: "Aplicar",

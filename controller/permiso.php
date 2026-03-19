@@ -482,9 +482,10 @@ PERMISOS EMPLEADO
     case "listarSolicitudesRecursos":
 
         $empleado_id   = $_POST["empleado_id"] ?? "";
-        $fecha_permiso = $_POST["fecha_permiso"] ?? "";
+        $fecha_desde = !empty($_POST["fecha_desde"]) ? $_POST["fecha_desde"] : null;
+        $fecha_hasta = !empty($_POST["fecha_hasta"]) ? $_POST["fecha_hasta"] : null;
 
-        $datos = $permiso->get_solicitudes_recursos($empleado_id, $fecha_permiso);
+        $datos = $permiso->get_solicitudes_recursos($empleado_id, $fecha_desde, $fecha_hasta);
         $data = array();
         //$tickets = [];
         foreach ($datos as $solicitud) {
@@ -533,8 +534,16 @@ PERMISOS EMPLEADO
                     <button type="button" onClick="verTimeline(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-dark btn-icon " >
                         <div><i class="fas fa-stream"></i></div>
                     </button>
-                    <button type="button" onClick="verPdf(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-danger btn-icon " >
+                    <button type="button" onClick="verPdf(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-success btn-icon " >
                         <div><i class="fas fa-file-pdf"></i></div>
+                    </button>
+                    <button type="button" onclick="eliminar(
+                                ' . $solicitud["permiso_id"] . ',
+                                \'' . addslashes($solicitud["empleado_nombre"]) . '\',
+                                \'' . date('d/m/Y', strtotime($solicitud["permiso_fecha"])) . '\'
+                            );"
+                            class="btn btn-danger btn-icon">
+                        <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>';
 
@@ -645,6 +654,16 @@ PERMISOS EMPLEADO
         $html .= '<h3 class="card-title"><b>Información de ausentismo completada por Gestión Humana</b></h3></br>';
 
         // fecha
+        $html .= '<div class="form-group mt-2">';
+        $html .= '<div class="custom-control custom-switch">';
+        $html .= '<input type="checkbox" class="custom-control-input"
+          id="chk_turno_nocturno" name="chk_turno_nocturno"
+          ' . ($row['permiso_turno_nocturno'] == 1 ? 'checked' : '') . '>';
+        $html .= '<label class="custom-control-label" for="chk_turno_nocturno">';
+        $html .= '<i class="fas fa-moon mr-1"></i>Turno nocturno (cruza medianoche)';
+        $html .= '</label>';
+        $html .= '</div>';
+        $html .= '</div>';
         $html .= '<label class="mt-2">Fecha Cierre Permiso:</label>';
         $html .= '<input type="date" id="permiso_fecha_cierre" name="permiso_fecha_cierre" class="form-control" data-target="#reservationdate_fecha" value="' . $row['permiso_fecha'] . '">';
         $html .= '<div class="input-group-append" data-target="#reservationdate_fecha" data-toggle="datetimepicker">';
@@ -675,7 +694,8 @@ PERMISOS EMPLEADO
 
         echo json_encode([
             'status' => 'success',
-            'html' => $html
+            'html' => $html,
+            'trabaja_sabado' => (int)($row['trabaja_sabado'] ?? 0)
         ]);
 
 
@@ -1041,7 +1061,7 @@ PERMISOS EMPLEADO
     // -------------------------
     // DESCARGAR ARCHIVO
     // -------------------------
-    case "descargarSoporte":
+    /*     case "descargarSoporte":
 
         if (!isset($_GET["file"])) {
             echo "Archivo no especificado";
@@ -1091,7 +1111,169 @@ PERMISOS EMPLEADO
         unlink($ruta_local);
 
 
-        break;
+        break; */
+
+    case "descargarSoporte":
+
+        if (!isset($_GET["file"]) || empty($_GET["file"])) {
+            echo "Archivo no especificado";
+            exit;
+        }
+
+        //Ruta desde BD
+        $ruta_raw = $_GET["file"];
+        $ruta_remota = urldecode($ruta_raw);
+
+        $directorio = dirname($ruta_remota);
+        $nombre_bd  = basename($ruta_remota);
+
+        // Configuración
+        $scriptPath = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\script.txt";
+        $winscpCom  = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+
+        // =========================================================
+        // 1️⃣ LISTAR ARCHIVOS DEL DIRECTORIO FTP
+        // =========================================================
+        $scriptList =
+            "option batch abort\n" .
+            "option confirm off\n" .
+            "open ftp://asfaltart_admin:s1st3m4s19..@172.16.5.3\n" .
+            "cd \"$directorio\"\n" .
+            "ls\n" .
+            "exit\n";
+
+        file_put_contents($scriptPath, $scriptList);
+
+        exec("\"$winscpCom\" /ini=nul /script=\"$scriptPath\"", $outputList, $resultList);
+
+        file_put_contents(
+            'C:\\xampp\\htdocs\\evds2023\\debug_ls.txt',
+            "SALIDA LS:\n" . implode("\n", $outputList)
+        );
+
+        // =========================================================
+        // 2️⃣ BUSCAR MEJOR MATCH
+        // =========================================================
+        $mejor_match = null;
+        $mejor_score = 0;
+
+        foreach ($outputList as $linea) {
+
+            $linea = trim($linea);
+            if (empty($linea)) continue;
+
+            $partes = preg_split('/\s+/', $linea);
+            if (count($partes) < 9) continue;
+
+            // 🔥 EXTRAER NOMBRE REAL
+            $nombre_real = implode(' ', array_slice($partes, 9));
+
+            // ignorar directorios o líneas raras
+            if ($nombre_real == '..') continue;
+            if (!str_contains($nombre_real, '.')) continue;
+
+            // 🔥 MATCH GENERAL (SIN FILTRO WhatsApp)
+            similar_text(
+                strtolower(trim($nombre_bd)),
+                strtolower(trim($nombre_real)),
+                $porcentaje
+            );
+
+            // debug opcional
+            file_put_contents(
+                'C:\\xampp\\htdocs\\evds2023\\debug_match.txt',
+                "BD: $nombre_bd\nFTP: $nombre_real\nSIMILITUD: $porcentaje\n\n",
+                FILE_APPEND
+            );
+
+            if ($porcentaje > $mejor_score) {
+                $mejor_score = $porcentaje;
+                $mejor_match = $nombre_real;
+            }
+        }
+
+        // =========================================================
+        // 3️⃣ VALIDAR MATCH
+        // =========================================================
+        if ($mejor_score < 70 || !$mejor_match) {
+            echo "No se encontró archivo similar en el servidor.";
+            exit;
+        }
+
+        $ruta_real = $directorio . "/" . $mejor_match;
+
+        // =========================================================
+        // 4️⃣ DESCARGAR ARCHIVO CORRECTO
+        // =========================================================
+        $temp_local = "C:\\xampp\\htdocs\\evds2023\\public\\temp\\";
+
+        if (!is_dir($temp_local)) {
+            mkdir($temp_local, 0777, true);
+        }
+
+        $nombre_temp = uniqid() . "_" . preg_replace('/[^A-Za-z0-9_\.\-]/', '_', $mejor_match);
+        $ruta_local  = $temp_local . $nombre_temp;
+
+        //ESCAPAR RUTAS (CLAVE)
+        $ruta_real_escaped  = str_replace('"', '\"', $ruta_real);
+        $ruta_local_escaped = str_replace('"', '\"', $ruta_local);
+
+        $scriptDownload =
+            "option batch abort\n" .
+            "option confirm off\n" .
+            "open ftp://asfaltart_admin:s1st3m4s19..@172.16.5.3\n" .
+            "cd \"$directorio\"\n" .
+            "get \"$mejor_match\" \"$ruta_local_escaped\"\n" .
+            "exit\n";
+
+        file_put_contents($scriptPath, $scriptDownload);
+
+        exec("\"$winscpCom\" /ini=nul /script=\"$scriptPath\"", $output, $result);
+
+
+        unlink($scriptPath);
+
+        // =========================================================
+        // 5️⃣ VALIDAR DESCARGA
+        // =========================================================
+        if (!file_exists($ruta_local) || filesize($ruta_local) == 0) {
+            echo "No se pudo descargar el archivo.";
+            exit;
+        }
+
+        // =========================================================
+        // 6️⃣ HEADERS
+        // =========================================================
+        $ext = strtolower(pathinfo($mejor_match, PATHINFO_EXTENSION));
+
+        $mimeTypes = [
+            'pdf'  => 'application/pdf',
+            'jpg'  => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png'  => 'image/png',
+            'doc'  => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+
+        $contentType = $mimeTypes[$ext] ?? 'application/octet-stream';
+        $modo        = (isset($_GET["download"]) && $_GET["download"] == 1) ? 'attachment' : 'inline';
+
+        if (ob_get_length()) {
+            ob_end_clean();
+        }
+
+        header("Content-Description: File Transfer");
+        header("Content-Type: $contentType");
+        header("Content-Disposition: $modo; filename=\"" . $mejor_match . "\"");
+        header("Content-Length: " . filesize($ruta_local));
+        header("Cache-Control: no-cache, must-revalidate");
+        header("Pragma: public");
+        header("Expires: 0");
+
+        readfile($ruta_local);
+
+        unlink($ruta_local);
+        exit;
 
     case "updateRecursos":
 
@@ -1117,6 +1299,8 @@ PERMISOS EMPLEADO
 
         $incapacidad_id = $_POST["incapacidad_id"] ?? null;
 
+        $turno_nocturno = isset($_POST["chk_turno_nocturno"]) ? 1 : 0;
+
         $resultado = $permiso->actualizar_permiso_rrhh(
             $permisoID,
             $fecha_permiso,
@@ -1128,7 +1312,8 @@ PERMISOS EMPLEADO
             $rrhh_id,
             $fecha_cierre,
             $total_horas,
-            $incapacidad_id
+            $incapacidad_id,
+            $turno_nocturno
         );
 
 
@@ -1380,5 +1565,14 @@ PERMISOS JEFE INMEDIATO
         }
 
 
+        break;
+
+    case 'eliminarPermiso':
+        $permiso_id = $_POST["permiso_id"];
+        $resultado  = $permiso->eliminar_permiso($permiso_id);
+        echo json_encode([
+            'success' => $resultado,
+            'error'   => $resultado ? null : 'No se pudo eliminar el permiso.'
+        ]);
         break;
 }

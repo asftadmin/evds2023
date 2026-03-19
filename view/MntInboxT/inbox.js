@@ -1,8 +1,33 @@
 let tablaOpen = null;
 
+let fecha_desde_rrhh = null;
+let fecha_hasta_rrhh = null;
+
 function init() {
+    // ── Restaurar filtros si vienen del detalle ──
+    const filtroEmpleado   = sessionStorage.getItem('filtroEmpleado');
+    const filtroFechaDesde = sessionStorage.getItem('filtroFechaDesde');
+    const filtroFechaHasta = sessionStorage.getItem('filtroFechaHasta');
+    const filtroFechaTexto = sessionStorage.getItem('filtroFechaTexto');
+
+    if (filtroEmpleado) {
+        $('#filtroEmpleado').val(filtroEmpleado).trigger('change');
+    }
+    if (filtroFechaTexto) {
+        $('#filtroFecha').val(filtroFechaTexto);
+        fecha_desde_rrhh = filtroFechaDesde || null;
+        fecha_hasta_rrhh = filtroFechaHasta || null;
+    }
+
+    // Limpiar sessionStorage después de restaurar
+    sessionStorage.removeItem('filtroEmpleado');
+    sessionStorage.removeItem('filtroFechaDesde');
+    sessionStorage.removeItem('filtroFechaHasta');
+    sessionStorage.removeItem('filtroFechaTexto');
+
     inicializarTabla();
     cargarEmpleadosActivos();
+    initDateRangePicker();
 
     $('.select2').select2({ width: '100%' });
 
@@ -13,8 +38,38 @@ function init() {
     $("#btnLimpiarFiltros").off("click").on("click", function () {
         $("#filtroEmpleado").val("").trigger("change");
         $("#filtroFecha").val("");
-
+        fecha_desde_rrhh = null;
+        fecha_hasta_rrhh = null;
         if (tablaOpen) tablaOpen.ajax.reload();
+    });
+}
+
+// ── DateRangePicker ────────────────────────────────────
+function initDateRangePicker() {
+    $('#filtroFecha').daterangepicker({
+        autoUpdateInput: false,
+        locale: {
+            cancelLabel : 'Limpiar',
+            applyLabel  : 'Aplicar',
+            format      : 'DD/MM/YYYY',
+            daysOfWeek  : ['Do','Lu','Ma','Mi','Ju','Vi','Sa'],
+            monthNames  : ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                           'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+            firstDay    : 1
+        }
+    })
+    .on('apply.daterangepicker', function (ev, picker) {
+        $(this).val(
+            picker.startDate.format('DD/MM/YYYY') + ' — ' +
+            picker.endDate.format('DD/MM/YYYY')
+        );
+        fecha_desde_rrhh = picker.startDate.format('YYYY-MM-DD');
+        fecha_hasta_rrhh = picker.endDate.format('YYYY-MM-DD');
+    })
+    .on('cancel.daterangepicker', function () {
+        $(this).val('');
+        fecha_desde_rrhh = null;
+        fecha_hasta_rrhh = null;
     });
 }
 
@@ -67,21 +122,12 @@ function inicializarTabla() {
 
                 data: function (d) {
                     d.empleado_id = $("#filtroEmpleado").val();
-                    d.fecha_permiso = $("#filtroFecha").val();
+                    d.fecha_desde  = fecha_desde_rrhh ?? '';
+                    d.fecha_hasta  = fecha_hasta_rrhh ?? '';
                 },
                 error: function (e) {
                     console.log(e.responseText);
                 }
-                /*                 success: function (response) {
-                                    console.log(response);
-                
-                                    if (response && response.aaData) {
-                                        tablaOpen.clear().rows.add(response.aaData).draw(); // Añadir los datos a la tabla
-                                    }
-                                },
-                                error: function (e) {
-                                    console.log(e.responseText);
-                                } */
             }
         });
     }
@@ -112,7 +158,11 @@ var getURLParameter = function (sParam) {
 
 
 function ver(permisoID) {
-    console.log(permisoID);
+    // ── Guardar filtros en sessionStorage ──
+    sessionStorage.setItem('filtroEmpleado', $('#filtroEmpleado').val() ?? '');
+    sessionStorage.setItem('filtroFechaDesde', fecha_desde_rrhh ?? '');
+    sessionStorage.setItem('filtroFechaHasta', fecha_hasta_rrhh ?? '');
+    sessionStorage.setItem('filtroFechaTexto', $('#filtroFecha').val() ?? '');
     window.location.href = BASE_URL + '/view/MntInboxT/detalle_permiso.php?id=' + permisoID; //http://181.204.219.154:3396/preoperacional
     verSolicitud(permisoID);
 }
@@ -134,6 +184,68 @@ function cargarEmpleadosActivos() {
         $("#filtroEmpleado")
             .html('<option value="">Todos</option>' + html)
             .trigger("change");
+    });
+}
+
+function eliminar(permiso_id, empleado, fecha) {
+
+    Swal.fire({
+        title : '¿Eliminar permiso?',
+        html  : `¿Estás seguro de eliminar el permiso de<br>
+                 <strong>${empleado}</strong><br>
+                 del día <strong>${fecha}</strong>?<br><br>
+                 <strong style="color:#dc3545;">Esta acción no se puede deshacer.</strong>`,
+        icon             : 'warning',
+        showCancelButton : true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor : '#6c757d',
+        confirmButtonText : '<i class="fas fa-trash mr-1"></i>Sí, eliminar',
+        cancelButtonText  : 'Cancelar',
+        reverseButtons   : true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url      : '../../controller/permiso.php?op=eliminarPermiso',
+                type     : 'POST',
+                data     : { permiso_id: permiso_id },
+                beforeSend: function () {
+                    Swal.fire({
+                        title            : 'Eliminando...',
+                        allowOutsideClick: false,
+                        didOpen          : () => Swal.showLoading()
+                    });
+                },
+                success: function (response) {
+                    try {
+                        const data = JSON.parse(response);
+                        if (data.success) {
+                            Swal.fire({
+                                icon             : 'success',
+                                title            : 'Eliminado',
+                                text             : 'El permiso fue eliminado correctamente.',
+                                timer            : 1500,
+                                timerProgressBar : true,
+                                showConfirmButton: false
+                            }).then(() => {
+                                if (tablaOpen) tablaOpen.ajax.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon : 'error',
+                                title: 'Error',
+                                text : data.error ?? 'No se pudo eliminar el permiso.'
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        Swal.fire('Error', 'Respuesta inesperada del servidor.', 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Error de conexión al eliminar.', 'error');
+                }
+            });
+        }
     });
 }
 

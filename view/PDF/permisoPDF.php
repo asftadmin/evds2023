@@ -92,7 +92,8 @@ $rrhh = isset($permiso['recurso_humano']) ? $permiso['recurso_humano'] : 'N/A';
 $firma_jefe = isset($permiso['firma_jefe']) ? $permiso['firma_jefe'] : 'N/A';
 $firma_rrhh = isset($permiso['firma_rrhh']) ? $permiso['firma_rrhh'] : 'N/A';
 $estado_permiso = isset($permiso['permiso_estado']) ? (int)$permiso['permiso_estado'] : 0;
-
+$aprobado_jefe_id = isset($permiso['aprobado_jefe_id']) ? $permiso['aprobado_jefe_id'] : 0;
+$aprobado_rrhh_id = isset($permiso['aprobado_rrhh_id']) ? $permiso['aprobado_rrhh_id'] : 0;
 
 $temp_empleado = base64_to_png_temp($firma);
 $temp_rrhh     = base64_to_png_temp($firma_rrhh);
@@ -101,15 +102,24 @@ $hora_salida_ampm  = date("g:i A", strtotime($hora_salida));
 $hora_entrada_ampm = date("g:i A", strtotime($hora_entrada));
 
 
-$temp_jefe     = null;
-
-
-// Mostrar firma del jefe SOLO si el permiso fue aprobado por él
+// ── Firma Jefe — mostrar solo si aprobó ──────────────────
+$temp_jefe = null;
 if (
     !empty($firma_jefe) &&
-    in_array($estado_permiso, [2, 4, 5]) // aprobado jefe o posteriores
+    !empty($aprobado_jefe_id) &&                        // ← verificar que el jefe aprobó
+    in_array($estado_permiso, [2, 3, 4, 5])             // estados donde jefe ya actuó
 ) {
     $temp_jefe = base64_to_png_temp($firma_jefe);
+}
+
+// ── Firma RRHH — mostrar solo si aprobó ──────────────────
+$temp_rrhh = null;
+if (
+    !empty($firma_rrhh) &&
+    !empty($aprobado_rrhh_id) &&                        // ← verificar que RRHH aprobó
+    in_array($estado_permiso, [3, 4, 5])                // estados donde RRHH ya actuó
+) {
+    $temp_rrhh = base64_to_png_temp($firma_rrhh);
 }
 
 
@@ -347,7 +357,7 @@ $pdf->Cell(60, 6, utf8_decode("Vo.Bo Director Gestión Humana"));
 $y += 6;
 
 // Sub-etiquetas
-$pdf->SetFont('Arial', '', 10);
+$pdf->SetFont('Arial', '', 9);
 $pdf->SetXY(20, $y);
 $pdf->Cell(70, 6, "Nombre / Cargo  " . utf8_decode($nombre_empleado));
 

@@ -100,7 +100,7 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function get_solicitudes_recursos($empleado_id = "", $fecha_permiso = "") {
+    public function get_solicitudes_recursos($empleado_id = "", $fecha_desde = null, $fecha_hasta = null) {
 
         $conectar = parent::Conexion();
 
@@ -133,9 +133,13 @@ class Permiso extends Conectar {
             $sql .= " AND p.empleado_id = :empleado_id ";
         }
 
-        // Filtro por fecha (si viene)
-        if (!empty($fecha_permiso)) {
-            $sql .= " AND p.permiso_fecha = :fecha_permiso ";
+        // Filtro por rango de fechas
+        if (!empty($fecha_desde)) {
+            $sql .= " AND p.permiso_fecha >= :fecha_desde::date";
+        }
+
+        if (!empty($fecha_hasta)) {
+            $sql .= " AND p.permiso_fecha <= :fecha_hasta::date";
         }
 
         $stmt = $conectar->prepare($sql);
@@ -144,8 +148,12 @@ class Permiso extends Conectar {
             $stmt->bindValue(":empleado_id", $empleado_id, PDO::PARAM_INT);
         }
 
-        if (!empty($fecha_permiso)) {
-            $stmt->bindValue(":fecha_permiso", $fecha_permiso);
+        if (!empty($fecha_desde)) {
+            $stmt->bindValue(':fecha_desde', $fecha_desde, PDO::PARAM_STR);
+        }
+
+        if (!empty($fecha_hasta)) {
+            $stmt->bindValue(':fecha_hasta', $fecha_hasta, PDO::PARAM_STR);
         }
 
         $stmt->execute();
@@ -158,6 +166,7 @@ class Permiso extends Conectar {
         $sql = "SELECT 
                 p.*,
                 em.nomb_empl AS empleado_nombre,
+                em.trabaja_sabado   AS trabaja_sabado,
                 jf.nomb_empl AS jefe_nombre,
                 tp.*
             FROM permisos_personal p
@@ -248,7 +257,8 @@ class Permiso extends Conectar {
         $rrhh_id,
         $fecha_cierre,
         $total_horas,
-        $incapacidad_id
+        $incapacidad_id,
+        $turno_nocturno = 0
     ) {
         $conectar = parent::Conexion();
         parent::set_names();
@@ -267,7 +277,8 @@ class Permiso extends Conectar {
                 fecha_actu_rrhh      = NOW(),
                 perm_fecha_cierre    = ?,
                 permiso_total_horas  = ?,
-                perm_inca_id         = ?
+                perm_inca_id         = ?,
+                permiso_turno_nocturno  = ?
             WHERE permiso_id = ?";
 
             $stmt = $conectar->prepare($sql);
@@ -281,7 +292,8 @@ class Permiso extends Conectar {
             $stmt->bindValue(8, $fecha_cierre);
             $stmt->bindValue(9, $total_horas);
             $stmt->bindValue(10, $incapacidad_id);
-            $stmt->bindValue(11, $permiso_id);
+            $stmt->bindValue(11, $turno_nocturno);
+            $stmt->bindValue(12, $permiso_id);
         } else {
             // Si no es motivo 3, no actualizamos el campo perm_inca_id
             $sql = "UPDATE permisos_personal 
@@ -296,7 +308,8 @@ class Permiso extends Conectar {
                 fecha_actu_rrhh      = NOW(),
                 perm_fecha_cierre    = ?,
                 permiso_total_horas  = ?,
-                perm_inca_id         = NULL  -- Establecer NULL explícitamente
+                perm_inca_id         = NULL,  -- Establecer NULL explícitamente
+                permiso_turno_nocturno  = ?
             WHERE permiso_id = ?";
 
             $stmt = $conectar->prepare($sql);
@@ -309,7 +322,8 @@ class Permiso extends Conectar {
             $stmt->bindValue(7, $rrhh_id);
             $stmt->bindValue(8, $fecha_cierre);
             $stmt->bindValue(9, $total_horas);
-            $stmt->bindValue(10, $permiso_id);
+            $stmt->bindValue(10, $turno_nocturno);
+            $stmt->bindValue(11, $permiso_id);
         }
 
         $ok = $stmt->execute();
@@ -672,5 +686,30 @@ LISTAR SOLCITUDES JEFE INMEDIATO PARA APROBAR
         $stmt->bindValue(1, $permiso_id, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    public function eliminar_permiso($permiso_id) {
+        $conectar = parent::Conexion();
+
+        try {
+            $conectar->beginTransaction();
+
+            // 1. Eliminar soportes del permiso
+            $sql1 = "DELETE FROM permisos_soportes WHERE permiso_id = ?";
+            $stmt1 = $conectar->prepare($sql1);
+            $stmt1->bindValue(1, $permiso_id, PDO::PARAM_INT);
+            $stmt1->execute();
+
+            // 2. Eliminar el permiso
+            $sql2 = "DELETE FROM permisos_personal WHERE permiso_id = ?";
+            $stmt2 = $conectar->prepare($sql2);
+            $stmt2->bindValue(1, $permiso_id, PDO::PARAM_INT);
+            $stmt2->execute();
+
+            $conectar->commit();
+            return true;
+        } catch (Exception $e) {
+            $conectar->rollBack();
+            return false;
+        }
     }
 }

@@ -71,8 +71,9 @@ if (isset($_SESSION["user_id"])) {
                                             </div>
 
                                             <div class="col-md-4">
-                                                <label class="mb-0">Fecha permiso:</label>
-                                                <input type="date" id="filtroFecha" class="form-control">
+                                                <label class="mb-0">Rango de fechas:</label>
+                                                <input type="text" name="filtroFecha" id="filtroFecha" class="form-control"
+                                                    placeholder="Desde — Hasta" autocomplete="off">
                                             </div>
 
                                             <div class="col-md-4 d-flex align-items-end">

@@ -11,12 +11,9 @@ function init() {
 
 
 }
-//Boton Regresar a la bandeja de Abiertos
-$('#btnVolver').click(function () {
-    if (document.referrer && document.referrer !== "") {
-        history.back();
-        return;
-    }
+
+$('#btnVolver').on('click', function () {
+    window.location.href = '../MntInboxT/inbox.php';
 });
 
 
@@ -32,6 +29,28 @@ var getURLParameter = function (sParam) {
     }
 }
 
+// ── Toggle turno nocturno ──────────────────────────────
+$('#chk_turno_nocturno').on('change', function () {
+    if ($(this).is(':checked')) {
+        //$('#bloque_fecha_cierre').show();
+
+        // Sugerir automáticamente el día siguiente
+        const fechaPermiso = $('#permiso_fecha').val();
+        if (fechaPermiso) {
+            const siguiente = new Date(fechaPermiso);
+            siguiente.setDate(siguiente.getDate() + 1);
+            const yyyy = siguiente.getFullYear();
+            const mm = String(siguiente.getMonth() + 1).padStart(2, '0');
+            const dd = String(siguiente.getDate()).padStart(2, '0');
+            $('#permiso_fecha_cierre').val(`${yyyy}-${mm}-${dd}`);
+        }
+    } else {
+        //$('#bloque_fecha_cierre').hide();
+        $('#permiso_fecha_cierre').val('');
+    }
+    calcularHorasAusentesJornada();
+});
+
 
 $(document).ready(function () {
 
@@ -43,12 +62,18 @@ $(document).ready(function () {
         data: { id: permisoID },
         success: function (response) {
 
+            //console.log(response);
+
             const detalle = JSON.parse(response);
+
+
 
             if (detalle.status === 'error') {
                 Swal.fire('Error', detalle.message, 'error');
                 return;
             }
+
+            trabajaSabado = detalle.trabaja_sabado ?? 0;
 
             // Insertar formulario
             $("#detallePermiso").html(detalle.html);
@@ -56,6 +81,7 @@ $(document).ready(function () {
             cargarSoportes(permisoID);
 
             calcularHorasAusentesJornada();
+
 
             // ID real guardado en el atributo data-valorbd
             var motivoBD = $("#permiso_motivo").data("valorbd");
@@ -75,7 +101,7 @@ $(document).ready(function () {
                 // activar select2
                 $('.select2').select2();
 
-                
+
             });
 
         },
@@ -227,7 +253,7 @@ setTimeout(function () {
 
 
 
-function cargarSoportes(permiso_id) {
+/* function cargarSoportes(permiso_id) {
 
     $.ajax({
         url: BASE_URL + "/controller/permiso.php?op=listarSoportes",
@@ -253,6 +279,144 @@ function cargarSoportes(permiso_id) {
             $("#listaSoportes").html(html);
         }
     });
+} */
+
+function cargarSoportes(permiso_id) {
+    $.ajax({
+        url: BASE_URL + "/controller/permiso.php?op=listarSoportes",
+        type: "POST",
+        data: { permiso_id: permiso_id },
+        success: function (response) {
+            let lista = JSON.parse(response);
+            let html = "";
+
+            if (lista.length === 0) {
+                html = `<li class="list-group-item text-muted text-center">
+                            <i class="fas fa-folder-open mr-1"></i>
+                            Sin soportes adjuntos
+                        </li>`;
+                $("#listaSoportes").html(html);
+                return;
+            }
+
+            lista.forEach(s => {
+                const ext = s.soporte_nombre.split('.').pop().toLowerCase();
+                const icono = getIconoArchivo(ext);
+
+                // ── URL preview — inline (sin &download) ──
+                const urlPreview = BASE_URL + "/controller/permiso.php?op=descargarSoporte&file=" 
+                    + encodeURIComponent(s.soporte_ruta.trim());
+
+                // ── URL descarga — fuerza attachment ──
+                const urlDescarga = BASE_URL + "/controller/permiso.php?op=descargarSoporte&file="
+                    + encodeURIComponent(s.soporte_ruta) + "&download=1";
+
+                // URL para Word usa Google Docs Viewer
+                let urlViewer = urlPreview;
+                if (['doc', 'docx'].includes(ext)) {
+                    urlViewer = 'https://docs.google.com/viewer?url='
+                        + encodeURIComponent(urlPreview) + '&embedded=false';
+                }
+
+                html += `
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <i class="${icono} mr-2" style="font-size:18px;"></i>
+                                    <div>
+                                        <div style="font-size:13px; font-weight:600;">
+                                            ${s.soporte_nombre}
+                                        </div>
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock mr-1"></i>
+                                            ${s.soporte_fecha}
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="d-flex" style="gap:6px;">
+                                    <button type="button" class="btn btn-sm btn-info"
+                                            onclick="previsualizarSoporte('${urlViewer}', '${ext}', '${s.soporte_nombre}')"
+                                            title="Vista previa">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                            onclick="imprimirSoporte('${urlPreview}', '${ext}')"
+                                            title="Imprimir">
+                                        <i class="fas fa-print"></i>
+                                    </button>
+                                    <a href="${urlDescarga}" target="_blank"
+                                    class="btn btn-sm btn-success" title="Descargar">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </li>`;
+            });
+
+            $("#listaSoportes").html(html);
+        }
+    });
+}
+
+// ── Ícono según extensión ──────────────────────────────
+function getIconoArchivo(ext) {
+    const iconos = {
+        'pdf': 'fas fa-file-pdf text-danger',
+        'jpg': 'fas fa-file-image text-info',
+        'jpeg': 'fas fa-file-image text-info',
+        'png': 'fas fa-file-image text-info',
+        'doc': 'fas fa-file-word text-primary',
+        'docx': 'fas fa-file-word text-primary',
+    };
+    return iconos[ext] ?? 'fas fa-file text-secondary';
+}
+
+// ── Vista previa en nueva pestaña ─────────────────────
+function previsualizarSoporte(url, ext, nombre) {
+    if (!url) {
+        Swal.fire('Aviso', 'No se puede previsualizar este tipo de archivo.', 'info');
+        return;
+    }
+    window.open(url, '_blank');
+}
+
+// ── Imprimir ───────────────────────────────────────────
+function imprimirSoporte(url, ext) {
+    if (!url) {
+        Swal.fire('Aviso', 'No se puede imprimir este tipo de archivo.', 'info');
+        return;
+    }
+
+    if (['jpg', 'jpeg', 'png'].includes(ext)) {
+        // Imprimir imagen — abrir en ventana e imprimir
+        const ventana = window.open('', '_blank');
+        ventana.document.write(`
+            <html>
+                <head>
+                    <title>Imprimir soporte</title>
+                    <style>
+                        body { margin: 0; display: flex; justify-content: center; }
+                        img  { max-width: 100%; height: auto; }
+                    </style>
+                </head>
+                <body>
+                    <img src="${url}" onload="window.print(); window.close();">
+                </body>
+            </html>
+        `);
+        ventana.document.close();
+
+    } else if (ext === 'pdf') {
+        // PDF — abrir en nueva pestaña y el usuario imprime desde ahí
+        const ventana = window.open(url, '_blank');
+        ventana.onload = function () {
+            ventana.print();
+        };
+
+    } else {
+        // Word — abrir Google Docs Viewer
+        window.open(url, '_blank');
+    }
 }
 
 function guardar(e) {
@@ -323,139 +487,165 @@ function guardar(e) {
 
 
 function parseYMD(ymd) {
-  const [y, m, d] = ymd.split("-").map(n => parseInt(n, 10));
-  return new Date(y, m - 1, d);
+    const [y, m, d] = ymd.split("-").map(n => parseInt(n, 10));
+    return new Date(y, m - 1, d);
 }
 
 function timeToMinutes(t) {
-  const parts = (t || "").split(":");
-  const h = parseInt(parts[0] || "0", 10);
-  const m = parseInt(parts[1] || "0", 10);
-  return h * 60 + m;
+    const parts = (t || "").split(":");
+    const h = parseInt(parts[0] || "0", 10);
+    const m = parseInt(parts[1] || "0", 10);
+    return h * 60 + m;
 }
 
 function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate();
+    return a.getFullYear() === b.getFullYear()
+        && a.getMonth() === b.getMonth()
+        && a.getDate() === b.getDate();
 }
 
 function addDays(date, n) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
 }
 
+// ── Variable global — se asigna al cargar el empleado ──
+let trabajaSabado = 0;
+
+let esNocturno = false;
+
 function getWorkIntervalsMinutes(dateObj) {
-  const dow = dateObj.getDay(); // 0 dom, 6 sab
+    const dow = dateObj.getDay(); // 0=dom, 6=sab
 
-  if (dow === 0 || dow === 6) return []; // fin de semana no cuenta
+    // Domingo — nunca cuenta
+    if (dow === 0) return [];
 
-  const endAfternoon = (dow === 5) ? (17 * 60) : (18 * 60); // viernes 17, lun-jue 18
+    // Sábado — solo si el empleado trabaja sábado
+    if (dow === 6) {
+        if (trabajaSabado === 1) {
+            return [[8 * 60, 12 * 60]]; // 08:00 - 12:00
+        } else {
+            return []; // no trabaja sábado
+        }
+    }
 
-  return [
-    [8 * 60, 12 * 60],
-    [13 * 60, endAfternoon],
-  ];
+    // ── Turno nocturno: 18:00 - 06:00 del día siguiente ──
+    if (esNocturno) {
+        return [
+            [18 * 60, 24 * 60], // 18:00 - 24:00 del día actual
+            [0, 6 * 60], // 00:00 - 06:00 del día siguiente
+        ];
+    }
+
+    // Lunes a Jueves → hasta 18:00
+    // Viernes → hasta 17:00
+    const endAfternoon = (dow === 5) ? (17 * 60) : (18 * 60);
+
+    return [
+        [8 * 60, 12 * 60],      // mañana  08:00 - 12:00
+        [13 * 60, endAfternoon], // tarde   13:00 - 18:00 (o 17:00 viernes)
+    ];
 }
 
 function overlapMinutes(aStart, aEnd, bStart, bEnd) {
-  const start = Math.max(aStart, bStart);
-  const end = Math.min(aEnd, bEnd);
-  return Math.max(0, end - start);
+    const start = Math.max(aStart, bStart);
+    const end = Math.min(aEnd, bEnd);
+    return Math.max(0, end - start);
 }
 
 function calcularHorasAusentesJornada() {
-  const fechaPermiso = $("#permiso_fecha").val();
-  const horaSalida   = $("#permiso_hora_salida").val();
 
-  // Fecha cierre: si no existe o viene vacía, usa fecha permiso
-  const fechaCierre  = $("#permiso_fecha_cierre").val() || fechaPermiso;
+    esNocturno = $('#chk_turno_nocturno').is(':checked');
 
-  // Hora cierre: prioriza biotime si lo usas, si no, usa hora entrada del permiso
-  const horaCierre   = $("#permiso_hora_entrada").val();
+    const fechaPermiso = $("#permiso_fecha").val();
+    const horaSalida = $("#permiso_hora_salida").val();
 
-  // Debug útil (déjalo mientras validas)
-  // console.log({fechaPermiso, horaSalida, fechaCierre, horaCierre});
+    // Fecha cierre: si no existe o viene vacía, usa fecha permiso
+    const fechaCierre = $("#permiso_fecha_cierre").val() || fechaPermiso;
 
-  if (!fechaPermiso || !horaSalida || !fechaCierre || !horaCierre) {
-    $("#permiso_total_horas").val("");
-    return;
-  }
+    // Hora cierre: prioriza biotime si lo usas, si no, usa hora entrada del permiso
+    const horaCierre = $("#permiso_hora_entrada").val();
 
-  const startDate = parseYMD(fechaPermiso);
-  const endDate   = parseYMD(fechaCierre);
 
-  if (endDate < startDate) {
-    $("#permiso_total_horas").val("0.00");
-    return;
-  }
-
-  const startMin = timeToMinutes(horaSalida);
-  const endMin   = timeToMinutes(horaCierre);
-
-  let totalMinutes = 0;
-
-  for (let d = new Date(startDate); d <= endDate; d = addDays(d, 1)) {
-    const intervals = getWorkIntervalsMinutes(d);
-    if (intervals.length === 0) continue;
-
-    let dayStart = 0;
-    let dayEnd   = 24 * 60;
-
-    if (sameDay(d, startDate)) dayStart = startMin;
-    if (sameDay(d, endDate))   dayEnd   = endMin;
-
-    // Si es el mismo día y cierre <= salida => 0
-    if (sameDay(d, startDate) && sameDay(d, endDate) && dayEnd <= dayStart) {
-      continue;
+    if (!fechaPermiso || !horaSalida || !fechaCierre || !horaCierre) {
+        $("#permiso_total_horas").val("");
+        return;
     }
 
-    for (const [wStart, wEnd] of intervals) {
-      totalMinutes += overlapMinutes(dayStart, dayEnd, wStart, wEnd);
-    }
-  }
+    const startDate = parseYMD(fechaPermiso);
+    const endDate = parseYMD(fechaCierre);
 
-  $("#permiso_total_horas").val((totalMinutes / 60).toFixed(2));
+    if (endDate < startDate) {
+        $("#permiso_total_horas").val("0.00");
+        return;
+    }
+
+    const startMin = timeToMinutes(horaSalida);
+    const endMin = timeToMinutes(horaCierre);
+
+    let totalMinutes = 0;
+
+    for (let d = new Date(startDate); d <= endDate; d = addDays(d, 1)) {
+        const intervals = getWorkIntervalsMinutes(d);
+        if (intervals.length === 0) continue;
+
+        let dayStart = 0;
+        let dayEnd = 24 * 60;
+
+        if (sameDay(d, startDate)) dayStart = startMin;
+        if (sameDay(d, endDate)) dayEnd = endMin;
+
+        // Si es el mismo día y cierre <= salida => 0
+        if (sameDay(d, startDate) && sameDay(d, endDate) && dayEnd <= dayStart) {
+            continue;
+        }
+
+        for (const [wStart, wEnd] of intervals) {
+            totalMinutes += overlapMinutes(dayStart, dayEnd, wStart, wEnd);
+        }
+    }
+
+    $("#permiso_total_horas").val((totalMinutes / 60).toFixed(2));
 }
 
 // Cuando cambian las horas → actualizar cálculo
 $(document).on(
-  "input change",
-  "#permiso_fecha, #permiso_hora_salida, #permiso_fecha_cierre, #permiso_hora_entrada",
-  function () {
-    calcularHorasAusentesJornada();
-  }
+    "input change",
+    "#permiso_fecha, #permiso_hora_salida, #permiso_fecha_cierre, #permiso_hora_entrada, #chk_turno_nocturno",
+    function () {
+        calcularHorasAusentesJornada();
+    }
 );
 
 //funcion cargar incapacidades
 
 function cargarComboIncapacidades() {
-  $.post("../../controller/incapacidad.php?op=comboIncapacidades", function(html){
-    $("#incapacidad_id").html(html);
+    $.post("../../controller/incapacidad.php?op=comboIncapacidades", function (html) {
+        $("#incapacidad_id").html(html);
 
-    // Seleccionar el valor de BD si existe
-    let valorBd = $("#incapacidad_id").attr("data-valorbd");
-    if (valorBd) {
-      $("#incapacidad_id").val(valorBd).trigger("change");
-    }
-  }).fail(function(xhr){
-    console.log(xhr.responseText);
-    Swal.fire("Error", "No se pudo cargar la lista de incapacidades.", "error");
-  });
+        // Seleccionar el valor de BD si existe
+        let valorBd = $("#incapacidad_id").attr("data-valorbd");
+        if (valorBd) {
+            $("#incapacidad_id").val(valorBd).trigger("change");
+        }
+    }).fail(function (xhr) {
+        console.log(xhr.responseText);
+        Swal.fire("Error", "No se pudo cargar la lista de incapacidades.", "error");
+    });
 }
 
 
 $(document).on("change", "#permiso_motivo", function () {
-  const motivo = $(this).val();
+    const motivo = $(this).val();
 
-  if (motivo == '3') {
-    $("#bloqueIncapacidad").show();
-    cargarComboIncapacidades();
-  } else {
-    $("#bloqueIncapacidad").hide();
-    $("#incapacidad_id").val("").trigger("change");
-  }
+    if (motivo == '3') {
+        $("#bloqueIncapacidad").show();
+        cargarComboIncapacidades();
+    } else {
+        $("#bloqueIncapacidad").hide();
+        $("#incapacidad_id").val("").trigger("change");
+    }
 });
 
 
