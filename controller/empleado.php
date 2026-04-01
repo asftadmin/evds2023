@@ -325,7 +325,7 @@ switch ($_REQUEST["op"]) {
                 $output["select_cargo_empleado"]    = $row["carg_empl"];
                 $output["txt_fecha_ingreso"]        = $row["fecha_ingreso_fmt"];
                 $output["txt_fecha_nacimiento"]     = $row["fecha_naci_fmt"];
-                $output["select_esta_empl"]         = $row["esta_empl"];
+                //$output["select_esta_empl"]         = $row["esta_empl"];
                 $output["txt_profesion"]            = $row["prof_empl"];
                 $output["txt_anio_grado"]           = $row["anio_grado_empl"];
                 $output["txt_civil"]                = $row["esta_civil_empl"]  ?? '';
@@ -334,6 +334,11 @@ switch ($_REQUEST["op"]) {
                 $output["txt_fecha_exp"]            = $row["fecha_exp_fmt"]    ?? '';
                 $output["txt_genero"]               = $row["genero_empleado"]    ?? '';
                 $output["select_nivel_educativo"]   = $row["nivel_educativo"]    ?? '';
+                $output["txt_fecha_retiro_cesantias"]      = $row["cesantias_empl"] ?? '';
+
+                // ── Estado — 1=Activo, 0=Retirado ──
+                $output["select_esta_empl"]          = $row["esta_empl"];
+                $output["txt_estado_desc"]           = $row["esta_empl"] == 1 ? 'Activo' : 'Retirado';
 
                 // ── Tipo documento — ID para el select, nombre para mostrar ──
                 $output["txt_tipo_documento_empl"]  = $row["tpdc_empl"];   // ID → para Select2
@@ -577,5 +582,40 @@ switch ($_REQUEST["op"]) {
 
         // ── Incluir vista PDF ──
         require_once '../view/PDF/examen_egreso.php';
+        break;
+
+    case 'exportar_cesantias_pdf':
+        $codigo   = $_GET["codigo"]   ?? null;
+        $radicado = $_GET["radicado"] ?? '';
+        $fondo    = $_GET["fondo"]    ?? '';
+
+        if (!$codigo) {
+            echo json_encode(['success' => false, 'error' => 'Código requerido']);
+            break;
+        }
+
+        $datos = $empleado->get_empledo_x_id($codigo);
+        if (!$datos || count($datos) == 0) {
+            echo json_encode(['success' => false, 'error' => 'Empleado no encontrado']);
+            break;
+        }
+
+        $row = $datos[0];
+
+        $pdf_nombre          = $row["nomb_empl"]           ?? '';
+        $pdf_cedula          = $row["cedu_empl"]            ?? '';
+        $pdf_lugar_exp       = $row["lugar_desc"]           ?? '';
+        $pdf_fecha_retiro    = fechaALetras($row["fecha_retiro_empl"] ?? '');
+        $pdf_fecha_retiro_fmt = $row["fecha_retiro_empl"]
+            ? (new DateTime($row["fecha_retiro_empl"]))->format('d/m/Y')
+            : '';
+        $pdf_fondo           = $fondo;
+        $pdf_radicado        = $radicado;
+        $pdf_fecha_carta     = fechaALetras(date('Y-m-d'));
+        $pdf_ciudad          = 'San Juan de Girón (Santander)';
+        $pdf_nombre_firmante = 'JORGE CARDENAS';
+        $pdf_cargo_firmante  = 'Director de Gestión Humana y Jurídico.';
+
+        require_once '../view/PDF/cesantias.php';
         break;
 }

@@ -610,42 +610,116 @@ if (isset($_SESSION["user_id"])) {
                             </div><!-- /pane-auxilios -->
                             <!-- ════════════════ PANE EGRESO ════════════════ -->
                             <div class="pane" id="pane-egreso" style="display:none;">
-                                <div class="card card-outline card-danger mb-3 shadow-sm">
+
+                                <!-- Selector tipo documento -->
+                                <div class="card card-outline card-secondary mb-3 shadow-sm">
                                     <div class="card-header">
                                         <h3 class="card-title">
-                                            <i class="fas fa-door-open mr-2 text-danger"></i>Exámenes de Egreso
+                                            <i class="fas fa-file-alt mr-2"></i>Tipo de Documento
                                         </h3>
                                     </div>
                                     <div class="card-body">
                                         <div class="row">
-                                            <div class="col-md-3">
-                                                <div class="form-group">
-                                                    <label class="section-subheader">
-                                                        <i class="fas fa-hashtag mr-1"></i>Radicado
-                                                    </label>
-                                                    <input type="text" class="form-control"
-                                                        id="txt_radicado_egreso"
-                                                        placeholder="Ej: ASF-GH-2.6-0035-26">
-                                                </div>
+                                            <div class="col-md-4">
+                                                <select class="form-control select2bs4" id="select_tipo_doc_egreso"
+                                                    style="width:100%;">
+                                                    <option value="examen">Examen de Egreso</option>
+                                                    <option value="cesantias">Retiro de Cesantías</option>
+                                                </select>
                                             </div>
-                                            <div class="col-md-3">
-                                                <div class="form-group">
-                                                    <label class="section-subheader">
-                                                        <i class="fas fa-calendar-alt mr-1"></i>Fecha de Retiro
-                                                    </label>
-                                                    <input type="text" class="form-control input-erp" name="txt_fecha_retiro_egreso"
-                                                        id="txt_fecha_retiro_egreso" readonly>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex justify-content-end mt-3">
-                                            <button class="btn btn-danger" id="btn_exportar_egreso">
-                                                <i class="fas fa-file-pdf mr-1"></i>Exportar PDF
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+
+                                <!-- ── Sección Examen de Egreso ── -->
+                                <div id="seccion_examen_egreso">
+                                    <div class="card card-outline card-danger mb-3 shadow-sm">
+                                        <div class="card-header">
+                                            <h3 class="card-title">
+                                                <i class="fas fa-door-open mr-2 text-danger"></i>Exámenes de Egreso
+                                            </h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-hashtag mr-1"></i>Radicado
+                                                        </label>
+                                                        <input type="text" class="form-control" id="txt_radicado_egreso"
+                                                            placeholder="Ej: ASF-GH-2.6-0035-26">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-calendar-alt mr-1"></i>Fecha de Retiro
+                                                        </label>
+                                                        <input type="text" class="form-control input-erp"
+                                                            name="txt_fecha_retiro_egreso" id="txt_fecha_retiro_egreso"
+                                                            readonly>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex justify-content-end mt-3">
+                                                <button class="btn btn-danger" id="btn_exportar_egreso">
+                                                    <i class="fas fa-file-pdf mr-1"></i>Exportar PDF
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ── Sección Cesantías ── -->
+                                <div id="seccion_cesantias" style="display:none;">
+                                    <div class="card card-outline card-warning mb-3 shadow-sm">
+                                        <div class="card-header">
+                                            <h3 class="card-title">
+                                                <i class="fas fa-hand-holding-usd mr-2 text-warning"></i>
+                                                Retiro de Cesantías
+                                            </h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-hashtag mr-1"></i>Radicado
+                                                        </label>
+                                                        <input type="text" class="form-control" id="txt_radicado_cesantias"
+                                                            placeholder="Ej: ASF-GH-2.8-0076-26">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-university mr-1"></i>Fondo de Cesantías
+                                                        </label>
+                                                        <input type="text" class="form-control" id="txt_fondo_cesantias"
+                                                            placeholder="Ej: PORVENIR SA">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-calendar-alt mr-1"></i>Fecha de Retiro
+                                                        </label>
+                                                        <input type="text" class="form-control input-erp"
+                                                            name="txt_fecha_retiro_cesantias"
+                                                            id="txt_fecha_retiro_cesantias" readonly>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex justify-content-end mt-3">
+                                                <button class="btn btn-warning" id="btn_exportar_cesantias">
+                                                    <i class="fas fa-file-pdf mr-1"></i>Exportar PDF
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div><!-- /pane-egreso -->
                             <!-- ══ PANE VISTA PREVIA ══ -->
                             <div class="pane" id="pane-preview" style="display:none;">
 

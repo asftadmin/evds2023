@@ -134,7 +134,7 @@ $(document).ready(function () {
 function mostrarDescripcionEstado(valor) {
     const estados = {
         '1': { texto: 'Activo', badge: 'badge-success', icono: 'fa-check' },
-        '0': { texto: 'Inactivo', badge: 'badge-danger', icono: 'fa-times' }
+        '0': { texto: 'Retirado', badge: 'badge-danger', icono: 'fa-times' }
     };
 
     const estado = estados[valor] || { texto: 'Desconocido', badge: 'badge-secondary', icono: 'fa-question' };
@@ -229,6 +229,7 @@ function editar(codigo_empleado) {
                 $('#txt_profesion').val(data.txt_profesion);
                 $('#txt_anio_grado').val(data.txt_anio_grado);
                 $('#txt_salario').val(data.txt_salario);
+                $('#txt_fecha_retiro_cesantias').val(data.txt_fecha_retiro);
 
                 // ── Selects — habilitar → valor → trigger → deshabilitar ──
                 $('#txt_tipo_documento_empl').prop('disabled', false)
@@ -269,6 +270,10 @@ function editar(codigo_empleado) {
 
                 $('#select_dependencia').prop('disabled', false)
                     .val(data.select_dependencia).trigger('change')
+                    .prop('disabled', true);
+
+                $('#select_esta_empl').prop('disabled', false)
+                    .val(data.select_esta_empl).trigger('change')
                     .prop('disabled', true);
 
                 // ── Estado badge ──────────────────────────────
@@ -1106,7 +1111,7 @@ $(document).on('click', '#mainTabs .nav-link[data-pane="bonificaciones"]', funct
 });
 
 $('#btn_exportar_egreso').on('click', function () {
-    const codigo   = $('#txt_codigo_empleado').val();
+    const codigo = $('#txt_codigo_empleado').val();
     const radicado = $('#txt_radicado_egreso').val().trim();
 
     if (!codigo) {
@@ -1119,13 +1124,53 @@ $('#btn_exportar_egreso').on('click', function () {
     }
 
     const params = new URLSearchParams({
-        op       : 'exportar_egreso_pdf',
-        codigo   : codigo,
-        radicado : radicado
+        op: 'exportar_egreso_pdf',
+        codigo: codigo,
+        radicado: radicado
     });
 
     window.open('../../controller/empleado.php?' + params.toString(), '_blank');
 });
+
+$('#select_tipo_doc_egreso').on('change', function () {
+    if ($(this).val() === 'examen') {
+        $('#seccion_examen_egreso').show();
+        $('#seccion_cesantias').hide();
+    } else {
+        $('#seccion_examen_egreso').hide();
+        $('#seccion_cesantias').show();
+    }
+});
+
+$('#btn_exportar_cesantias').on('click', function () {
+    const codigo = $('#txt_codigo_empleado').val();
+    const radicado = $('#txt_radicado_cesantias').val().trim();
+    const fondo = $('#txt_fondo_cesantias').val().trim();
+
+    if (!codigo) {
+        Swal.fire({ title: 'Atención', text: 'Debe seleccionar un empleado', icon: 'warning' });
+        return;
+    }
+    if (!radicado) {
+        Swal.fire({ title: 'Atención', text: 'Debe ingresar el radicado', icon: 'warning' });
+        return;
+    }
+    if (!fondo) {
+        Swal.fire({ title: 'Atención', text: 'Debe ingresar el fondo de cesantías', icon: 'warning' });
+        return;
+    }
+
+    const params = new URLSearchParams({
+        op: 'exportar_cesantias_pdf',
+        codigo: codigo,
+        radicado: radicado,
+        fondo: fondo
+    });
+
+    window.open('../../controller/empleado.php?' + params.toString(), '_blank');
+});
+
+
 
 
 init();

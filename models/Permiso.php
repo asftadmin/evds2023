@@ -349,35 +349,29 @@ class Permiso extends Conectar {
         $conectar = parent::Conexion();
         $sql = "SELECT 
                 p.*,
-                cg.nomb_carg AS cargo,
-                em.nomb_empl AS empleado_nombre,
-                p.permiso_firma AS firma_empleado,
-                jf.nomb_empl AS jefe_nombre,
-                fj.firma_base64 AS firma_jefe,
-                gh.nomb_empl AS recurso_humano,
-                fr.firma_base64 AS firma_rrhh,
+                cg.nomb_carg        AS cargo,
+                em.nomb_empl        AS empleado_nombre,
+                p.permiso_firma     AS firma_empleado,
+                jf.nomb_empl        AS jefe_nombre,
+                fj.firma_base64     AS firma_jefe,
+                gh.nomb_empl        AS recurso_humano,
+                fr.firma_base64     AS firma_rrhh,
                 tp.*
             FROM permisos_personal p
-            INNER JOIN empleados em 
-                ON em.id_empl = p.empleado_id
-            INNER JOIN cargo cg 
-                ON cg.codi_carg = em.carg_empl
+            INNER JOIN empleados    em  ON em.id_empl      = p.empleado_id
+            INNER JOIN cargo        cg  ON cg.codi_carg    = em.carg_empl
 
-            LEFT JOIN empleado_jefe ej 
-                ON ej.empleado_id = p.empleado_id AND ej.ej_estado = 1
-            LEFT JOIN empleados jf 
-                ON jf.id_empl = ej.jefe_id
-            LEFT JOIN firma_usuario fj 
-                ON fj.user_id = ej.jefe_id
+            -- ── Jefe — quien realmente aprobó ────────────────────
+            LEFT JOIN empleados     jf  ON jf.id_empl      = p.aprobado_jefe_id
+            LEFT JOIN usuarios      uj  ON uj.user_id      = jf.user_empl
+            LEFT JOIN firma_usuario fj  ON fj.user_id      = uj.user_id
 
-            LEFT JOIN empleados gh 
-                ON gh.id_empl = p.aprobado_rrhh_id
-            LEFT JOIN firma_usuario fr 
-                ON fr.user_id = p.aprobado_rrhh_id
+            -- ── RRHH ──────────────────────────────────────────────
+            LEFT JOIN empleados     gh  ON gh.id_empl      = p.aprobado_rrhh_id
+            LEFT JOIN usuarios      ur  ON ur.user_id      = gh.user_empl
+            LEFT JOIN firma_usuario fr  ON fr.user_id      = ur.user_id
 
-            INNER JOIN tipo_permiso tp 
-                ON tp.tipo_id = p.permiso_tipo
-
+            INNER JOIN tipo_permiso tp  ON tp.tipo_id      = p.permiso_tipo
             WHERE p.permiso_id = ?";
 
         $stmt = $conectar->prepare($sql);
