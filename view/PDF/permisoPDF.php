@@ -9,25 +9,42 @@ require_once("../../models/Permiso.php");
 function base64_to_png_temp($base64) {
     if (empty($base64)) return null;
 
-    // Si NO trae el encabezado, lo agregamos
     if (strpos($base64, "data:image/") === false) {
         $base64 = "data:image/png;base64," . $base64;
     }
 
-    // Quitar encabezado
     $clean = preg_replace('#^data:image/\w+;base64,#i', '', $base64);
-
-    // Corregir espacios dañinos
     $clean = str_replace(' ', '+', $clean);
-
-    // Decodificar
-    $img = base64_decode($clean);
+    $img   = base64_decode($clean);
 
     if (!$img || strlen($img) < 300) return null;
 
-    // Crear archivo PNG temporal
-    $file = tempnam(sys_get_temp_dir(), "firma_") . ".png";
-    file_put_contents($file, $img);
+    // ── Detectar tipo real por magic bytes ──
+    $magic = bin2hex(substr($img, 0, 4));
+
+    // Crear imagen GD según tipo real
+    if (substr($magic, 0, 6) === 'ffd8ff') {
+        // Es JPEG — convertir a PNG
+        $gd = imagecreatefromstring($img);
+    } elseif (substr($magic, 0, 8) === '89504e47') {
+        // Ya es PNG — usar directo
+        $gd = imagecreatefromstring($img);
+    } else {
+        // Intentar de todas formas
+        $gd = imagecreatefromstring($img);
+    }
+
+    if (!$gd) return null;
+
+    // ── Guardar como PNG real ──
+    $file = tempnam(sys_get_temp_dir(), "fir") . ".png";
+
+    // Preservar transparencia
+    imagealphablending($gd, false);
+    imagesavealpha($gd, true);
+
+    imagepng($gd, $file);
+    imagedestroy($gd);
 
     return $file;
 }
@@ -330,7 +347,7 @@ $pdf->SetXY(110, $y);
 $pdf->Cell(70, 6, "______________________________________");
 // Firma encima de la línea (si existe)
 if ($temp_jefe) {
-    $pdf->Image($temp_jefe, 115, $y - 10, 50);
+    $pdf->Image($temp_jefe, 115, $y - 15, 42);
 }
 
 
