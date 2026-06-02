@@ -32,6 +32,31 @@ class CurlController {
         $response = json_decode($response);
         return $response;
     }
+
+    public static function requestBiotime($url, $method) {
+
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => 'http://172.16.1.10/att/api/transactionReport/?' . $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'Authorization: token e35e2f80fc6d903a7ba94c55ecc3d7f38c1d5e66'
+            ),
+        ));
+
+        $response = curl_exec($curl);
+        curl_close($curl);
+
+        return json_decode($response);
+    }
 }
 // Pruebas  CURLOPT_URL => 'https://serviciosqa.siesacloud.com/api/connekta/v3/ejecutarconsulta?'.$url,
 // Real CURLOPT_URL => 'https://servicios.siesacloud.com/api/connekta/v3/ejecutarconsulta?'.$url,

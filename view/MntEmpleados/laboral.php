@@ -625,6 +625,7 @@ if (isset($_SESSION["user_id"])) {
                                                     style="width:100%;">
                                                     <option value="examen">Examen de Egreso</option>
                                                     <option value="cesantias">Retiro de Cesantías</option>
+                                                    <option value="terminacion">Terminación Contrato</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -712,6 +713,83 @@ if (isset($_SESSION["user_id"])) {
                                             </div>
                                             <div class="d-flex justify-content-end mt-3">
                                                 <button class="btn btn-warning" id="btn_exportar_cesantias">
+                                                    <i class="fas fa-file-pdf mr-1"></i>Exportar PDF
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Sección Carta Terminación de Contrato -->
+                                <div id="seccion_terminacion_contrato" style="display:none;">
+                                    <div class="card card-outline card-info mb-3 shadow-sm">
+                                        <div class="card-header">
+                                            <h3 class="card-title">
+                                                <i class="fas fa-file-signature mr-2 text-info"></i>
+                                                Carta de Terminación de Contrato
+                                            </h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-list mr-1"></i>Motivo
+                                                        </label>
+                                                        <select class="form-control select2bs4"
+                                                            id="select_motivo_terminacion" style="width:100%;">
+                                                            <option value="obra_labor">Obra o labor</option>
+                                                            <option value="preaviso_terminacion">Preaviso y terminación</option>
+                                                            <option value="aceptacion_renuncia">Aceptación de renuncia</option>
+                                                            <option value="periodo_prueba">Período de prueba</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-hashtag mr-1"></i>Código correspondencia
+                                                        </label>
+                                                        <input type="text" class="form-control"
+                                                            id="txt_radicado_terminacion"
+                                                            placeholder="Ej: ASF-GH-2.6-1001-25">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-calendar-alt mr-1"></i>Fecha de Retiro
+                                                        </label>
+                                                        <input type="text" class="form-control input-erp"
+                                                            name="txt_fecha_retiro_terminacion"
+                                                            id="txt_fecha_retiro_terminacion" readonly>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3" id="grupo_fecha_renuncia" style="display:none;">
+                                                    <div class="form-group">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-calendar-check mr-1"></i>Fecha carta renuncia
+                                                        </label>
+                                                        <input type="text" class="form-control input-erp"
+                                                            name="txt_fecha_renuncia"
+                                                            id="txt_fecha_renuncia" readonly>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-9">
+                                                    <div class="form-group form-group-referencia-terminacion">
+                                                        <label class="section-subheader">
+                                                            <i class="fas fa-align-left mr-1"></i>Referencia
+                                                        </label>
+                                                        <input type="text" class="form-control"
+                                                            id="txt_referencia_terminacion"
+                                                            placeholder="Ej: Terminación de obra labor">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex justify-content-end mt-3">
+                                                <button type="button" class="btn btn-info" id="btn_exportar_terminacion">
                                                     <i class="fas fa-file-pdf mr-1"></i>Exportar PDF
                                                 </button>
                                             </div>

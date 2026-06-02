@@ -9,7 +9,9 @@ function init() {
     initDatePicker('#txt_fecha_exp');
     initDatePicker('#txt_fecha_ingreso');
     initDatePicker('#txt_fecha_nacimiento');
+    initDatePicker('#txt_fecha_renuncia');
     $('#btn_editar_basicos').prop('disabled', true);
+    actualizarReferenciaTerminacion();
     // Deshabilitar btn_toggle_form nuevamente
     $('#btn_toggle_form').prop('disabled', true);
     // Deshabilitar btn_toggle_form
@@ -230,6 +232,10 @@ function editar(codigo_empleado) {
                 $('#txt_anio_grado').val(data.txt_anio_grado);
                 $('#txt_salario').val(data.txt_salario);
                 $('#txt_fecha_retiro_cesantias').val(data.txt_fecha_retiro);
+                $('#txt_fecha_retiro_terminacion').val(data.txt_fecha_retiro);
+                $('#txt_radicado_terminacion').val('');
+                $('#txt_fecha_renuncia').val('');
+                actualizarReferenciaTerminacion();
 
                 // ── Selects — habilitar → valor → trigger → deshabilitar ──
                 $('#txt_tipo_documento_empl').prop('disabled', false)
@@ -283,8 +289,9 @@ function editar(codigo_empleado) {
 
                 // ── Preview certificado ───────────────────────
                 llenarPreview(data);
-                // ── Mostrar tab egreso si tiene fecha de retiro ──
-                if (data.txt_fecha_retiro) {
+                // ── Mostrar tab egreso si el empleado está retirado y tiene fecha de retiro ──
+                const empleadoRetirado = String(data.select_esta_empl) === '0';
+                if (empleadoRetirado && data.txt_fecha_retiro) {
                     $('#tab_egreso').show();
                 } else {
                     $('#tab_egreso').hide();
@@ -1132,14 +1139,69 @@ $('#btn_exportar_egreso').on('click', function () {
     window.open('../../controller/empleado.php?' + params.toString(), '_blank');
 });
 
-$('#select_tipo_doc_egreso').on('change', function () {
-    if ($(this).val() === 'examen') {
+function mostrarSeccionDocumentoEgreso(tipoDocumento) {
+    $('#seccion_examen_egreso').hide();
+    $('#seccion_cesantias').hide();
+    $('#seccion_terminacion_contrato').hide();
+
+    if (tipoDocumento === 'examen') {
         $('#seccion_examen_egreso').show();
-        $('#seccion_cesantias').hide();
-    } else {
-        $('#seccion_examen_egreso').hide();
+    } else if (tipoDocumento === 'cesantias') {
         $('#seccion_cesantias').show();
+    } else if (tipoDocumento === 'terminacion') {
+        $('#seccion_terminacion_contrato').show();
     }
+}
+
+$('#select_tipo_doc_egreso').on('change', function () {
+    mostrarSeccionDocumentoEgreso($(this).val());
+});
+
+const referenciasTerminacion = {
+    obra_labor: 'Terminación Contrato de Trabajo por finalización de obra o labor contratada.',
+    preaviso_terminacion: 'Preaviso y terminación contrato de trabajo.',
+    aceptacion_renuncia: 'Aceptación renuncia voluntaria presentada el ',
+    periodo_prueba: 'Terminación Contrato de Trabajo en periodo de prueba.'
+};
+
+function fechaALetrasTerminacion(fecha) {
+    const partes = fecha.split('/');
+    if (partes.length !== 3) return '';
+
+    const meses = [
+        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ];
+    const dia = parseInt(partes[0], 10);
+    const mes = parseInt(partes[1], 10);
+    const anio = partes[2];
+
+    if (!dia || !mes || !anio || !meses[mes - 1]) return '';
+    return `${dia} de ${meses[mes - 1]} de ${anio}`;
+}
+
+function actualizarReferenciaTerminacion() {
+    const tipoTerminacion = $('#select_motivo_terminacion').val() || 'obra_labor';
+    const fechaRenuncia = $('#txt_fecha_renuncia').val().trim();
+
+    $('#grupo_fecha_renuncia').toggle(tipoTerminacion === 'aceptacion_renuncia');
+
+    if (tipoTerminacion === 'aceptacion_renuncia' && fechaRenuncia) {
+        $('#txt_referencia_terminacion').val(
+            referenciasTerminacion[tipoTerminacion] + fechaALetrasTerminacion(fechaRenuncia) + '.'
+        );
+        return;
+    }
+
+    $('#txt_referencia_terminacion').val(referenciasTerminacion[tipoTerminacion] || '');
+}
+
+$('#select_motivo_terminacion').on('change', function () {
+    actualizarReferenciaTerminacion();
+});
+
+$('#txt_fecha_renuncia').on('change apply.daterangepicker', function () {
+    setTimeout(actualizarReferenciaTerminacion, 0);
 });
 
 $('#btn_exportar_cesantias').on('click', function () {
@@ -1165,6 +1227,51 @@ $('#btn_exportar_cesantias').on('click', function () {
         codigo: codigo,
         radicado: radicado,
         fondo: fondo
+    });
+
+    window.open('../../controller/empleado.php?' + params.toString(), '_blank');
+});
+
+$('#btn_exportar_terminacion').on('click', function () {
+    const codigo = $('#txt_codigo_empleado').val();
+    const radicado = $('#txt_radicado_terminacion').val().trim();
+    const tipoTerminacion = $('#select_motivo_terminacion').val();
+    const referencia = $('#txt_referencia_terminacion').val().trim();
+    const fechaRetiro = $('#txt_fecha_retiro_terminacion').val().trim();
+    const fechaRenuncia = $('#txt_fecha_renuncia').val().trim();
+
+    if (!codigo) {
+        Swal.fire({ title: 'Atención', text: 'Debe seleccionar un empleado', icon: 'warning' });
+        return;
+    }
+    if (!radicado) {
+        Swal.fire({ title: 'Atención', text: 'Debe ingresar el código de correspondencia', icon: 'warning' });
+        return;
+    }
+    if (!tipoTerminacion) {
+        Swal.fire({ title: 'Atención', text: 'Debe seleccionar el motivo de terminación', icon: 'warning' });
+        return;
+    }
+    if (!fechaRetiro) {
+        Swal.fire({ title: 'Atención', text: 'El empleado debe tener fecha de retiro', icon: 'warning' });
+        return;
+    }
+    if (tipoTerminacion === 'aceptacion_renuncia' && !fechaRenuncia) {
+        Swal.fire({ title: 'Atención', text: 'Debe ingresar la fecha de la carta de renuncia', icon: 'warning' });
+        return;
+    }
+    if (!referencia) {
+        Swal.fire({ title: 'Atención', text: 'Debe ingresar la referencia de la carta', icon: 'warning' });
+        return;
+    }
+
+    const params = new URLSearchParams({
+        op: 'exportar_terminacion_contrato_pdf',
+        codigo: codigo,
+        radicado: radicado,
+        tipo_terminacion: tipoTerminacion,
+        referencia: referencia,
+        fecha_renuncia: fechaRenuncia
     });
 
     window.open('../../controller/empleado.php?' + params.toString(), '_blank');

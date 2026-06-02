@@ -1,12 +1,12 @@
-<?php 
+<?php
 
-    class Asistencia extends Conectar{
+class Asistencia extends Conectar {
 
 
-        public function obtenerRegistrosAsistencia($fechainicio = null, $fechafin = null){
+    public function obtenerRegistrosAsistencia($fechainicio = null, $fechafin = null) {
 
-            $conectar=parent::Conexion();
-            $sql = "
+        $conectar = parent::Conexion();
+        $sql = "
                     WITH RegistrosPorDia AS (
                     SELECT 
                         R.IdUser,
@@ -34,33 +34,23 @@
                 FROM RegistrosPorDia
                 ";
 
-            $conditions = [];
-            $params = [];
+        $conditions = [];
+        $params = [];
 
-            if ($fechainicio && $fechafin) {
-                $conditions[] = "Fecha BETWEEN :fechainicio AND :fechafin";
-                $params[':fechainicio'] = $fechainicio;
-                $params[':fechafin'] = $fechafin;
-            }
-
-            if (count($conditions) > 0) {
-                $sql .= " WHERE " . implode(' AND ', $conditions);
-            }
-
-            $sql .= " ORDER BY Fecha DESC, Usuario";
-
-            $query = $conectar->prepare($sql);
-            $query->execute($params);
-            return $query->fetchAll(PDO::FETCH_ASSOC);
-
-
+        if ($fechainicio && $fechafin) {
+            $conditions[] = "Fecha BETWEEN :fechainicio AND :fechafin";
+            $params[':fechainicio'] = $fechainicio;
+            $params[':fechafin'] = $fechafin;
         }
 
-        
+        if (count($conditions) > 0) {
+            $sql .= " WHERE " . implode(' AND ', $conditions);
+        }
 
+        $sql .= " ORDER BY Fecha DESC, Usuario";
 
-
+        $query = $conectar->prepare($sql);
+        $query->execute($params);
+        return $query->fetchAll(PDO::FETCH_ASSOC);
     }
-
-
-?>
+}

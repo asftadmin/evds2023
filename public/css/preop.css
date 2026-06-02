@@ -41,6 +41,21 @@
 
 .input-erp  { border-left:4px solid #343a40 !important; background:#f8f9fa; }
 
+#seccion_terminacion_contrato .form-group-referencia-terminacion {
+    align-items: right;
+}
+
+#seccion_terminacion_contrato .form-group-referencia-terminacion .section-subheader {
+    flex: 0 0 190px;
+    width: auto !important;
+    margin-bottom: 0;
+}
+
+#seccion_terminacion_contrato .form-group-referencia-terminacion #txt_referencia_terminacion {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .pane { display:none; }
 .pane.active { display:block; }
 

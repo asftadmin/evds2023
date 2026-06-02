@@ -1,7 +1,8 @@
-<?php 
+<?php
 
 require_once("../config/conexionBiotime.php");
 require_once("../models/Asistencia.php");
+require_once("curl.php");
 
 $asistencia = new Asistencia();
 
@@ -15,36 +16,28 @@ switch ($_GET["op"]) {
 
         $datos = $asistencia->obtenerRegistrosAsistencia($fechainicio, $fechafin);
 
-        $data = Array();
+        $data = array();
         foreach ($datos as $row) {
             $sub_array = array();
-            $sub_array []= $row["Fecha"];
-            $sub_array []= $row["Usuario"];
-            $sub_array []= $row["HoraEntrada"];
-            $sub_array []= $row["HoraSalida"];
-            $sub_array []= $row["TiempoBruto"];
-            $sub_array []= $row["TiempoLaboradoNeto"];
+            $sub_array[] = $row["Fecha"];
+            $sub_array[] = $row["Usuario"];
+            $sub_array[] = $row["HoraEntrada"];
+            $sub_array[] = $row["HoraSalida"];
+            $sub_array[] = $row["TiempoBruto"];
+            $sub_array[] = $row["TiempoLaboradoNeto"];
             $data[] = $sub_array;
         }
 
         $results = array(
 
-            "sEcho"=>1,
-            "iTotalRecords"=>count($data),
-            "iTotalDisplayRecords"=>count($data),
-            "aaData"=>$data);
-        
+            "sEcho" => 1,
+            "iTotalRecords" => count($data),
+            "iTotalDisplayRecords" => count($data),
+            "aaData" => $data
+        );
+
         echo json_encode($results);
-        
 
-    break;
 
-    
-    
-
-        
+        break;
 }
-
-
-
-?>

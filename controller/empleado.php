@@ -618,4 +618,82 @@ switch ($_REQUEST["op"]) {
 
         require_once '../view/PDF/cesantias.php';
         break;
+
+    case 'exportar_terminacion_contrato_pdf':
+        $codigo           = $_GET["codigo"] ?? null;
+        $radicado         = trim($_GET["radicado"] ?? '');
+        $tipo_terminacion = $_GET["tipo_terminacion"] ?? '';
+        $referencia       = trim($_GET["referencia"] ?? '');
+        $fecha_renuncia   = trim($_GET["fecha_renuncia"] ?? '');
+        $tipos_validos    = [
+            'obra_labor',
+            'preaviso_terminacion',
+            'aceptacion_renuncia',
+            'periodo_prueba',
+        ];
+
+        if (!$codigo) {
+            echo json_encode(['success' => false, 'error' => 'Código de empleado requerido']);
+            break;
+        }
+
+        if (!$radicado) {
+            echo json_encode(['success' => false, 'error' => 'Código de correspondencia requerido']);
+            break;
+        }
+
+        if (!in_array($tipo_terminacion, $tipos_validos, true)) {
+            echo json_encode(['success' => false, 'error' => 'Motivo de terminación no válido']);
+            break;
+        }
+
+        if ($tipo_terminacion === 'aceptacion_renuncia' && !$fecha_renuncia) {
+            echo json_encode(['success' => false, 'error' => 'Fecha de carta de renuncia requerida']);
+            break;
+        }
+
+        if (!$referencia) {
+            echo json_encode(['success' => false, 'error' => 'Referencia requerida']);
+            break;
+        }
+
+        $datos = $empleado->get_empledo_x_id($codigo);
+        if (!$datos || count($datos) == 0) {
+            echo json_encode(['success' => false, 'error' => 'Empleado no encontrado']);
+            break;
+        }
+
+        $row = $datos[0];
+
+        if ((int)($row["esta_empl"] ?? 1) !== 0) {
+            echo json_encode(['success' => false, 'error' => 'La carta solo se puede generar para empleados retirados o inactivos']);
+            break;
+        }
+
+        if (empty($row["fecha_retiro_empl"])) {
+            echo json_encode(['success' => false, 'error' => 'El empleado no tiene fecha de retiro registrada']);
+            break;
+        }
+
+        $pdf_nombre           = $row["nomb_empl"]           ?? '';
+        $pdf_cedula           = $row["cedu_empl"]           ?? '';
+        $pdf_lugar_exp        = $row["lugar_desc"]          ?? '';
+        $pdf_fecha_retiro     = fechaALetras($row["fecha_retiro_empl"] ?? '');
+        $pdf_fecha_retiro_fmt = $row["fecha_retiro_empl"]
+            ? (new DateTime($row["fecha_retiro_empl"]))->format('d/m/Y')
+            : '';
+        $pdf_fecha_ingreso    = fechaALetras($row["fecha_ingreso_empl"] ?? '');
+        $pdf_fecha_renuncia   = fechaALetras($fecha_renuncia);
+        $pdf_cargo            = $row["cargo_desc"]          ?? '';
+        $pdf_radicado         = $radicado;
+        $pdf_tipo_terminacion = $tipo_terminacion;
+        $pdf_referencia       = $referencia;
+        $pdf_fecha_carta      = fechaALetras(date('Y-m-d'));
+        $pdf_ciudad           = 'San Juan de Girón (Santander)';
+        $pdf_empresa          = 'ASFALTART S.A.S. EN REORGANIZACIÓN';
+        $pdf_nombre_firmante  = 'JORGE CARDENAS';
+        $pdf_cargo_firmante   = 'Director de Gestión Humana y Jurídico.';
+
+        require_once '../view/PDF/terminacion_contrato.php';
+        break;
 }
