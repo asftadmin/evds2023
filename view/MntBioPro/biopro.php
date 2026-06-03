@@ -80,8 +80,9 @@ if (isset($_SESSION["user_id"])) {
 
                                     <div class="col-md-4">
                                         <label>Empleado</label>
-                                        <input type="text" id="filtro-empleado" class="form-control"
-                                            placeholder="Cédula del empleado (opcional)">
+                                        <select id="filtro-empleado" class="form-control select2bs4" style="width:100%;">
+                                            <option value="">Todos los empleados</option>
+                                        </select>
                                     </div>
 
                                     <div class="col-md-2">
@@ -145,7 +146,9 @@ if (isset($_SESSION["user_id"])) {
 
                                     <div class="col-md-3">
                                         <label>Empleado (opcional)</label>
-                                        <input type="text" id="dash-empleado" class="form-control" placeholder="Cédula">
+                                        <select id="dash-empleado" class="form-control select2bs4" style="width:100%;">
+                                            <option value="">Todos los empleados</option>
+                                        </select>
                                     </div>
 
                                     <div class="col-md-3">

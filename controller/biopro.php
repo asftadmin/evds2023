@@ -9,6 +9,21 @@ $biopro = new BioPro();
 
 switch ($_GET["op"]) {
 
+    case "comboEmpleadosActivos":
+        $datos = $biopro->listarEmpleadosActivos();
+
+        $html = '<option value="">Todos los empleados</option>';
+        if (is_array($datos) && count($datos) > 0) {
+            foreach ($datos as $row) {
+                $cedula = htmlspecialchars($row['cedu_empl'] ?? '', ENT_QUOTES, 'UTF-8');
+                $nombre = htmlspecialchars($row['nomb_empl'] ?? '', ENT_QUOTES, 'UTF-8');
+                $html .= '<option value="' . $cedula . '">' . $nombre . '</option>';
+            }
+        }
+
+        echo $html;
+        break;
+
     case "listarAsistenciaBioPro":
 
         $data = array();
@@ -111,7 +126,7 @@ switch ($_GET["op"]) {
         $fechainicio = $_GET['fechainicio'] ?? date('Y-m-d');
         $fechafin    = $_GET['fechafin'] ?? date('Y-m-d');
         $empleadoFiltro = preg_replace('/\D/', '', ($_GET['empleado'] ?? ''));
-        $metrica = $_GET['metrica'] ?? 'arrival_hist';
+        $metrica = trim($_GET['metrica'] ?? 'arrival_hist');
 
         $horaObjetivo = "08:00";
         $toleranciaMin = 5;
@@ -461,6 +476,78 @@ switch ($_GET["op"]) {
                 'detalle' => $detalle,
                 'hora_objetivo' => '08:00',
                 'hora_limite' => '08:05'
+            ]);
+            exit;
+        }
+
+        if ($metrica === 'punctuality_rate') {
+
+            $diasHabiles = [];
+
+            $start = new DateTime($fechainicio);
+            $end = new DateTime($fechafin);
+            $end->modify('+1 day');
+
+            $period = new DatePeriod($start, new DateInterval('P1D'), $end);
+
+            foreach ($period as $dt) {
+                $diaSemana = (int) $dt->format('N'); // 1 lunes, 7 domingo
+
+                if ($diaSemana >= 1 && $diaSemana <= 5) {
+                    $diasHabiles[] = $dt->format('Y-m-d');
+                }
+            }
+
+            $totalDiasHabiles = count($diasHabiles);
+            $empleadosEvaluados = [];
+
+            if ($empleadoFiltro !== '') {
+                if (isset($idxActivo[$empleadoFiltro])) {
+                    $empleadosEvaluados[] = $empleadoFiltro;
+                }
+            } else {
+                $empleadosEvaluados = array_keys($idxActivo);
+            }
+
+            $totalLaborables = count($empleadosEvaluados) * $totalDiasHabiles;
+            $diasATiempo = 0;
+            $diasTarde = 0;
+            $diasSinMarcacion = 0;
+
+            foreach ($empleadosEvaluados as $emp) {
+                foreach ($diasHabiles as $fecha) {
+
+                    if (!isset($marcaciones[$emp][$fecha])) {
+                        $diasSinMarcacion++;
+                        continue;
+                    }
+
+                    $horas = $marcaciones[$emp][$fecha];
+                    sort($horas);
+
+                    $entrada = $horas[0];
+
+                    if ($entrada <= $horaLimite) {
+                        $diasATiempo++;
+                    } else {
+                        $diasTarde++;
+                    }
+                }
+            }
+
+            $rate = ($totalLaborables > 0)
+                ? round(($diasATiempo / $totalLaborables) * 100, 1)
+                : 0;
+
+            echo json_encode([
+                'success' => true,
+                'rate' => $rate,
+                'total' => $totalLaborables,
+                'dias_a_tiempo' => $diasATiempo,
+                'late' => $diasTarde,
+                'dias_sin_marcacion' => $diasSinMarcacion,
+                'dias_habiles' => $totalDiasHabiles,
+                'hora_limite' => $horaLimite
             ]);
             exit;
         }

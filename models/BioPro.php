@@ -35,4 +35,21 @@ class BioPro extends Conectar {
         // IMPORTANTE: solo columna (array de strings)
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    public function listarEmpleadosActivos() {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        $sql = "SELECT cedu_empl, nomb_empl
+            FROM empleados
+            WHERE esta_empl = 1
+              AND cedu_empl IS NOT NULL
+              AND TRIM(cedu_empl) <> ''
+            ORDER BY nomb_empl";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

@@ -25,7 +25,7 @@ class Conectar {
     }
 
     public static function ruta() {
-        //return "http://localhost/evds2023/";
-        return "http://181.204.219.154:3396/evds2023/";
+        return "http://localhost/evds2023/";
+        //return "http://181.204.219.154:3396/evds2023/";
     }
 }

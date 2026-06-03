@@ -1,7 +1,33 @@
 let tabla;
+let swalCargaRegistroActivo = false;
 
 function init() {
+    initSelect2BioPro();
+    cargarComboEmpleadosBioPro();
+}
 
+function initSelect2BioPro() {
+    $('.select2bs4').select2({
+        theme: 'bootstrap4',
+        width: '100%'
+    });
+}
+
+function cargarComboEmpleadosBioPro() {
+    $.ajax({
+        url: '../../controller/biopro.php?op=comboEmpleadosActivos',
+        type: 'GET',
+        success: function (html) {
+            $('#filtro-empleado, #dash-empleado')
+                .html(html)
+                .val('')
+                .trigger('change');
+        },
+        error: function (xhr) {
+            console.log(xhr.responseText);
+            Swal.fire('Error', 'No se pudo cargar la lista de empleados activos.', 'error');
+        }
+    });
 }
 
 $('#filtro-fechas').daterangepicker({
@@ -32,7 +58,19 @@ function cargarAsistencia() {
     const fechas = $('#filtro-fechas').val().split(' - ');
     const fechainicio = fechas[0];
     const fechafin = fechas[1];
-    const empleado = $('#filtro-empleado').val();
+    const empleado = $('#filtro-empleado').val() || '';
+
+    swalCargaRegistroActivo = true;
+    Swal.fire({
+        title: 'Cargando información',
+        html: 'Por favor espere...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
     return $('#asistencia_biotime_v2').dataTable({
         "aProcessing": true,
         "aServerSide": true,
@@ -54,7 +92,24 @@ function cargarAsistencia() {
                 empleado
             },
             dataType: "json",
+            complete: function () {
+                if (swalCargaRegistroActivo) {
+                    Swal.close();
+                    swalCargaRegistroActivo = false;
+                }
+            },
             error: function (e) {
+                if (swalCargaRegistroActivo) {
+                    Swal.close();
+                    swalCargaRegistroActivo = false;
+                }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Ocurrió un error consultando la asistencia.'
+                });
+
                 console.log(e.responseText);
             }
         },
@@ -63,7 +118,7 @@ function cargarAsistencia() {
         "bInfo": true,
         "iDisplayLength": 5,
         "autoWidth": false,
-        order: [[2, 'desc']],
+        order: [[0, 'desc']],
         "language": {
             "sProcessing": "Procesando...",
             "sLengthMenu": "Mostrar _MENU_ registros",
@@ -94,7 +149,7 @@ function cargarAsistencia() {
 $(document).on('click', '#btn-limpiar-filtros', function () {
 
     // Limpiar campo empleado
-    $('#filtro-empleado').val('');
+    $('#filtro-empleado').val('').trigger('change');
 
     // Reiniciar DateRangePicker a valores por defecto
     const startDefault = moment().subtract(8, 'days');
@@ -179,43 +234,6 @@ function renderArrivalDetailTable(detalle) {
     $('#arrival-detail-wrap').show();
 }
 
-/* function resetDashUI() {
-    $('#dash-chart-wrap').hide();
-    $('#dash-table-wrap').hide();
-    $('#dash-kpi-wrap').hide();
-
-    if (dashChartInstance) {
-        dashChartInstance.destroy();
-        dashChartInstance = null;
-    }
-
-    $('#dashTable tbody').empty();
-} */
-
-/* function renderBarChart(labels, values, title) {
-    $('#dash-chart-wrap').show();
-    const ctx = document.getElementById('dashChart').getContext('2d');
-
-    dashChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: title,
-                data: values
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { display: true }
-            },
-            scales: {
-                y: { beginAtZero: true }
-            }
-        }
-    });
-} */
 
 function renderArrivalLineChart(labels, entradas, objetivo, entradasTexto, pointColors) {
 
@@ -303,92 +321,6 @@ function renderArrivalLineChart(labels, entradas, objetivo, entradasTexto, point
     });
 }
 
-/* function renderArrivalLineChart(labels, entradas, objetivo, entradasTexto) {
-    $('#dash-chart-wrap').show();
-
-    const ctx = document.getElementById('dashChart').getContext('2d');
-
-    dashChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Hora de entrada',
-                    data: entradas,
-                    tension: 0.3,
-                    fill: false
-                },
-                {
-                    label: 'Hora objetivo 08:00',
-                    data: objetivo,
-                    tension: 0,
-                    fill: false,
-                    borderDash: [6, 6]
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function (context) {
-                            const index = context.dataIndex;
-
-                            if (context.datasetIndex === 0) {
-                                return 'Entrada: ' + (entradasTexto[index] ?? 'Sin marcación');
-                            }
-
-                            return 'Meta: 08:00';
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    min: 360,
-                    max: 600,
-                    ticks: {
-                        callback: function (value) {
-                            const h = Math.floor(value / 60);
-                            const m = value % 60;
-                            return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Hora'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Fecha'
-                    }
-                }
-            }
-        }
-    });
-} */
-
-/* function renderStackedBars(labels, series, title) {
-    $('#dash-chart-wrap').show();
-    const ctx = document.getElementById('dashChart').getContext('2d');
-
-    dashChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets: series },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: true } },
-            scales: {
-                x: { stacked: true },
-                y: { stacked: true, beginAtZero: true }
-            }
-        }
-    });
-} */
 
 function renderGroupedBars(labels, series, title) {
 
@@ -490,7 +422,7 @@ $(document).on('click', '#btn-dash-mostrar', function () {
     const fechas = $('#dash-fechas').val().split(' - ');
     const fechainicio = fechas[0];
     const fechafin = fechas[1];
-    const empleado = $('#dash-empleado').val().trim();
+    const empleado = ($('#dash-empleado').val() || '').trim();
     const metrica = $('#dash-metrica').val();
 
     if (metrica === 'arrival_hist' && empleado === '') {
@@ -520,7 +452,14 @@ $(document).on('click', '#btn-dash-mostrar', function () {
         success: function (resp) {
             Swal.close();
 
-            if (!resp || !resp.success) return;
+            if (!resp || !resp.success) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validación',
+                    text: resp && resp.error ? resp.error : 'No se pudo consultar la métrica seleccionada.'
+                });
+                return;
+            }
 
             if (metrica === 'arrival_hist') {
                 renderArrivalLineChart(
