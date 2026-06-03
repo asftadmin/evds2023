@@ -75,13 +75,50 @@ function cargarAsistencia() {
         "aProcessing": true,
         "aServerSide": true,
         "searching": true,
-        lengthChange: false,
+        lengthChange: true,
+        pageLength: 10,
+        lengthMenu: [
+            [5, 10, 25, 50, 100, -1],
+            [5, 10, 25, 50, 100, 'Todos']
+        ],
+        dom:
+            "<'row mb-2'<'col-md-7 d-flex flex-wrap align-items-center'B<'ml-2'l>><'col-md-5'f>>" +
+            "<'row'<'col-12'tr>>" +
+            "<'row mt-2'<'col-md-5'i><'col-md-7'p>>",
         colReorder: true,
         buttons: [
-            'copyHtml5',
-            'excelHtml5',
-            'csvHtml5',
-            'pdfHtml5'
+            {
+                extend: 'copyHtml5',
+                text: 'Copiar',
+                className: 'btn btn-secondary btn-sm',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'excelHtml5',
+                text: 'Excel',
+                className: 'btn btn-success btn-sm',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'csvHtml5',
+                text: 'CSV',
+                className: 'btn btn-info btn-sm',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'pdfHtml5',
+                text: 'PDF',
+                className: 'btn btn-danger btn-sm',
+                orientation: 'landscape',
+                pageSize: 'A4',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'print',
+                text: 'Imprimir',
+                className: 'btn btn-primary btn-sm',
+                exportOptions: { columns: ':visible' }
+            }
         ],
         "ajax": {
             url: '../../controller/biopro.php?op=listarAsistenciaBioPro',
@@ -116,7 +153,6 @@ function cargarAsistencia() {
         "bDestroy": true,
         "responsive": true,
         "bInfo": true,
-        "iDisplayLength": 5,
         "autoWidth": false,
         order: [[0, 'desc']],
         "language": {
