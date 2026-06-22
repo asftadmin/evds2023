@@ -205,185 +205,6 @@ switch ($_GET["op"]) {
 
         header('Content-Type: application/json');
 
-        /*         if ($metrica === 'arrival_hist') {
-
-            $entradas = [];
-
-            foreach ($marcaciones as $emp => $fechas) {
-                foreach ($fechas as $fecha => $horas) {
-                    sort($horas);
-                    $entradas[] = $horas[0];
-                }
-            }
-
-            $buckets = [
-                '07:00-07:30' => 0,
-                '07:30-08:00' => 0,
-                '08:00-08:30' => 0,
-                '08:30-09:00' => 0,
-                '09:00+'      => 0,
-            ];
-
-            foreach ($entradas as $h) {
-                if ($h >= '07:00' && $h < '07:30') $buckets['07:00-07:30']++;
-                else if ($h >= '07:30' && $h < '08:00') $buckets['07:30-08:00']++;
-                else if ($h >= '08:00' && $h < '08:30') $buckets['08:00-08:30']++;
-                else if ($h >= '08:30' && $h < '09:00') $buckets['08:30-09:00']++;
-                else $buckets['09:00+']++;
-            }
-
-            echo json_encode([
-                'success' => true,
-                'labels'  => array_keys($buckets),
-                'values'  => array_values($buckets),
-            ]);
-            exit;
-        } */
-
-        /*         if ($metrica === 'arrival_hist') {
-
-            if ($empleadoFiltro === '') {
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Debe ingresar un empleado para esta métrica.'
-                ]);
-                exit;
-            }
-
-            $diasHabiles = [];
-
-            $start = new DateTime($fechainicio);
-            $end = new DateTime($fechafin);
-            $end->modify('+1 day');
-
-            $period = new DatePeriod($start, new DateInterval('P1D'), $end);
-
-            foreach ($period as $dt) {
-                $diaSemana = (int) $dt->format('N');
-
-                if ($diaSemana >= 1 && $diaSemana <= 5) {
-                    $diasHabiles[] = $dt->format('Y-m-d');
-                }
-            }
-
-            $labels = [];
-            $entradasMin = [];
-            $objetivoMin = [];
-            $entradasTexto = [];
-
-            $horaObjetivoMin = 8 * 60;
-
-            foreach ($diasHabiles as $fecha) {
-
-                $labels[] = $fecha;
-                $objetivoMin[] = $horaObjetivoMin;
-
-                if (!isset($marcaciones[$empleadoFiltro][$fecha])) {
-                    $entradasMin[] = null;
-                    $entradasTexto[] = 'Sin marcación';
-                    continue;
-                }
-
-                $horas = $marcaciones[$empleadoFiltro][$fecha];
-                sort($horas);
-
-                $entrada = $horas[0];
-
-                $partes = explode(':', $entrada);
-                $hora = (int) $partes[0];
-                $minuto = (int) $partes[1];
-
-                $entradaMin = ($hora * 60) + $minuto;
-
-                $entradasMin[] = $entradaMin;
-                $entradasTexto[] = $entrada;
-            }
-
-            echo json_encode([
-                'success' => true,
-                'labels' => $labels,
-                'entradas_min' => $entradasMin,
-                'objetivo_min' => $objetivoMin,
-                'entradas_texto' => $entradasTexto,
-                'hora_objetivo' => '08:00'
-            ]);
-            exit;
-        }
-
-        if ($metrica === 'punctuality_rate') {
-
-            $diasHabiles = [];
-
-            $start = new DateTime($fechainicio);
-            $end = new DateTime($fechafin);
-            $end->modify('+1 day');
-
-            $period = new DatePeriod($start, new DateInterval('P1D'), $end);
-
-            foreach ($period as $dt) {
-                $diaSemana = (int) $dt->format('N'); // 1 lunes, 7 domingo
-
-                if ($diaSemana >= 1 && $diaSemana <= 5) {
-                    $diasHabiles[] = $dt->format('Y-m-d');
-                }
-            }
-
-            $totalDiasHabiles = count($diasHabiles);
-
-            $empleadosEvaluados = [];
-
-            if ($empleadoFiltro !== '') {
-                if (isset($idxActivo[$empleadoFiltro])) {
-                    $empleadosEvaluados[] = $empleadoFiltro;
-                }
-            } else {
-                $empleadosEvaluados = array_keys($idxActivo);
-            }
-
-            $totalLaborables = count($empleadosEvaluados) * $totalDiasHabiles;
-
-            $diasATiempo = 0;
-            $diasTarde = 0;
-            $diasSinMarcacion = 0;
-
-            foreach ($empleadosEvaluados as $emp) {
-
-                foreach ($diasHabiles as $fecha) {
-
-                    if (!isset($marcaciones[$emp][$fecha])) {
-                        $diasSinMarcacion++;
-                        continue;
-                    }
-
-                    $horas = $marcaciones[$emp][$fecha];
-                    sort($horas);
-
-                    $entrada = $horas[0];
-
-                    if ($entrada <= $horaLimite) {
-                        $diasATiempo++;
-                    } else {
-                        $diasTarde++;
-                    }
-                }
-            }
-
-            $rate = ($totalLaborables > 0)
-                ? round(($diasATiempo / $totalLaborables) * 100, 1)
-                : 0;
-
-            echo json_encode([
-                'success' => true,
-                'rate' => $rate,
-                'total' => $totalLaborables,
-                'dias_a_tiempo' => $diasATiempo,
-                'late' => $diasTarde,
-                'dias_sin_marcacion' => $diasSinMarcacion,
-                'dias_habiles' => $totalDiasHabiles,
-                'hora_limite' => $horaLimite
-            ]);
-            exit;
-        } */
 
         if ($metrica === 'arrival_hist') {
 
@@ -552,33 +373,6 @@ switch ($_GET["op"]) {
             exit;
         }
 
-        /*         if ($metrica === 'punctuality_rate') {
-
-            $total = 0;
-            $late  = 0;
-
-            foreach ($marcaciones as $emp => $fechas) {
-                foreach ($fechas as $fecha => $horas) {
-                    sort($horas);
-                    $entrada = $horas[0];
-                    $total++;
-                    if ($entrada > $horaLimite) {
-                        $late++;
-                    }
-                }
-            }
-
-            $rate = ($total > 0) ? round((($total - $late) / $total) * 100, 1) : 0;
-
-            echo json_encode([
-                'success' => true,
-                'rate'    => $rate,
-                'total'   => $total,
-                'late'    => $late,
-                'hora_limite' => $horaLimite
-            ]);
-            exit;
-        } */
 
         if ($metrica === 'hours_by_employee') {
 
@@ -714,5 +508,138 @@ switch ($_GET["op"]) {
         }
 
         echo json_encode(['success' => false, 'error' => 'Metrica no soportada']);
+        break;
+
+    case "comboEmpleadosBiotimeJefe":
+
+        header('Content-Type: text/html; charset=utf-8');
+
+        $user_id = $_SESSION["user_id"] ?? 0;
+        $datos = $biopro->listarEmpleadosBiotimePorJefe($user_id);
+
+        $html = '<option value="">Todos mis empleados</option>';
+
+        foreach ($datos as $row) {
+            $cedula = htmlspecialchars($row["documento"], ENT_QUOTES, "UTF-8");
+            $nombre = htmlspecialchars($row["empleado_nombre"], ENT_QUOTES, "UTF-8");
+            $html .= '<option value="' . $cedula . '">' . $nombre . ' - ' . $cedula . '</option>';
+        }
+
+        echo $html;
+        break;
+
+    case "listarRegistrosBiotimeJefe":
+
+        header("Content-Type: application/json; charset=utf-8");
+
+        $data = array();
+
+        $user_id = $_SESSION["user_id"] ?? 0;
+
+        $fechainicio = $_GET["fechainicio"] ?? date("Y-m-d");
+        $fechafin    = $_GET["fechafin"] ?? date("Y-m-d");
+
+        $empleadoFiltro = $_GET["empleado"] ?? "";
+        $empleadoFiltro = preg_replace("/\D+/", "", trim((string)$empleadoFiltro));
+
+        $docsPermitidos = $biopro->listarDocumentosBiotimePorJefe($user_id);
+
+        $docsPermitidos = array_map(function ($doc) {
+            return preg_replace("/\D+/", "", trim((string)$doc));
+        }, $docsPermitidos);
+
+        $docsPermitidos = array_values(array_filter($docsPermitidos));
+        $idxPermitidos = array_flip($docsPermitidos);
+
+        if ($empleadoFiltro !== "" && !isset($idxPermitidos[$empleadoFiltro])) {
+            echo json_encode(array(
+                "sEcho" => 1,
+                "iTotalRecords" => 0,
+                "iTotalDisplayRecords" => 0,
+                "aaData" => array()
+            ));
+            break;
+        }
+
+        $pagina = 1;
+        $tamPag = 1000;
+
+        do {
+
+            $url  = "start_date={$fechainicio}";
+            $url .= "&end_date={$fechafin}";
+            $url .= "&departments=1";
+            $url .= "&areas=2";
+            $url .= "&page={$pagina}";
+            $url .= "&page_size={$tamPag}";
+
+            $response = CurlController::requestBiotime($url, "GET");
+
+            if (isset($response->data) && is_array($response->data)) {
+
+                foreach ($response->data as $row) {
+
+                    $emp_code = preg_replace("/\D+/", "", (string)($row->emp_code ?? ""));
+                    $fecha = "";
+                    $hora  = "";
+
+                    if (!empty($row->att_date)) {
+                        $fecha = date('d-m-Y', strtotime($row->att_date));
+                    }
+
+                    if (!empty($row->punch_time)) {
+                        $hora = date('h:i:s A', strtotime($row->punch_time));
+                    }
+                    if ($emp_code === "" || $fecha === "" || $hora === "") {
+                        continue;
+                    }
+
+                    if (!isset($idxPermitidos[$emp_code])) {
+                        continue;
+                    }
+
+                    if ($empleadoFiltro !== "" && $emp_code !== $empleadoFiltro) {
+                        continue;
+                    }
+
+                    $empleado = $biopro->obtenerEmpleadoBiotimePorJefeDocumento($user_id, $emp_code);
+
+                    if (!$empleado || !is_array($empleado)) {
+                        continue;
+                    }
+
+                    $dispositivo = $row->terminal_alias
+                        ?? $row->device_name
+                        ?? $row->terminal_name
+                        ?? "";
+
+                    $tipoMarcacion = $row->punch_state_display
+                        ?? $row->punch_state
+                        ?? "";
+
+                    $data[] = array(
+                        $fecha,
+                        $hora,
+                        $emp_code,
+                        $empleado["nomb_empl"] ?? "",
+                        $empleado["cargo"] ?? "",
+                        $empleado["grupo"] ?? "",
+                    );
+                }
+            }
+
+            $totalRegistros = $response->count ?? 0;
+            $totalPaginas = ($totalRegistros > 0) ? ceil($totalRegistros / $tamPag) : 1;
+
+            $pagina++;
+        } while ($pagina <= $totalPaginas);
+
+        echo json_encode(array(
+            "sEcho" => 1,
+            "iTotalRecords" => count($data),
+            "iTotalDisplayRecords" => count($data),
+            "aaData" => $data
+        ));
+
         break;
 }
