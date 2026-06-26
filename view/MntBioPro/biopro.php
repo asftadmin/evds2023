@@ -157,6 +157,7 @@ if (isset($_SESSION["user_id"])) {
                                             <option value="arrival_hist">Distribución de llegadas</option>
                                             <option value="punctuality_rate">Tasa de puntualidad</option>
                                             <option value="hours_by_employee">Horas por empleado</option>
+                                            <option value="time_balance">Balance de tiempos</option>
                                             <option value="absenteeism_by_area">Ausentismo por área</option>
                                         </select>
                                     </div>
@@ -250,6 +251,43 @@ if (isset($_SESSION["user_id"])) {
                                                     <div class="inner">
                                                         <h3 id="kpi-tarde">0</h3>
                                                         <p>Llegadas tarde</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div id="balance-kpi-wrap" style="display:none;">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="small-box bg-primary">
+                                                    <div class="inner">
+                                                        <h3 id="balance-total-biotime">0:00</h3>
+                                                        <p>Total BioTime</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="small-box bg-info">
+                                                    <div class="inner">
+                                                        <h3 id="balance-total-permisos">0:00</h3>
+                                                        <p>Permisos salida</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="small-box bg-success" id="balance-diferencia-box">
+                                                    <div class="inner">
+                                                        <h3 id="balance-diferencia">0:00</h3>
+                                                        <p id="balance-diferencia-label">Sin diferencia</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="small-box bg-warning">
+                                                    <div class="inner">
+                                                        <h3 id="balance-inconsistencias">0</h3>
+                                                        <p>Dias con inconsistencia</p>
                                                     </div>
                                                 </div>
                                             </div>

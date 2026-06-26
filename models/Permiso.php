@@ -427,6 +427,51 @@ class Permiso extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function get_permisos_salida_estado_3($fecha_ini = "", $fecha_fin = "", $documento = "") {
+        $conectar = parent::Conexion();
+        parent::set_names();
+
+        $sql = "SELECT
+                p.permiso_id,
+                p.permiso_fecha,
+                p.perm_fecha_cierre,
+                p.permiso_hora_salida,
+                p.permiso_hora_entrada,
+                p.permiso_total_horas,
+                p.permiso_turno_nocturno,
+                p.permiso_estado,
+                em.nomb_empl,
+                em.cedu_empl
+            FROM permisos_personal p
+            INNER JOIN empleados em ON em.id_empl = p.empleado_id
+            WHERE p.permiso_estado = '3'";
+
+        if (!empty($fecha_ini) && !empty($fecha_fin)) {
+            $sql .= " AND p.permiso_fecha BETWEEN :fecha_ini AND :fecha_fin ";
+        }
+
+        if (!empty($documento)) {
+            $sql .= " AND REGEXP_REPLACE(COALESCE(em.cedu_empl, ''), '[^0-9]', '', 'g') = :documento ";
+        }
+
+        $sql .= " ORDER BY p.permiso_fecha ASC, em.nomb_empl ASC ";
+
+        $stmt = $conectar->prepare($sql);
+
+        if (!empty($fecha_ini) && !empty($fecha_fin)) {
+            $stmt->bindValue(":fecha_ini", $fecha_ini);
+            $stmt->bindValue(":fecha_fin", $fecha_fin);
+        }
+
+        if (!empty($documento)) {
+            $stmt->bindValue(":documento", preg_replace('/\D+/', '', (string)$documento), PDO::PARAM_STR);
+        }
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function registrar_soporte_temp($token, $nombre, $ruta) {
         $conectar = parent::Conexion();
         parent::set_names();

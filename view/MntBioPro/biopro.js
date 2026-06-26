@@ -211,6 +211,7 @@ $(document).on('click', '#btn-limpiar-filtros', function () {
 });
 
 let dashChartInstance = null;
+let dashTableLastEmpleado = null;
 
 function initDashboardDateRange() {
     $('#dash-fechas').daterangepicker({
@@ -230,6 +231,7 @@ function resetDashUI() {
     $('#dash-chart-wrap').hide();
     $('#dash-table-wrap').hide();
     $('#dash-kpi-wrap').hide();
+    $('#balance-kpi-wrap').hide();
     $('#arrival-detail-wrap').hide();
 
     if (dashChartInstance) {
@@ -237,7 +239,11 @@ function resetDashUI() {
         dashChartInstance = null;
     }
 
-    $('#dashTable tbody').empty();
+    if ($.fn.DataTable.isDataTable('#dashTable')) {
+        $('#dashTable').DataTable().clear().draw();
+    } else {
+        $('#dashTable tbody').empty();
+    }
     $('#arrivalDetailTable tbody').empty();
 }
 
@@ -429,17 +435,195 @@ function renderGroupedBars(labels, series, title) {
     });
 }
 
-function renderHoursTable(rows) {
-    $('#dash-table-wrap').show();
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function setDashTableHeaders(headers) {
+    const thead = $('#dashTable thead');
+    thead.empty();
+    thead.append(`<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`);
+}
+
+function getDashTableCurrentPage() {
+    if (!$.fn.DataTable.isDataTable('#dashTable')) {
+        return 0;
+    }
+
+    return $('#dashTable').DataTable().page();
+}
+
+function renderDashDataTable(headers, rows, options = {}) {
+    const preservePage = options.preservePage === true;
+    const requestedPage = preservePage ? Number(options.page || 0) : 0;
+
+    if ($.fn.DataTable.isDataTable('#dashTable')) {
+        $('#dashTable').DataTable().clear().destroy();
+    }
+
+    setDashTableHeaders(headers);
+
     const tbody = $('#dashTable tbody');
     tbody.empty();
-    rows.forEach(r => {
-        tbody.append(`<tr>
-      <td>${r.nombre}</td>
-      <td>${r.documento}</td>
-      <td>${r.total_horas}</td>
-    </tr>`);
+
+    rows.forEach(row => {
+        tbody.append(`<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`);
     });
+
+    const table = $('#dashTable').DataTable({
+        searching: true,
+        lengthChange: true,
+        pageLength: 10,
+        lengthMenu: [
+            [5, 10, 25, 50, 100, -1],
+            [5, 10, 25, 50, 100, 'Todos']
+        ],
+        dom:
+            "<'row mb-2'<'col-md-7 d-flex flex-wrap align-items-center'B<'ml-2'l>><'col-md-5'f>>" +
+            "<'row'<'col-12'tr>>" +
+            "<'row mt-2'<'col-md-5'i><'col-md-7'p>>",
+        buttons: [
+            {
+                extend: 'copyHtml5',
+                text: 'Copiar',
+                className: 'btn btn-secondary btn-sm',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'excelHtml5',
+                text: 'Excel',
+                className: 'btn btn-success btn-sm',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'csvHtml5',
+                text: 'CSV',
+                className: 'btn btn-info btn-sm',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'pdfHtml5',
+                text: 'PDF',
+                className: 'btn btn-danger btn-sm',
+                orientation: 'landscape',
+                pageSize: 'A4',
+                exportOptions: { columns: ':visible' }
+            },
+            {
+                extend: 'print',
+                text: 'Imprimir',
+                className: 'btn btn-primary btn-sm',
+                exportOptions: { columns: ':visible' }
+            }
+        ],
+        responsive: true,
+        autoWidth: false,
+        language: {
+            sProcessing: 'Procesando...',
+            sLengthMenu: 'Mostrar _MENU_ registros',
+            sZeroRecords: 'No se encontraron resultados',
+            sEmptyTable: 'Ningun dato disponible en esta tabla',
+            sInfo: 'Mostrando un total de _TOTAL_ registros',
+            sInfoEmpty: 'Mostrando un total de 0 registros',
+            sInfoFiltered: '(filtrado de un total de _MAX_ registros)',
+            sSearch: 'Buscar:',
+            sLoadingRecords: 'Cargando...',
+            oPaginate: {
+                sFirst: 'Primero',
+                sLast: 'Ultimo',
+                sNext: 'Siguiente',
+                sPrevious: 'Anterior'
+            }
+        }
+    });
+
+    if (preservePage) {
+        const info = table.page.info();
+        const maxPage = Math.max(info.pages - 1, 0);
+        table.page(Math.min(requestedPage, maxPage)).draw('page');
+    }
+
+    return table;
+}
+
+function getSignedBadgeClass(minutes) {
+    if (minutes > 0) return 'badge-success';
+    if (minutes < 0) return 'badge-danger';
+    return 'badge-secondary';
+}
+
+function renderHoursTable(rows, options = {}) {
+    $('#dash-table-wrap').show();
+
+    const tableRows = rows.map(r => {
+        return [
+            escapeHtml(r.nombre),
+            escapeHtml(r.documento),
+            escapeHtml(r.total_horas)
+        ];
+    });
+
+    renderDashDataTable(['Empleado', 'Documento', 'Total Horas'], tableRows, options);
+}
+
+function renderBalanceCards(cards) {
+    $('#balance-kpi-wrap').show();
+
+    const diferenciaMin = Number(cards.diferencia_min || 0);
+    const $box = $('#balance-diferencia-box');
+
+    $('#balance-total-biotime').text(cards.total_biotime || '0:00');
+    $('#balance-total-permisos').text(cards.total_permisos || '0:00');
+    $('#balance-diferencia').text(cards.diferencia || '0:00');
+    $('#balance-inconsistencias').text(cards.inconsistencias || 0);
+
+    $box.removeClass('bg-success bg-danger bg-secondary');
+
+    if (diferenciaMin > 0) {
+        $box.addClass('bg-success');
+        $('#balance-diferencia-label').text('BioTime supera permisos');
+    } else if (diferenciaMin < 0) {
+        $box.addClass('bg-danger');
+        $('#balance-diferencia-label').text('Permisos superan BioTime');
+    } else {
+        $box.addClass('bg-secondary');
+        $('#balance-diferencia-label').text('Sin diferencia');
+    }
+}
+
+function renderBalanceTable(rows, options = {}) {
+    $('#dash-table-wrap').show();
+
+    const tableRows = rows.map(r => {
+        const badgeClass = getSignedBadgeClass(Number(r.diferencia_min || 0));
+
+        return [
+            escapeHtml(r.fecha),
+            escapeHtml(r.empleado),
+            escapeHtml(r.entrada),
+            escapeHtml(r.salida),
+            escapeHtml(r.tiempo_biotime),
+            escapeHtml(r.tiempo_permisos),
+            `<span class="badge ${badgeClass}">${escapeHtml(r.diferencia)}</span>`,
+            escapeHtml(r.observacion)
+        ];
+    });
+
+    renderDashDataTable([
+        'Fecha',
+        'Empleado',
+        'Entrada BioTime',
+        'Salida BioTime',
+        'Tiempo BioTime',
+        'Permisos salida',
+        'Diferencia',
+        'Observacion'
+    ], tableRows, options);
 }
 
 function renderPunctualityKpi(rate, diasATiempo, diasSinMarcacion, late) {
@@ -453,13 +637,15 @@ function renderPunctualityKpi(rate, diasATiempo, diasSinMarcacion, late) {
 }
 
 $(document).on('click', '#btn-dash-mostrar', function () {
-    resetDashUI();
-
     const fechas = $('#dash-fechas').val().split(' - ');
     const fechainicio = fechas[0];
     const fechafin = fechas[1];
     const empleado = ($('#dash-empleado').val() || '').trim();
     const metrica = $('#dash-metrica').val();
+    const dashTablePage = getDashTableCurrentPage();
+    const preserveDashTablePage = dashTableLastEmpleado !== null && dashTableLastEmpleado === empleado;
+
+    resetDashUI();
 
     if (metrica === 'arrival_hist' && empleado === '') {
         Swal.fire({
@@ -519,7 +705,18 @@ $(document).on('click', '#btn-dash-mostrar', function () {
             }
 
             if (metrica === 'hours_by_employee') {
-                renderHoursTable(resp.rows);
+                renderHoursTable(resp.rows, {
+                    preservePage: preserveDashTablePage,
+                    page: dashTablePage
+                });
+            }
+
+            if (metrica === 'time_balance') {
+                renderBalanceCards(resp.cards || {});
+                renderBalanceTable(resp.rows || [], {
+                    preservePage: preserveDashTablePage,
+                    page: dashTablePage
+                });
             }
 
             if (metrica === 'absenteeism_by_area') {
@@ -530,6 +727,8 @@ $(document).on('click', '#btn-dash-mostrar', function () {
                     'Ausentismo por U.N (BIOTIME)'
                 );
             }
+
+            dashTableLastEmpleado = empleado;
         },
         error: function (e) {
             Swal.close();

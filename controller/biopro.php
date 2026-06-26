@@ -2,9 +2,11 @@
 
 require_once("../config/conexion.php");
 require_once("../models/BioPro.php");
+require_once("../models/Permiso.php");
 require_once("curl.php");
 
 $biopro = new BioPro();
+$permiso = new Permiso();
 
 
 switch ($_GET["op"]) {
@@ -373,6 +375,297 @@ switch ($_GET["op"]) {
             exit;
         }
 
+
+        if ($metrica === 'time_balance') {
+
+            $normalizarDoc = function ($valor) {
+                return preg_replace('/\D+/', '', trim((string)$valor));
+            };
+
+            $formatMinutes = function ($minutes, $signed = false) {
+                $minutes = (int) round($minutes);
+                $sign = '';
+
+                if ($signed) {
+                    if ($minutes > 0) {
+                        $sign = '+';
+                    } elseif ($minutes < 0) {
+                        $sign = '-';
+                    }
+                }
+
+                $abs = abs($minutes);
+                $horas = floor($abs / 60);
+                $mins = $abs % 60;
+
+                return $sign . $horas . ':' . str_pad($mins, 2, '0', STR_PAD_LEFT);
+            };
+
+            $formatHora = function ($hora) {
+                if (empty($hora)) {
+                    return '---';
+                }
+
+                try {
+                    return (new DateTime((string)$hora))->format('H:i:s');
+                } catch (Exception $e) {
+                    return (string)$hora;
+                }
+            };
+
+            $horasPermisoToMinutes = function ($valor) {
+                if ($valor === null || $valor === '') {
+                    return null;
+                }
+
+                $valor = trim((string)$valor);
+                if ($valor === '') {
+                    return null;
+                }
+
+                if (strpos($valor, ':') !== false) {
+                    $partes = explode(':', $valor);
+                    $horas = (int)($partes[0] ?? 0);
+                    $mins = (int)($partes[1] ?? 0);
+                    return ($horas * 60) + $mins;
+                }
+
+                $normalizado = str_replace(',', '.', $valor);
+                if (is_numeric($normalizado)) {
+                    return (int) round(((float)$normalizado) * 60);
+                }
+
+                return null;
+            };
+
+            $calcularMinutosPermiso = function ($row) use ($horasPermisoToMinutes) {
+                $minutos = $horasPermisoToMinutes($row['permiso_total_horas'] ?? null);
+                if ($minutos !== null) {
+                    return max(0, $minutos);
+                }
+
+                $fechaIni = $row['permiso_fecha'] ?? '';
+                $fechaFin = $row['perm_fecha_cierre'] ?? $fechaIni;
+                $horaIni = $row['permiso_hora_salida'] ?? '';
+                $horaFin = $row['permiso_hora_entrada'] ?? '';
+
+                if ($fechaIni === '' || $horaIni === '' || $horaFin === '') {
+                    return 0;
+                }
+
+                if (empty($fechaFin)) {
+                    $fechaFin = $fechaIni;
+                }
+
+                try {
+                    $ini = new DateTime($fechaIni . ' ' . $horaIni);
+                    $fin = new DateTime($fechaFin . ' ' . $horaFin);
+
+                    if ($fin < $ini && (int)($row['permiso_turno_nocturno'] ?? 0) === 1) {
+                        $fin->modify('+1 day');
+                    }
+
+                    if ($fin < $ini) {
+                        return 0;
+                    }
+
+                    return (int) floor(($fin->getTimestamp() - $ini->getTimestamp()) / 60);
+                } catch (Exception $e) {
+                    return 0;
+                }
+            };
+
+            $calcularBiotimeDia = function ($fecha, $horas) use ($formatHora) {
+                $horas = array_values(array_filter(array_unique($horas)));
+                sort($horas);
+
+                if (count($horas) === 0) {
+                    return [
+                        'minutos' => 0,
+                        'entrada' => '---',
+                        'salida' => '---',
+                        'observacion' => 'Sin marcaciones BioTime',
+                        'inconsistente' => false
+                    ];
+                }
+
+                if (count($horas) === 1) {
+                    return [
+                        'minutos' => 0,
+                        'entrada' => $formatHora($horas[0]),
+                        'salida' => '---',
+                        'observacion' => 'Marcacion incompleta',
+                        'inconsistente' => true
+                    ];
+                }
+
+                $entrada = $horas[0];
+                $salida = end($horas);
+
+                try {
+                    $ini = new DateTime($fecha . ' ' . $entrada);
+                    $fin = new DateTime($fecha . ' ' . $salida);
+
+                    if ($fin < $ini) {
+                        $fin->modify('+1 day');
+                    }
+
+                    $minutos = (int) floor(($fin->getTimestamp() - $ini->getTimestamp()) / 60);
+                } catch (Exception $e) {
+                    $minutos = 0;
+                }
+
+                return [
+                    'minutos' => max(0, $minutos),
+                    'entrada' => $formatHora($entrada),
+                    'salida' => $formatHora($salida),
+                    'observacion' => 'OK',
+                    'inconsistente' => false
+                ];
+            };
+
+            $empleadosActivos = $biopro->listarEmpleadosActivos();
+            $nombres = [];
+
+            foreach ($empleadosActivos as $emp) {
+                $doc = $normalizarDoc($emp['cedu_empl'] ?? '');
+                if ($doc !== '') {
+                    $nombres[$doc] = $emp['nomb_empl'] ?? '';
+                }
+            }
+
+            $marcacionesNorm = [];
+            foreach ($marcaciones as $emp => $fechas) {
+                $doc = $normalizarDoc($emp);
+
+                if ($doc === '') {
+                    continue;
+                }
+
+                if ($empleadoFiltro !== '' && $doc !== $empleadoFiltro) {
+                    continue;
+                }
+
+                foreach ($fechas as $fecha => $horas) {
+                    if (!isset($marcacionesNorm[$doc][$fecha])) {
+                        $marcacionesNorm[$doc][$fecha] = [];
+                    }
+
+                    $marcacionesNorm[$doc][$fecha] = array_merge($marcacionesNorm[$doc][$fecha], $horas);
+                }
+            }
+
+            $permisos = $permiso->get_permisos_salida_estado_3($fechainicio, $fechafin, $empleadoFiltro);
+            $permisosPorDia = [];
+
+            foreach ($permisos as $row) {
+                $doc = $normalizarDoc($row['cedu_empl'] ?? '');
+
+                if ($doc === '') {
+                    continue;
+                }
+
+                if ($empleadoFiltro !== '' && $doc !== $empleadoFiltro) {
+                    continue;
+                }
+
+                $fecha = !empty($row['permiso_fecha'])
+                    ? date('Y-m-d', strtotime($row['permiso_fecha']))
+                    : '';
+
+                if ($fecha === '') {
+                    continue;
+                }
+
+                if (!isset($nombres[$doc])) {
+                    $nombres[$doc] = $row['nomb_empl'] ?? '';
+                }
+
+                if (!isset($permisosPorDia[$doc][$fecha])) {
+                    $permisosPorDia[$doc][$fecha] = 0;
+                }
+
+                $permisosPorDia[$doc][$fecha] += $calcularMinutosPermiso($row);
+            }
+
+            $keys = [];
+            foreach ($marcacionesNorm as $doc => $fechas) {
+                foreach ($fechas as $fecha => $horas) {
+                    $keys[$doc . '|' . $fecha] = [$doc, $fecha];
+                }
+            }
+
+            foreach ($permisosPorDia as $doc => $fechas) {
+                foreach ($fechas as $fecha => $minutos) {
+                    $keys[$doc . '|' . $fecha] = [$doc, $fecha];
+                }
+            }
+
+            $rows = [];
+            $totalBiotimeMin = 0;
+            $totalPermisosMin = 0;
+            $inconsistencias = 0;
+
+            foreach ($keys as $parts) {
+                $doc = $parts[0];
+                $fecha = $parts[1];
+
+                $bio = $calcularBiotimeDia($fecha, $marcacionesNorm[$doc][$fecha] ?? []);
+                $permisoMin = $permisosPorDia[$doc][$fecha] ?? 0;
+                $diferenciaMin = $bio['minutos'] - $permisoMin;
+
+                $totalBiotimeMin += $bio['minutos'];
+                $totalPermisosMin += $permisoMin;
+
+                if ($bio['inconsistente']) {
+                    $inconsistencias++;
+                }
+
+                $observacion = $bio['observacion'];
+                if ($permisoMin > 0 && $observacion === 'OK') {
+                    $observacion = 'Con permiso salida';
+                } elseif ($permisoMin > 0 && $observacion === 'Sin marcaciones BioTime') {
+                    $observacion = 'Sin BioTime con permiso';
+                }
+
+                $rows[] = [
+                    'fecha' => $fecha,
+                    'documento' => $doc,
+                    'empleado' => $nombres[$doc] ?? $doc,
+                    'entrada' => $bio['entrada'],
+                    'salida' => $bio['salida'],
+                    'tiempo_biotime' => $formatMinutes($bio['minutos']),
+                    'tiempo_permisos' => $formatMinutes($permisoMin),
+                    'diferencia' => $formatMinutes($diferenciaMin, true),
+                    'diferencia_min' => $diferenciaMin,
+                    'observacion' => $observacion
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                $fechaCmp = strcmp($b['fecha'], $a['fecha']);
+                if ($fechaCmp !== 0) {
+                    return $fechaCmp;
+                }
+
+                return strcmp($a['empleado'], $b['empleado']);
+            });
+
+            $diferenciaTotalMin = $totalBiotimeMin - $totalPermisosMin;
+
+            echo json_encode([
+                'success' => true,
+                'cards' => [
+                    'total_biotime' => $formatMinutes($totalBiotimeMin),
+                    'total_permisos' => $formatMinutes($totalPermisosMin),
+                    'diferencia' => $formatMinutes($diferenciaTotalMin, true),
+                    'diferencia_min' => $diferenciaTotalMin,
+                    'inconsistencias' => $inconsistencias
+                ],
+                'rows' => $rows
+            ]);
+            exit;
+        }
 
         if ($metrica === 'hours_by_employee') {
 

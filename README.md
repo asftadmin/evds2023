@@ -72,9 +72,15 @@ vendor/      Dependencias instaladas por Composer.
 - `view/MntEmpleados/`: historia laboral y gestion de empleados.
 - `view/MntEmpleadosJ/`: busqueda e inactivacion de empleados.
 - `view/MntPermisosp/`: gestion de permisos.
-- `view/MntBioPro/` y `view/MntBiotime/`: integraciones de asistencia.
+- `view/MntBioPro/` y `view/MntBiotime/`: integraciones de asistencia, dashboard BioTime y balance de tiempos contra permisos.
 - `view/MntSiesa/`: consultas relacionadas con empleados Siesa.
 - `view/PDF/`: documentos PDF institucionales.
+
+## Dashboard BioTime
+
+El modulo `view/MntBioPro/` concentra las consultas de asistencia BioTime. En el selector de metricas del dashboard se incluye `Balance de tiempos`, que cruza el tiempo laborado de BioTime contra permisos de salida cerrados por Gestion Humana (`permiso_estado = 3`).
+
+Esta metrica muestra cards acumuladas para total BioTime, total permisos salida, diferencia con signo (`+N`, `0`, `-N`) e inconsistencias de marcacion. Tambien entrega detalle diario por empleado.
 
 ## Generacion de PDF
 
