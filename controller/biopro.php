@@ -438,6 +438,31 @@ switch ($_GET["op"]) {
                 return null;
             };
 
+            $convertirHorasEfectivasAMinutos = function ($valor) {
+                if ($valor === null || $valor === '') {
+                    return 0;
+                }
+
+                $valor = trim((string)$valor);
+                if ($valor === '') {
+                    return 0;
+                }
+
+                if (strpos($valor, ':') !== false) {
+                    $partes = explode(':', $valor);
+                    $horas = (int)($partes[0] ?? 0);
+                    $mins = (int)($partes[1] ?? 0);
+                    return max(0, ($horas * 60) + $mins);
+                }
+
+                $normalizado = str_replace(',', '.', $valor);
+                if (is_numeric($normalizado)) {
+                    return max(0, (int) round(((float)$normalizado) * 60));
+                }
+
+                return 0;
+            };
+
             $calcularMinutosPermiso = function ($row) use ($horasPermisoToMinutes) {
                 $minutos = $horasPermisoToMinutes($row['permiso_total_horas'] ?? null);
                 if ($minutos !== null) {
@@ -478,6 +503,7 @@ switch ($_GET["op"]) {
             $calcularBiotimeDia = function ($fecha, $horas) use ($formatHora) {
                 $horas = array_values(array_filter(array_unique($horas)));
                 sort($horas);
+                $descuentoAlmuerzoMin = 60;
 
                 if (count($horas) === 0) {
                     return [
@@ -510,13 +536,17 @@ switch ($_GET["op"]) {
                         $fin->modify('+1 day');
                     }
 
-                    $minutos = (int) floor(($fin->getTimestamp() - $ini->getTimestamp()) / 60);
+                    $minutosBrutos = (int) floor(($fin->getTimestamp() - $ini->getTimestamp()) / 60);
+                    $minutos = max(0, $minutosBrutos - $descuentoAlmuerzoMin);
                 } catch (Exception $e) {
+                    $minutosBrutos = 0;
                     $minutos = 0;
                 }
 
                 return [
                     'minutos' => max(0, $minutos),
+                    'minutos_brutos' => max(0, $minutosBrutos),
+                    'descuento_almuerzo' => $descuentoAlmuerzoMin,
                     'entrada' => $formatHora($entrada),
                     'salida' => $formatHora($salida),
                     'observacion' => 'OK',
@@ -605,10 +635,12 @@ switch ($_GET["op"]) {
             $totalBiotimeMin = 0;
             $totalPermisosMin = 0;
             $inconsistencias = 0;
+            $empleadosBalance = [];
 
             foreach ($keys as $parts) {
                 $doc = $parts[0];
                 $fecha = $parts[1];
+                $empleadosBalance[$doc] = true;
 
                 $bio = $calcularBiotimeDia($fecha, $marcacionesNorm[$doc][$fecha] ?? []);
                 $permisoMin = $permisosPorDia[$doc][$fecha] ?? 0;
@@ -635,6 +667,8 @@ switch ($_GET["op"]) {
                     'entrada' => $bio['entrada'],
                     'salida' => $bio['salida'],
                     'tiempo_biotime' => $formatMinutes($bio['minutos']),
+                    'tiempo_biotime_bruto' => $formatMinutes($bio['minutos_brutos'] ?? $bio['minutos']),
+                    'descuento_almuerzo' => $formatMinutes($bio['descuento_almuerzo'] ?? 0),
                     'tiempo_permisos' => $formatMinutes($permisoMin),
                     'diferencia' => $formatMinutes($diferenciaMin, true),
                     'diferencia_min' => $diferenciaMin,
@@ -652,6 +686,20 @@ switch ($_GET["op"]) {
             });
 
             $diferenciaTotalMin = $totalBiotimeMin - $totalPermisosMin;
+            $horasEfectivas = $biopro->get_horas_efectivas_periodo($fechainicio, $fechafin);
+            $horasEfectivasMinBase = 0;
+
+            foreach ($horasEfectivas as $horaEfectiva) {
+                $horasEfectivasMinBase += $convertirHorasEfectivasAMinutos($horaEfectiva['horas_efectivas'] ?? 0);
+            }
+
+            $cantidadEmpleadosBalance = ($empleadoFiltro !== '')
+                ? 1
+                : count($empleadosBalance);
+
+            $totalHorasEfectivasMin = $horasEfectivasMinBase * $cantidadEmpleadosBalance;
+            $saldoHorasEfectivasMin = $diferenciaTotalMin - $totalHorasEfectivasMin;
+            $horasEfectivasDisponibles = count($horasEfectivas) > 0;
 
             echo json_encode([
                 'success' => true,
@@ -660,6 +708,11 @@ switch ($_GET["op"]) {
                     'total_permisos' => $formatMinutes($totalPermisosMin),
                     'diferencia' => $formatMinutes($diferenciaTotalMin, true),
                     'diferencia_min' => $diferenciaTotalMin,
+                    'horas_efectivas' => $formatMinutes($totalHorasEfectivasMin),
+                    'saldo_horas_efectivas' => $formatMinutes($saldoHorasEfectivasMin, true),
+                    'saldo_horas_efectivas_min' => $saldoHorasEfectivasMin,
+                    'horas_efectivas_disponibles' => $horasEfectivasDisponibles,
+                    'empleados_balance' => $cantidadEmpleadosBalance,
                     'inconsistencias' => $inconsistencias
                 ],
                 'rows' => $rows

@@ -53,6 +53,63 @@ class BioPro extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function get_horas_efectivas_periodo($fecha_ini, $fecha_fin) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        $meses = [];
+
+        try {
+            $inicio = new DateTime($fecha_ini);
+            $fin = new DateTime($fecha_fin);
+        } catch (Exception $e) {
+            return [];
+        }
+
+        $inicio->modify('first day of this month');
+        $fin->modify('first day of this month');
+
+        while ($inicio <= $fin) {
+            $meses[] = [
+                'anio' => (int)$inicio->format('Y'),
+                'id_mes' => (int)$inicio->format('n')
+            ];
+
+            $inicio->modify('+1 month');
+        }
+
+        if (count($meses) === 0) {
+            return [];
+        }
+
+        $condiciones = [];
+        $params = [];
+
+        foreach ($meses as $idx => $mes) {
+            $condiciones[] = "(anio = :anio{$idx} AND id_mes = :id_mes{$idx})";
+            $params[":anio{$idx}"] = $mes['anio'];
+            $params[":id_mes{$idx}"] = $mes['id_mes'];
+        }
+
+        $sql = "SELECT
+                    anio,
+                    id_mes,
+                    horas_efectivas
+                FROM meses_horas_laborales
+                WHERE " . implode(' OR ', $condiciones) . "
+                ORDER BY anio, id_mes";
+
+        $stmt = $conectar->prepare($sql);
+
+        foreach ($params as $param => $valor) {
+            $stmt->bindValue($param, $valor, PDO::PARAM_INT);
+        }
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function listarEmpleadosBiotimePorJefe($user_id) {
         $conectar = parent::conexion();
         parent::set_names();

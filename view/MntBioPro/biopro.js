@@ -232,6 +232,7 @@ function resetDashUI() {
     $('#dash-table-wrap').hide();
     $('#dash-kpi-wrap').hide();
     $('#balance-kpi-wrap').hide();
+    $('#saldo-horas-efectivas-wrap').hide();
     $('#arrival-detail-wrap').hide();
 
     if (dashChartInstance) {
@@ -573,16 +574,21 @@ function renderHoursTable(rows, options = {}) {
 
 function renderBalanceCards(cards) {
     $('#balance-kpi-wrap').show();
+    $('#saldo-horas-efectivas-wrap').show();
 
     const diferenciaMin = Number(cards.diferencia_min || 0);
+    const saldoHorasEfectivasMin = Number(cards.saldo_horas_efectivas_min || 0);
     const $box = $('#balance-diferencia-box');
+    const $saldoBox = $('#saldo-horas-efectivas-box');
 
     $('#balance-total-biotime').text(cards.total_biotime || '0:00');
     $('#balance-total-permisos').text(cards.total_permisos || '0:00');
     $('#balance-diferencia').text(cards.diferencia || '0:00');
     $('#balance-inconsistencias').text(cards.inconsistencias || 0);
+    $('#saldo-horas-efectivas').text(cards.saldo_horas_efectivas || '0:00');
 
     $box.removeClass('bg-success bg-danger bg-secondary');
+    $saldoBox.removeClass('bg-success bg-danger bg-secondary bg-warning');
 
     if (diferenciaMin > 0) {
         $box.addClass('bg-success');
@@ -593,6 +599,21 @@ function renderBalanceCards(cards) {
     } else {
         $box.addClass('bg-secondary');
         $('#balance-diferencia-label').text('Sin diferencia');
+    }
+
+    if (cards.horas_efectivas_disponibles === false) {
+        $saldoBox.addClass('bg-warning');
+        $('#saldo-horas-efectivas').text('N/D');
+        $('#saldo-horas-efectivas-label').text('Sin horas efectivas configuradas');
+    } else if (saldoHorasEfectivasMin > 0) {
+        $saldoBox.addClass('bg-success');
+        $('#saldo-horas-efectivas-label').text('Horas a favor');
+    } else if (saldoHorasEfectivasMin < 0) {
+        $saldoBox.addClass('bg-danger');
+        $('#saldo-horas-efectivas-label').text('Horas faltantes en el mes');
+    } else {
+        $saldoBox.addClass('bg-secondary');
+        $('#saldo-horas-efectivas-label').text('Sin diferencia');
     }
 }
 
@@ -619,7 +640,7 @@ function renderBalanceTable(rows, options = {}) {
         'Empleado',
         'Entrada BioTime',
         'Salida BioTime',
-        'Tiempo BioTime',
+        'BioTime efectivo',
         'Permisos salida',
         'Diferencia',
         'Observacion'
