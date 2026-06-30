@@ -20,6 +20,9 @@
                     <!-- <span class="badge bg-primary float-right">12</span> -->
 
                 </a>
+                <a href="consulta_permisos_mes.php" class="nav-link" id="consulta-permisos-mes-btn">
+                    <i class="fas fa-calendar-check"></i> Permisos por mes
+                </a>
             </li>
 
         </ul>

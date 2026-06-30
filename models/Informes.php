@@ -73,6 +73,87 @@ class Informes extends Conectar {
 
     }
 
+    public function listar_colaboradores_permisos_mes() {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        $sql = "SELECT
+                    id_empl,
+                    cedu_empl,
+                    nomb_empl
+                FROM empleados
+                WHERE esta_empl = 1
+                  AND cedu_empl IS NOT NULL
+                  AND TRIM(cedu_empl) <> ''
+                ORDER BY nomb_empl";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function get_colaborador_permisos_mes($empleado_id) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        $sql = "SELECT
+                    id_empl,
+                    cedu_empl,
+                    nomb_empl
+                FROM empleados
+                WHERE id_empl = ?
+                LIMIT 1";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $empleado_id, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function get_permisos_colaborador_mes($empleado_id, $fecha_inicio, $fecha_fin) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        $sql = "SELECT
+                    p.permiso_id,
+                    p.empleado_id,
+                    p.permiso_fecha,
+                    p.permiso_hora_salida,
+                    p.permiso_hora_entrada,
+                    p.permiso_total_horas,
+                    p.permiso_turno_nocturno,
+                    p.permiso_estado,
+                    em.nomb_empl AS colaborador,
+                    em.cedu_empl,
+                    tp.tipo_nombre AS motivo,
+                    CASE
+                        WHEN p.permiso_estado = '1' THEN 'Pendiente Aprobacion'
+                        WHEN p.permiso_estado = '2' THEN 'Aprobado Jefe'
+                        WHEN p.permiso_estado = '3' THEN 'Vbo. Gestion Humana'
+                        WHEN p.permiso_estado = '4' THEN 'Aprobado con pendientes'
+                        WHEN p.permiso_estado = '5' THEN 'Aprobado con pendientes'
+                        WHEN p.permiso_estado = '6' THEN 'Rechazado'
+                        WHEN p.permiso_estado = '7' THEN 'Cancelado Operacion'
+                        ELSE 'Sin estado'
+                    END AS estado_permiso
+                FROM permisos_personal p
+                INNER JOIN empleados em ON em.id_empl = p.empleado_id
+                INNER JOIN tipo_permiso tp ON tp.tipo_id = p.permiso_tipo
+                WHERE p.empleado_id = :empleado_id
+                  AND p.permiso_fecha BETWEEN :fecha_inicio::date AND :fecha_fin::date
+                ORDER BY p.permiso_fecha DESC, p.permiso_id DESC";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(":empleado_id", $empleado_id, PDO::PARAM_INT);
+        $stmt->bindValue(":fecha_inicio", $fecha_inicio, PDO::PARAM_STR);
+        $stmt->bindValue(":fecha_fin", $fecha_fin, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
 
 
 }
