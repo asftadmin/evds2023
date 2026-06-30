@@ -177,7 +177,7 @@ switch ($_GET["op"]) {
 
                 break;
 
-                //Listar cumplimiento de septiembre en adelante
+        //Listar cumplimiento de septiembre en adelante
 
         case 'listarCumplimiento':
 
@@ -238,20 +238,97 @@ switch ($_GET["op"]) {
 
 
                 break;
-        
+
         case 'reportePDF':
-        
+
                 if (isset($_POST['id_empl'])) {
-                        
+
                         $id_empl = $_POST['id_empl'];
                         $autoEval = $evaluacion->listar_autoevaluacion_veinticinco($id_empl);
                         $coeEval = $evaluacion->listar_coevaluacion_veinticinco($id_empl);
                         $subEval = $evaluacion->listar_subevaluacion_veinticinco($id_empl);
                         require '../view/reportes/evaluacion_2025.php';
-                }else {
+                } else {
                         echo "ID de empleado no recibido.";
                 }
-                
-        
+
+
+                break;
+
+        case "listarPreguntasDesempeno":
+
+                header('Content-Type: application/json; charset=utf-8');
+
+                $datos = $evaluacion->get_preguntas_desempeno();
+
+                echo json_encode([
+                        "status" => "success",
+                        "data" => $datos
+                ]);
+
+                break;
+
+        case "guardarEvaluacionDesempeno":
+
+                header('Content-Type: application/json; charset=utf-8');
+
+                try {
+                        $empleado_id = $_POST["empleado_id"];
+                        $evaluador_id = $_SESSION["id_empl"];
+                        $anio = $_POST["anio"];
+                        $tipo = $_POST["tipo_evaluacion"];
+                        $respuestas = json_decode($_POST["respuestas"], true);
+
+                        if (empty($empleado_id) || empty($evaluador_id) || empty($anio) || empty($tipo) || empty($respuestas)) {
+                                echo json_encode([
+                                        "status" => "warning",
+                                        "message" => "Faltan datos obligatorios para guardar la evaluación."
+                                ]);
+                                exit();
+                        }
+
+                        $validacion = $evaluacion->validar_evaluacion_desempeno_unica(
+                                $empleado_id,
+                                $evaluador_id,
+                                $anio,
+                                $tipo
+                        );
+
+                        if ((int)$validacion["total"] > 0) {
+                                echo json_encode([
+                                        "status" => "warning",
+                                        "message" => "Esta evaluación ya fue diligenciada para el periodo seleccionado."
+                                ]);
+                                exit();
+                        }
+
+                        $resultado = $evaluacion->insert_evaluacion_desempeno(
+                                $empleado_id,
+                                $evaluador_id,
+                                $anio,
+                                $tipo,
+                                $respuestas
+                        );
+
+                        if ($resultado["status"]) {
+                                echo json_encode([
+                                        "status" => "success",
+                                        "message" => "La evaluación ha culminado exitosamente.",
+                                        "prom_general" => $resultado["prom_general"]
+                                ]);
+                        } else {
+                                echo json_encode([
+                                        "status" => "error",
+                                        "message" => $resultado["message"]
+                                ]);
+                        }
+                } catch (Exception $e) {
+                        echo json_encode([
+                                "status" => "error",
+                                "message" => "Error al guardar la evaluación.",
+                                "detail" => $e->getMessage()
+                        ]);
+                }
+
                 break;
 }
