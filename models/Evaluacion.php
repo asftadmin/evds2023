@@ -1,9 +1,11 @@
 <?php
 
-class Evaluacion extends Conectar {
+class Evaluacion extends Conectar
+{
 
     /* SELECT DE OPERACIONES */
-    public function get_mes_combo() {
+    public function get_mes_combo()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT *,
@@ -17,7 +19,8 @@ class Evaluacion extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_mes_combo_total() {
+    public function get_mes_combo_total()
+    {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT *,
@@ -143,7 +146,8 @@ class Evaluacion extends Conectar {
         return $resultado = $sql->fetchAll();
     }
 
-    public function mostar_evalua_x_mes($evaluador, $mes, $anio) {
+    public function mostar_evalua_x_mes($evaluador, $mes, $anio)
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -158,7 +162,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function mostar_evalua_x_sept($evaluador, $mes, $anio) {
+    public function mostar_evalua_x_sept($evaluador, $mes, $anio)
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -173,7 +178,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_evaluacion() {
+    public function listar_evaluacion()
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -185,7 +191,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function mostar_cumplimiento($mes, $anio) {
+    public function mostar_cumplimiento($mes, $anio)
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -199,7 +206,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function mostar_cumplimiento_agosto($mes, $anio) {
+    public function mostar_cumplimiento_agosto($mes, $anio)
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -213,7 +221,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_evaluacion_anual() {
+    public function listar_evaluacion_anual()
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -225,7 +234,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_coevaluacion_veinticinco($id_empl) {
+    public function listar_coevaluacion_veinticinco($id_empl)
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -238,7 +248,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_autoevaluacion_veinticinco($id_empl) {
+    public function listar_autoevaluacion_veinticinco($id_empl)
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -250,7 +261,8 @@ class Evaluacion extends Conectar {
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_subevaluacion_veinticinco($id_empl) {
+    public function listar_subevaluacion_veinticinco($id_empl)
+    {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -264,7 +276,8 @@ class Evaluacion extends Conectar {
 
     // EVALUACION 2026
 
-    public function get_preguntas_desempeno() {
+    public function get_preguntas_desempeno()
+    {
         $conectar = parent::conexion();
         parent::set_names();
 
@@ -279,7 +292,8 @@ class Evaluacion extends Conectar {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function validar_evaluacion_desempeno_unica($empleado_id, $evaluador_id, $anio, $tipo) {
+    public function validar_evaluacion_desempeno_unica($empleado_id, $evaluador_id, $anio, $tipo)
+    {
         $conectar = parent::conexion();
         parent::set_names();
 
@@ -300,7 +314,14 @@ class Evaluacion extends Conectar {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function insert_evaluacion_desempeno($empleado_id, $evaluador_id, $anio, $tipo, $respuestas) {
+    public function insert_evaluacion_desempeno(
+        $empleado_id,
+        $evaluador_id,
+        $anio,
+        $tipo,
+        $respuestas,
+        $observacion = null
+    ) {
         $conectar = parent::conexion();
         parent::set_names();
 
@@ -321,8 +342,16 @@ class Evaluacion extends Conectar {
             $prom_actitud = round(array_sum($bloques["ACTITUD"]) / count($bloques["ACTITUD"]), 2);
             $prom_conducta = round(array_sum($bloques["CONDUCTA LABORAL"]) / count($bloques["CONDUCTA LABORAL"]), 2);
 
-            $total_preguntas = count($bloques["PRODUCTIVIDAD"]) + count($bloques["ACTITUD"]) + count($bloques["CONDUCTA LABORAL"]);
-            $total_puntos = array_sum($bloques["PRODUCTIVIDAD"]) + array_sum($bloques["ACTITUD"]) + array_sum($bloques["CONDUCTA LABORAL"]);
+            $total_preguntas =
+                count($bloques["PRODUCTIVIDAD"]) +
+                count($bloques["ACTITUD"]) +
+                count($bloques["CONDUCTA LABORAL"]);
+
+            $total_puntos =
+                array_sum($bloques["PRODUCTIVIDAD"]) +
+                array_sum($bloques["ACTITUD"]) +
+                array_sum($bloques["CONDUCTA LABORAL"]);
+
             $prom_general = round($total_puntos / $total_preguntas, 2);
 
             $sql = "INSERT INTO public.evaluacion_desempeno (
@@ -352,12 +381,12 @@ class Evaluacion extends Conectar {
             $evde_id = $stmt->fetchColumn();
 
             $sql_detalle = "INSERT INTO public.evaluacion_desempeno_detalle (
-                    evdd_evaluacion_id,
-                    evdd_bloque,
-                    evdd_numero_pregunta,
-                    evdd_pregunta,
-                    evdd_calificacion
-                ) VALUES (?, ?, ?, ?, ?)";
+                            evdd_evaluacion_id,
+                            evdd_bloque,
+                            evdd_numero_pregunta,
+                            evdd_pregunta,
+                            evdd_calificacion
+                        ) VALUES (?, ?, ?, ?, ?)";
 
             $stmt_detalle = $conectar->prepare($sql_detalle);
 
@@ -370,6 +399,25 @@ class Evaluacion extends Conectar {
                 $stmt_detalle->execute();
             }
 
+            if ($tipo == "SUBEVALUACION" && $observacion != null) {
+
+                $sql_observacion = "INSERT INTO public.evaluacion_desempeno_observacion (
+                                    evde_id,
+                                    fortalezas,
+                                    oportunidades_mejora,
+                                    apoyo_requerido,
+                                    fecha_revision
+                                ) VALUES (?, ?, ?, ?, ?)";
+
+                $stmt_observacion = $conectar->prepare($sql_observacion);
+                $stmt_observacion->bindValue(1, $evde_id);
+                $stmt_observacion->bindValue(2, $observacion["fortalezas"]);
+                $stmt_observacion->bindValue(3, $observacion["oportunidades_mejora"]);
+                $stmt_observacion->bindValue(4, $observacion["apoyo_requerido"]);
+                $stmt_observacion->bindValue(5, $observacion["fecha_revision"]);
+                $stmt_observacion->execute();
+            }
+
             $conectar->commit();
 
             return [
@@ -378,7 +426,9 @@ class Evaluacion extends Conectar {
                 "prom_general" => $prom_general
             ];
         } catch (Exception $e) {
+
             $conectar->rollBack();
+
             return [
                 "status" => false,
                 "message" => $e->getMessage()

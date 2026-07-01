@@ -9,17 +9,66 @@ $(document).ready(function () {
     cargarPreguntasDesempeno();
 });
 
+$("#fecha_revision").daterangepicker({
+    singleDatePicker: true,
+    autoApply: true,
+    showDropdowns: true,
+    autoUpdateInput: false,
+
+    minDate: moment(),
+    maxDate: moment().add(4, 'months'),
+
+    locale: {
+        format: "YYYY-MM-DD",
+        separator: " - ",
+        applyLabel: "Aplicar",
+        cancelLabel: "Cancelar",
+        fromLabel: "Desde",
+        toLabel: "Hasta",
+        customRangeLabel: "Personalizado",
+        weekLabel: "S",
+        daysOfWeek: [
+            "Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"
+        ],
+        monthNames: [
+            "Enero", "Febrero", "Marzo", "Abril",
+            "Mayo", "Junio", "Julio", "Agosto",
+            "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ],
+        firstDay: 1
+    }
+});
+
+$("#fecha_revision").on("apply.daterangepicker", function (ev, picker) {
+    $(this).val(picker.startDate.format("YYYY-MM-DD"));
+});
+
+$("#fecha_revision").on("cancel.daterangepicker", function () {
+    $(this).val("");
+});
+
 $("#tipo_evaluacion").on("change", function () {
     let tipo = $(this).val();
 
     if (tipo === "AUTOEVALUACION") {
+
         $("#grupo_empleado").hide();
         $("#empleado_id").val($("#empleado_logueado_id").val()).trigger("change");
         $("#empleado_id").prop("required", false);
+
+        $("#panel_observaciones_jefe").hide();
+
     } else {
+
         $("#grupo_empleado").show();
         $("#empleado_id").val("").trigger("change");
         $("#empleado_id").prop("required", true);
+
+        if (tipo === "SUBEVALUACION") {
+            $("#panel_observaciones_jefe").show();
+        } else {
+            $("#panel_observaciones_jefe").hide();
+        }
     }
 });
 
@@ -186,7 +235,12 @@ function guardarEvaluacionDesempeno(empleadoId, tipo, anio, respuestas) {
             empleado_id: empleadoId,
             tipo_evaluacion: tipo,
             anio: anio,
-            respuestas: JSON.stringify(respuestas)
+            respuestas: JSON.stringify(respuestas),
+
+            fortalezas: $("#fortalezas").val(),
+            oportunidades_mejora: $("#oportunidades_mejora").val(),
+            apoyo_requerido: $("#apoyo_requerido").val(),
+            fecha_revision: $("#fecha_revision").val()
         },
         success: function (response) {
             if (response.status === "success") {

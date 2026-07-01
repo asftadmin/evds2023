@@ -273,18 +273,45 @@ switch ($_GET["op"]) {
                 header('Content-Type: application/json; charset=utf-8');
 
                 try {
+
                         $empleado_id = $_POST["empleado_id"];
                         $evaluador_id = $_SESSION["id_empl"];
                         $anio = $_POST["anio"];
                         $tipo = $_POST["tipo_evaluacion"];
                         $respuestas = json_decode($_POST["respuestas"], true);
 
-                        if (empty($empleado_id) || empty($evaluador_id) || empty($anio) || empty($tipo) || empty($respuestas)) {
+                        $fortalezas = isset($_POST["fortalezas"]) ? trim($_POST["fortalezas"]) : "";
+                        $oportunidades_mejora = isset($_POST["oportunidades_mejora"]) ? trim($_POST["oportunidades_mejora"]) : "";
+                        $apoyo_requerido = isset($_POST["apoyo_requerido"]) ? trim($_POST["apoyo_requerido"]) : "";
+                        $fecha_revision = isset($_POST["fecha_revision"]) ? trim($_POST["fecha_revision"]) : "";
+
+                        if (
+                                empty($empleado_id) ||
+                                empty($evaluador_id) ||
+                                empty($anio) ||
+                                empty($tipo) ||
+                                empty($respuestas)
+                        ) {
                                 echo json_encode([
                                         "status" => "warning",
                                         "message" => "Faltan datos obligatorios para guardar la evaluación."
                                 ]);
                                 exit();
+                        }
+
+                        if ($tipo == "SUBEVALUACION") {
+                                if (
+                                        empty($fortalezas) ||
+                                        empty($oportunidades_mejora) ||
+                                        empty($apoyo_requerido) ||
+                                        empty($fecha_revision)
+                                ) {
+                                        echo json_encode([
+                                                "status" => "warning",
+                                                "message" => "Debe diligenciar todas las preguntas de cierre para la subevaluación."
+                                        ]);
+                                        exit();
+                                }
                         }
 
                         $validacion = $evaluacion->validar_evaluacion_desempeno_unica(
@@ -302,27 +329,43 @@ switch ($_GET["op"]) {
                                 exit();
                         }
 
+                        $observacion = null;
+
+                        if ($tipo == "SUBEVALUACION") {
+                                $observacion = [
+                                        "fortalezas" => $fortalezas,
+                                        "oportunidades_mejora" => $oportunidades_mejora,
+                                        "apoyo_requerido" => $apoyo_requerido,
+                                        "fecha_revision" => $fecha_revision
+                                ];
+                        }
+
                         $resultado = $evaluacion->insert_evaluacion_desempeno(
                                 $empleado_id,
                                 $evaluador_id,
                                 $anio,
                                 $tipo,
-                                $respuestas
+                                $respuestas,
+                                $observacion
                         );
 
-                        if ($resultado["status"]) {
-                                echo json_encode([
-                                        "status" => "success",
-                                        "message" => "La evaluación ha culminado exitosamente.",
-                                        "prom_general" => $resultado["prom_general"]
-                                ]);
-                        } else {
+                        if (!$resultado["status"]) {
                                 echo json_encode([
                                         "status" => "error",
                                         "message" => $resultado["message"]
                                 ]);
+                                exit();
                         }
+
+
+
+                        echo json_encode([
+                                "status" => "success",
+                                "message" => "La evaluación se ha culminado exitosamente.",
+                                "prom_general" => $resultado["prom_general"]
+                        ]);
                 } catch (Exception $e) {
+
                         echo json_encode([
                                 "status" => "error",
                                 "message" => "Error al guardar la evaluación.",

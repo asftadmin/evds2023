@@ -7,6 +7,7 @@ if (isset($_SESSION["user_id"])) {
     <!DOCTYPE html>
     <html>
     <?php require_once("../MainHead/head.php"); ?>
+    <title>Evaluacion de desempeño</title>
 
     <body class="hold-transition sidebar-mini">
         <div class="wrapper">
@@ -85,6 +86,36 @@ if (isset($_SESSION["user_id"])) {
                                     </div>
 
                                     <div id="contenedor_preguntas"></div>
+
+                                    <div id="panel_observaciones_jefe" class="card card-outline card-warning mt-3" style="display:none;">
+                                        <div class="card-header">
+                                            <h3 class="card-title">Preguntas de cierre - Evaluación del jefe</h3>
+                                        </div>
+
+                                        <div class="card-body">
+
+                                            <div class="form-group">
+                                                <label>¿Cuáles son las principales fortalezas del trabajador que deben mantenerse y fortalecerse?</label>
+                                                <textarea id="fortalezas" name="fortalezas" class="form-control" rows="3"></textarea>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label>¿Qué aspectos debe mejorar el trabajador para fortalecer su desempeño y aportar mejores resultados a la empresa?</label>
+                                                <textarea id="oportunidades_mejora" name="oportunidades_mejora" class="form-control" rows="3"></textarea>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label>¿Qué apoyo, capacitación, herramienta, acompañamiento o recurso requiere el trabajador para mejorar su desempeño?</label>
+                                                <textarea id="apoyo_requerido" name="apoyo_requerido" class="form-control" rows="3"></textarea>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label>¿En qué fecha o periodo se revisará el cumplimiento de los compromisos establecidos?</label>
+                                                <input type="text" id="fecha_revision" name="fecha_revision" class="form-control">
+                                            </div>
+
+                                        </div>
+                                    </div>
 
                                 </div>
 
