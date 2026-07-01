@@ -95,7 +95,7 @@ if (isset($_SESSION["user_id"])) {
                                     <div class="icon">
                                         <i class="fas fa-chart-bar"></i>
                                     </div>
-                                    <a href="../evaluacion/evaluacion.php" class="small-box-footer">
+                                    <a href="../MntEvaluacion/evaluacion_desempeño.php" class="small-box-footer">
                                         Ingresar <i class="fas fa-arrow-circle-right"></i>
                                     </a>
                                 </div>

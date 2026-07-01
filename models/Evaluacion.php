@@ -1,11 +1,9 @@
 <?php
 
-class Evaluacion extends Conectar
-{
+class Evaluacion extends Conectar {
 
     /* SELECT DE OPERACIONES */
-    public function get_mes_combo()
-    {
+    public function get_mes_combo() {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT *,
@@ -19,8 +17,7 @@ class Evaluacion extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function get_mes_combo_total()
-    {
+    public function get_mes_combo_total() {
         $conectar = parent::conexion();
         parent::set_names();
         $sql = "SELECT *,
@@ -146,8 +143,7 @@ class Evaluacion extends Conectar
         return $resultado = $sql->fetchAll();
     }
 
-    public function mostar_evalua_x_mes($evaluador, $mes, $anio)
-    {
+    public function mostar_evalua_x_mes($evaluador, $mes, $anio) {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -162,8 +158,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function mostar_evalua_x_sept($evaluador, $mes, $anio)
-    {
+    public function mostar_evalua_x_sept($evaluador, $mes, $anio) {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -178,8 +173,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_evaluacion()
-    {
+    public function listar_evaluacion() {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -191,8 +185,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function mostar_cumplimiento($mes, $anio)
-    {
+    public function mostar_cumplimiento($mes, $anio) {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -206,8 +199,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function mostar_cumplimiento_agosto($mes, $anio)
-    {
+    public function mostar_cumplimiento_agosto($mes, $anio) {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -221,8 +213,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_evaluacion_anual()
-    {
+    public function listar_evaluacion_anual() {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -234,8 +225,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_coevaluacion_veinticinco($id_empl)
-    {
+    public function listar_coevaluacion_veinticinco($id_empl) {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -248,8 +238,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_autoevaluacion_veinticinco($id_empl)
-    {
+    public function listar_autoevaluacion_veinticinco($id_empl) {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -261,8 +250,7 @@ class Evaluacion extends Conectar
         return $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listar_subevaluacion_veinticinco($id_empl)
-    {
+    public function listar_subevaluacion_veinticinco($id_empl) {
 
         $conectar = parent::conexion();
         parent::set_names();
@@ -276,12 +264,11 @@ class Evaluacion extends Conectar
 
     // EVALUACION 2026
 
-    public function get_preguntas_desempeno()
-    {
+    public function get_preguntas_desempeno() {
         $conectar = parent::conexion();
         parent::set_names();
 
-        $sql = "SELECT evpr_id, evpr_bloque, evpr_pregunta, evpr_orden
+        $sql = "SELECT evpr_id, evpr_bloque, evpr_pregunta, evpr_orden, evpr_ayuda
             FROM public.evaluacion_desempeno_preguntas
             WHERE evpr_estado = 1
             ORDER BY evpr_orden ASC";
@@ -292,8 +279,7 @@ class Evaluacion extends Conectar
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function validar_evaluacion_desempeno_unica($empleado_id, $evaluador_id, $anio, $tipo)
-    {
+    public function validar_evaluacion_desempeno_unica($empleado_id, $evaluador_id, $anio, $tipo) {
         $conectar = parent::conexion();
         parent::set_names();
 

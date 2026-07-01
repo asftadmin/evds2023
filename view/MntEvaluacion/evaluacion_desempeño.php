@@ -24,13 +24,13 @@ if (isset($_SESSION["user_id"])) {
                 </section>
 
                 <section class="content">
-                    <div class="container-fluid">
+                    <div class="container-fluid pb-4">
 
                         <form id="form_evaluacion_desempeno">
 
                             <input type="hidden" id="empleado_logueado_id" value="<?php echo $_SESSION["id_empl"]; ?>">
 
-                            <div class="card card-primary">
+                            <div class="card card-dark">
                                 <div class="card-header">
                                     <h3 class="card-title">Registro de evaluación</h3>
                                 </div>
@@ -87,7 +87,8 @@ if (isset($_SESSION["user_id"])) {
 
                                     <div id="contenedor_preguntas"></div>
 
-                                    <div id="panel_observaciones_jefe" class="card card-outline card-warning mt-3" style="display:none;">
+                                    <div id="panel_observaciones_jefe" class="card card-outline card-warning mt-3"
+                                        style="display:none;">
                                         <div class="card-header">
                                             <h3 class="card-title">Preguntas de cierre - Evaluación del jefe</h3>
                                         </div>
@@ -95,23 +96,31 @@ if (isset($_SESSION["user_id"])) {
                                         <div class="card-body">
 
                                             <div class="form-group">
-                                                <label>¿Cuáles son las principales fortalezas del trabajador que deben mantenerse y fortalecerse?</label>
-                                                <textarea id="fortalezas" name="fortalezas" class="form-control" rows="3"></textarea>
+                                                <label>¿Cuáles son las principales fortalezas del trabajador que deben
+                                                    mantenerse y fortalecerse?</label>
+                                                <textarea id="fortalezas" name="fortalezas" class="form-control"
+                                                    rows="3"></textarea>
                                             </div>
 
                                             <div class="form-group">
-                                                <label>¿Qué aspectos debe mejorar el trabajador para fortalecer su desempeño y aportar mejores resultados a la empresa?</label>
-                                                <textarea id="oportunidades_mejora" name="oportunidades_mejora" class="form-control" rows="3"></textarea>
+                                                <label>¿Qué aspectos debe mejorar el trabajador para fortalecer su desempeño
+                                                    y aportar mejores resultados a la empresa?</label>
+                                                <textarea id="oportunidades_mejora" name="oportunidades_mejora"
+                                                    class="form-control" rows="3"></textarea>
                                             </div>
 
                                             <div class="form-group">
-                                                <label>¿Qué apoyo, capacitación, herramienta, acompañamiento o recurso requiere el trabajador para mejorar su desempeño?</label>
-                                                <textarea id="apoyo_requerido" name="apoyo_requerido" class="form-control" rows="3"></textarea>
+                                                <label>¿Qué apoyo, capacitación, herramienta, acompañamiento o recurso
+                                                    requiere el trabajador para mejorar su desempeño?</label>
+                                                <textarea id="apoyo_requerido" name="apoyo_requerido" class="form-control"
+                                                    rows="3"></textarea>
                                             </div>
 
                                             <div class="form-group">
-                                                <label>¿En qué fecha o periodo se revisará el cumplimiento de los compromisos establecidos?</label>
-                                                <input type="text" id="fecha_revision" name="fecha_revision" class="form-control">
+                                                <label>¿En qué fecha o periodo se revisará el cumplimiento de los
+                                                    compromisos establecidos?</label>
+                                                <input type="text" id="fecha_revision" name="fecha_revision"
+                                                    class="form-control">
                                             </div>
 
                                         </div>
@@ -123,6 +132,37 @@ if (isset($_SESSION["user_id"])) {
                                     <button type="submit" class="btn btn-primary">
                                         <i class="fas fa-save"></i> Finalizar evaluación
                                     </button>
+                                </div>
+                            </div>
+
+                            <div class="modal fade" id="modalAyudaPregunta" tabindex="-1" role="dialog"
+                                aria-labelledby="modalAyudaPreguntaLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+                                    <div class="modal-content">
+
+                                        <div class="modal-header bg-info">
+                                            <h5 class="modal-title" id="modalAyudaPreguntaLabel">
+                                                Ayuda de la pregunta
+                                            </h5>
+                                            <button type="button" class="close text-white" data-dismiss="modal"
+                                                aria-label="Cerrar">
+                                                <span aria-hidden="true">&times;</span>
+                                            </button>
+                                        </div>
+
+                                        <div class="modal-body">
+                                            <h6 id="modal_pregunta_titulo" class="font-weight-bold"></h6>
+                                            <hr>
+                                            <div id="modal_pregunta_ayuda" style="white-space: pre-line;"></div>
+                                        </div>
+
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                                Cerrar
+                                            </button>
+                                        </div>
+
+                                    </div>
                                 </div>
                             </div>
 

@@ -67,7 +67,8 @@ if (isset($_SESSION["user_id"])) {
                                             <div class="col-md-5">
                                                 <div class="form-group">
                                                     <label for="filtro_colaborador">Colaborador</label>
-                                                    <select id="filtro_colaborador" class="form-control select2bs4" style="width: 100%;">
+                                                    <select id="filtro_colaborador" class="form-control select2bs4"
+                                                        style="width: 100%;">
                                                         <option value="">Seleccione un colaborador</option>
                                                     </select>
                                                 </div>
@@ -75,8 +76,9 @@ if (isset($_SESSION["user_id"])) {
 
                                             <div class="col-md-3">
                                                 <div class="form-group">
-                                                    <label for="filtro_periodo">Mes y anio</label>
-                                                    <input type="month" id="filtro_periodo" class="form-control" autocomplete="off">
+                                                    <label for="filtro_periodo">Mes y año</label>
+                                                    <input type="month" id="filtro_periodo" class="form-control"
+                                                        autocomplete="off">
                                                 </div>
                                             </div>
 
@@ -84,12 +86,14 @@ if (isset($_SESSION["user_id"])) {
                                                 <div class="form-group">
                                                     <label>&nbsp;</label>
                                                     <div>
-                                                        <button type="button" id="btn_consultar_permisos_mes" class="btn btn-primary mr-2">
+                                                        <button type="button" id="btn_consultar_permisos_mes"
+                                                            class="btn btn-primary mr-2">
                                                             <i class="fas fa-search"></i>
                                                             Consultar
                                                         </button>
 
-                                                        <button type="button" id="btn_limpiar_permisos_mes" class="btn btn-secondary">
+                                                        <button type="button" id="btn_limpiar_permisos_mes"
+                                                            class="btn btn-secondary">
                                                             <i class="fas fa-eraser"></i>
                                                             Limpiar
                                                         </button>
@@ -148,7 +152,8 @@ if (isset($_SESSION["user_id"])) {
                                     </div>
                                     <div class="card-body">
                                         <div class="table-responsive">
-                                            <table id="tabla_permisos_mes" class="table table-bordered table-striped table-hover" style="width: 100%;">
+                                            <table id="tabla_permisos_mes"
+                                                class="table table-bordered table-striped table-hover" style="width: 100%;">
                                                 <thead>
                                                     <tr>
                                                         <th>Fecha del permiso</th>

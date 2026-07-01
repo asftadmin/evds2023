@@ -123,25 +123,41 @@ function pintarPreguntas(preguntas) {
             `;
         }
 
+        let ayuda = item.evpr_ayuda ? item.evpr_ayuda : "No hay información de ayuda registrada para esta pregunta.";
+
         html += `
-            <div class="form-group border-bottom pb-3">
-                <label>${item.evpr_orden}. ${item.evpr_pregunta}</label>
-                <select
-                    class="form-control select2 pregunta-evaluacion"
-                    data-pregunta-id="${item.evpr_id}"
-                    data-bloque="${item.evpr_bloque}"
-                    data-numero-pregunta="${item.evpr_orden}"
-                    data-pregunta="${item.evpr_pregunta}"
-                    required>
-                    <option value="">Seleccione una calificación</option>
-                    <option value="5">5 - Excelente</option>
-                    <option value="4">4 - Bueno</option>
-                    <option value="3">3 - Aceptable</option>
-                    <option value="2">2 - Bajo</option>
-                    <option value="1">1 - Crítico</option>
-                </select>
-            </div>
-        `;
+                <div class="form-group border-bottom pb-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <label class="mb-2">
+                            ${item.evpr_orden}. ${item.evpr_pregunta}
+                        </label>
+
+                        <button 
+                            type="button"
+                            class="btn btn-sm btn-outline-info btn-ayuda-pregunta ml-2"
+                            data-pregunta="${item.evpr_pregunta.replace(/"/g, '&quot;')}"
+                            data-ayuda="${ayuda.replace(/"/g, '&quot;')}"
+                            title="Ver ayuda">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                    </div>
+
+                    <select
+                        class="form-control select2 pregunta-evaluacion"
+                        data-pregunta-id="${item.evpr_id}"
+                        data-bloque="${item.evpr_bloque}"
+                        data-numero-pregunta="${item.evpr_orden}"
+                        data-pregunta="${item.evpr_pregunta.replace(/"/g, '&quot;')}"
+                        required>
+                        <option value="">Seleccione una calificación</option>
+                        <option value="5">5 - Excelente</option>
+                        <option value="4">4 - Bueno</option>
+                        <option value="3">3 - Aceptable</option>
+                        <option value="2">2 - Bajo</option>
+                        <option value="1">1 - Crítico</option>
+                    </select>
+                </div>
+            `;
     });
 
     if (preguntas.length > 0) {
@@ -261,3 +277,17 @@ function guardarEvaluacionDesempeno(empleadoId, tipo, anio, respuestas) {
         }
     });
 }
+
+$(document).on("click", ".btn-ayuda-pregunta", function () {
+
+    Swal.fire({
+        title: $(this).data("pregunta"),
+        html: '<div style="text-align:left;white-space:pre-line;">' +
+                $(this).data("ayuda") +
+              '</div>',
+        width: 800,
+        confirmButtonText: "Entendido",
+        confirmButtonColor: "#17a2b8"
+    });
+
+});
