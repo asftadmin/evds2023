@@ -8,5 +8,5 @@ define(
     'EVDS_API_KEY',
     $apiKeyFromEnvironment !== false && $apiKeyFromEnvironment !== ''
         ? $apiKeyFromEnvironment
-        : 'evds2023-api-cambiar-antes-de-produccion'
+        : '_95UfYULG1XcqtYVd1CMynlM5uXx1hqz2PM1vZd18MOywHkFEs'
 );
