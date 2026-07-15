@@ -50,14 +50,34 @@ class EmpleadoController
             return $this->respuesta(400, 'El documento solamente debe contener números.');
         }
 
-        if ($nombre !== '' && strlen($nombre) > 200) {
-            return $this->respuesta(400, 'El nombre no debe superar los 200 caracteres.');
+        if ($nombre !== '' && (mb_strlen($nombre, 'UTF-8') < 3 || mb_strlen($nombre, 'UTF-8') > 200)) {
+            return $this->respuesta(400, 'El nombre debe contener entre 3 y 200 caracteres.');
         }
 
         try {
-            $empleado = $documento !== ''
-                ? $this->modelo->buscarPorDocumento($documento)
-                : $this->modelo->buscarPorNombre($nombre);
+            if ($nombre !== '') {
+                $empleados = $this->modelo->buscarPorNombre($nombre);
+
+                if (count($empleados) === 0) {
+                    return $this->respuesta(404, 'No se encontraron empleados activos.');
+                }
+
+                $data = array();
+                foreach ($empleados as $empleado) {
+                    $data[] = $this->formatearEmpleado($empleado);
+                }
+
+                return array(
+                    'status' => 200,
+                    'body' => array(
+                        'success' => true,
+                        'message' => 'Empleados encontrados.',
+                        'data' => $data
+                    )
+                );
+            }
+
+            $empleado = $this->modelo->buscarPorDocumento($documento);
 
             if ($empleado === null) {
                 return $this->respuesta(404, 'El empleado no fue encontrado.');
@@ -72,14 +92,7 @@ class EmpleadoController
                 'body' => array(
                     'success' => true,
                     'message' => 'Empleado encontrado.',
-                    'data' => array(
-                        'documento' => (string) $empleado['documento'],
-                        'nombre' => $this->texto($empleado['nombre']),
-                        'correo' => $this->texto($empleado['correo']),
-                        'cargo' => $this->texto($empleado['cargo']),
-                        'area' => $this->texto($empleado['area']),
-                        'activo' => true
-                    )
+                    'data' => $this->formatearEmpleado($empleado)
                 )
             );
         } catch (Throwable $error) {
@@ -102,5 +115,17 @@ class EmpleadoController
     private function texto($valor)
     {
         return $valor === null ? '' : (string) $valor;
+    }
+
+    private function formatearEmpleado($empleado)
+    {
+        return array(
+            'documento' => (string) $empleado['documento'],
+            'nombre' => $this->texto($empleado['nombre']),
+            'correo' => $this->texto($empleado['correo']),
+            'cargo' => $this->texto($empleado['cargo']),
+            'area' => $this->texto($empleado['area']),
+            'activo' => true
+        );
     }
 }
