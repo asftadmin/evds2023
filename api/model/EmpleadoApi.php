@@ -6,6 +6,24 @@ class EmpleadoApi extends Conectar
 {
     public function buscarPorDocumento($documento)
     {
+        return $this->buscar(
+            'e.cedu_empl = :documento',
+            ':documento',
+            $documento
+        );
+    }
+
+    public function buscarPorNombre($nombre)
+    {
+        return $this->buscar(
+            'UPPER(TRIM(e.nomb_empl)) = UPPER(TRIM(:nombre))',
+            ':nombre',
+            $nombre
+        );
+    }
+
+    private function buscar($condicion, $parametro, $valor)
+    {
         $conexion = parent::Conexion();
         parent::set_names();
 
@@ -21,12 +39,12 @@ class EmpleadoApi extends Conectar
                 FROM empleados e
                 LEFT JOIN cargo c ON c.codi_carg = e.carg_empl
                 LEFT JOIN dependencia d ON d.id_depen = e.depen_empl
-                WHERE e.cedu_empl = :documento
+                WHERE " . $condicion . "
                 ORDER BY e.id_empl ASC
                 LIMIT 1";
 
         $sentencia = $conexion->prepare($sql);
-        $sentencia->bindValue(':documento', $documento, PDO::PARAM_STR);
+        $sentencia->bindValue($parametro, $valor, PDO::PARAM_STR);
         $sentencia->execute();
 
         $empleado = $sentencia->fetch(PDO::FETCH_ASSOC);

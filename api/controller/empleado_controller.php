@@ -34,16 +34,30 @@ class EmpleadoController
             ? trim((string) $parametros['documento'])
             : '';
 
-        if ($documento === '') {
-            return $this->respuesta(400, 'Debe enviar el número de documento.');
+        $nombre = isset($parametros['nombre']) && !is_array($parametros['nombre'])
+            ? trim((string) $parametros['nombre'])
+            : '';
+
+        if ($documento === '' && $nombre === '') {
+            return $this->respuesta(400, 'Debe enviar el número de documento o el nombre.');
         }
 
-        if (!preg_match('/^[0-9]+$/D', $documento)) {
+        if ($documento !== '' && $nombre !== '') {
+            return $this->respuesta(400, 'Envíe solamente documento o nombre, no ambos.');
+        }
+
+        if ($documento !== '' && !preg_match('/^[0-9]+$/D', $documento)) {
             return $this->respuesta(400, 'El documento solamente debe contener números.');
         }
 
+        if ($nombre !== '' && strlen($nombre) > 200) {
+            return $this->respuesta(400, 'El nombre no debe superar los 200 caracteres.');
+        }
+
         try {
-            $empleado = $this->modelo->buscarPorDocumento($documento);
+            $empleado = $documento !== ''
+                ? $this->modelo->buscarPorDocumento($documento)
+                : $this->modelo->buscarPorNombre($nombre);
 
             if ($empleado === null) {
                 return $this->respuesta(404, 'El empleado no fue encontrado.');
