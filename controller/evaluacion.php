@@ -374,4 +374,110 @@ switch ($_GET["op"]) {
                 }
 
                 break;
+
+        case "listarPeriodosReporteDesempeno":
+
+                header('Content-Type: application/json; charset=utf-8');
+
+                try {
+                        // Los periodos se consultan del nuevo modulo y no se calculan con la fecha actual.
+                        $periodos = $evaluacion->get_periodos_reporte_desempeno();
+
+                        echo json_encode([
+                                "status" => "success",
+                                "data" => $periodos
+                        ], JSON_UNESCAPED_UNICODE);
+                } catch (Exception $e) {
+                        http_response_code(500);
+                        echo json_encode([
+                                "status" => "error",
+                                "message" => "No fue posible consultar los periodos de evaluación."
+                        ], JSON_UNESCAPED_UNICODE);
+                }
+
+                break;
+
+        case "listarEmpleadosActivosReporte":
+
+                header('Content-Type: application/json; charset=utf-8');
+
+                try {
+                        // El termino de Select2 es opcional, se limita para evitar consultas excesivas.
+                        $busqueda = isset($_GET["q"]) ? trim((string)$_GET["q"]) : "";
+                        $empleados = $evaluacion->buscar_empleados_activos_reporte($busqueda, 20);
+                        $resultados = [];
+
+                        foreach ($empleados as $empleado) {
+                                $texto = trim($empleado["cedu_empl"] . " - " . $empleado["nomb_empl"]);
+                                if (!empty($empleado["nomb_carg"])) {
+                                        $texto .= " - " . $empleado["nomb_carg"];
+                                }
+
+                                $resultados[] = [
+                                        "id" => (int)$empleado["id_empl"],
+                                        "text" => $texto
+                                ];
+                        }
+
+                        echo json_encode([
+                                "results" => $resultados,
+                                "pagination" => ["more" => false]
+                        ], JSON_UNESCAPED_UNICODE);
+                } catch (Exception $e) {
+                        http_response_code(500);
+                        echo json_encode([
+                                "status" => "error",
+                                "message" => "No fue posible consultar los empleados activos.",
+                                "results" => []
+                        ], JSON_UNESCAPED_UNICODE);
+                }
+
+                break;
+
+        case "consultarReporteDesempeno":
+
+                header('Content-Type: application/json; charset=utf-8');
+
+                try {
+                        // Se validan ambos filtros antes de entregar cualquier dato del colaborador.
+                        $empleado_id = filter_input(INPUT_POST, "empleado_id", FILTER_VALIDATE_INT);
+                        $periodo = isset($_POST["periodo"]) ? trim((string)$_POST["periodo"]) : "";
+
+                        if (!$empleado_id || !preg_match('/^\d{4}$/', $periodo)) {
+                                http_response_code(400);
+                                echo json_encode([
+                                        "status" => "warning",
+                                        "message" => "Seleccione un empleado y un periodo válidos."
+                                ], JSON_UNESCAPED_UNICODE);
+                                break;
+                        }
+
+                        $resumen = $evaluacion->get_resumen_reporte_desempeno($empleado_id, $periodo);
+
+                        if (!$resumen) {
+                                echo json_encode([
+                                        "status" => "empty",
+                                        "message" => "El empleado no tiene evaluaciones registradas para el periodo seleccionado."
+                                ], JSON_UNESCAPED_UNICODE);
+                                break;
+                        }
+
+                        $resumen["tipos_evaluacion"] = array_values(array_filter(array_map(
+                                'trim',
+                                explode(',', $resumen["tipos_evaluacion"])
+                        )));
+
+                        echo json_encode([
+                                "status" => "success",
+                                "data" => $resumen
+                        ], JSON_UNESCAPED_UNICODE);
+                } catch (Exception $e) {
+                        http_response_code(500);
+                        echo json_encode([
+                                "status" => "error",
+                                "message" => "No fue posible consultar el reporte de desempeño."
+                        ], JSON_UNESCAPED_UNICODE);
+                }
+
+                break;
 }

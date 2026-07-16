@@ -421,4 +421,173 @@ class Evaluacion extends Conectar {
             ];
         }
     }
+
+    /**
+     * Consulta los periodos que tienen registros en el nuevo modulo de desempeno.
+     * No recibe parametros y devuelve un arreglo asociativo ordenado del periodo mas reciente al mas antiguo.
+     */
+    public function get_periodos_reporte_desempeno() {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        // El periodo proviene del dato registrado en la evaluacion y nunca del ano actual del servidor.
+        $sql = "SELECT DISTINCT evde_anio AS periodo
+                FROM public.evaluacion_desempeno
+                WHERE BTRIM(evde_anio) <> ''
+                ORDER BY evde_anio DESC";
+        $stmt = $conectar->prepare($sql);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Busca empleados activos para el Select2 del reporte.
+     * Recibe el texto opcional de busqueda y el limite de filas; devuelve documento, nombre y cargo.
+     */
+    public function buscar_empleados_activos_reporte($busqueda = '', $limite = 20) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        $termino = '%' . trim($busqueda) . '%';
+        $limite = max(1, min((int)$limite, 50));
+
+        // La busqueda usa ILIKE de PostgreSQL y restringe de forma explicita el estado activo confirmado.
+        $sql = "SELECT e.id_empl,
+                       e.cedu_empl,
+                       e.nomb_empl,
+                       COALESCE(c.nomb_carg, '') AS nomb_carg
+                FROM public.empleados e
+                LEFT JOIN public.cargo c ON c.codi_carg = e.carg_empl
+                WHERE e.esta_empl = 1
+                  AND (
+                      CAST(e.cedu_empl AS TEXT) ILIKE ?
+                      OR COALESCE(e.nomb_empl, '') ILIKE ?
+                  )
+                ORDER BY e.nomb_empl ASC
+                LIMIT " . $limite;
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $termino, PDO::PARAM_STR);
+        $stmt->bindValue(2, $termino, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene la ficha del colaborador y los tipos registrados para un periodo.
+     * Recibe el id del empleado y el periodo; devuelve una fila o false cuando no existen evaluaciones.
+     */
+    public function get_resumen_reporte_desempeno($empleado_id, $periodo) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        // El INNER JOIN garantiza que la respuesta solo exista cuando coinciden empleado y periodo.
+        $sql = "SELECT e.id_empl,
+                       e.cedu_empl,
+                       e.nomb_empl,
+                       COALESCE(c.nomb_carg, 'No registrado') AS nomb_carg,
+                       ed.evde_anio AS periodo,
+                       STRING_AGG(DISTINCT ed.evde_tipo, ', ' ORDER BY ed.evde_tipo) AS tipos_evaluacion
+                FROM public.empleados e
+                LEFT JOIN public.cargo c ON c.codi_carg = e.carg_empl
+                INNER JOIN public.evaluacion_desempeno ed ON ed.evde_empleado_id = e.id_empl
+                WHERE e.id_empl = ?
+                  AND ed.evde_anio = ?
+                GROUP BY e.id_empl, e.cedu_empl, e.nomb_empl, c.nomb_carg, ed.evde_anio";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, (int)$empleado_id, PDO::PARAM_INT);
+        $stmt->bindValue(2, (string)$periodo, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Consulta promedios consolidados por tipo para un empleado y periodo.
+     * Recibe el id del empleado y el periodo; devuelve una fila por tipo de evaluacion existente.
+     */
+    public function get_promedios_reporte_desempeno($empleado_id, $periodo) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        // AVG permite consolidar de forma determinista varias evaluaciones del mismo tipo si llegaran a existir.
+        $sql = "SELECT ed.evde_tipo,
+                       ROUND(AVG(ed.evde_prom_productividad), 2) AS prom_productividad,
+                       ROUND(AVG(ed.evde_prom_actitud), 2) AS prom_actitud,
+                       ROUND(AVG(ed.evde_prom_conducta), 2) AS prom_conducta,
+                       ROUND(AVG(ed.evde_prom_general), 2) AS prom_general
+                FROM public.evaluacion_desempeno ed
+                WHERE ed.evde_empleado_id = ?
+                  AND ed.evde_anio = ?
+                  AND ed.evde_tipo IN ('AUTOEVALUACION', 'COEVALUACION', 'SUBEVALUACION')
+                GROUP BY ed.evde_tipo
+                ORDER BY ed.evde_tipo";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, (int)$empleado_id, PDO::PARAM_INT);
+        $stmt->bindValue(2, (string)$periodo, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Consulta las respuestas agrupadas por bloque, pregunta y tipo de evaluacion.
+     * Recibe el id del empleado y el periodo; devuelve las preguntas respondidas en su orden real.
+     */
+    public function get_detalle_reporte_desempeno($empleado_id, $periodo) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        // Se usa el detalle historico guardado y se promedian duplicados del mismo tipo sin mezclar otros periodos.
+        $sql = "SELECT d.evdd_bloque,
+                       d.evdd_numero_pregunta,
+                       MIN(d.evdd_pregunta) AS evdd_pregunta,
+                       ROUND(AVG(d.evdd_calificacion) FILTER (WHERE ed.evde_tipo = 'AUTOEVALUACION'), 2) AS autoevaluacion,
+                       ROUND(AVG(d.evdd_calificacion) FILTER (WHERE ed.evde_tipo = 'COEVALUACION'), 2) AS coevaluacion,
+                       ROUND(AVG(d.evdd_calificacion) FILTER (WHERE ed.evde_tipo = 'SUBEVALUACION'), 2) AS subevaluacion
+                FROM public.evaluacion_desempeno ed
+                INNER JOIN public.evaluacion_desempeno_detalle d ON d.evdd_evaluacion_id = ed.evde_id
+                WHERE ed.evde_empleado_id = ?
+                  AND ed.evde_anio = ?
+                  AND ed.evde_tipo IN ('AUTOEVALUACION', 'COEVALUACION', 'SUBEVALUACION')
+                GROUP BY d.evdd_bloque, d.evdd_numero_pregunta
+                ORDER BY d.evdd_numero_pregunta, d.evdd_bloque";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, (int)$empleado_id, PDO::PARAM_INT);
+        $stmt->bindValue(2, (string)$periodo, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Consulta el cierre y el superior real de la subevaluacion mas reciente del periodo.
+     * Recibe el id del empleado y el periodo; devuelve una fila o false cuando no hay subevaluacion.
+     */
+    public function get_cierre_reporte_desempeno($empleado_id, $periodo) {
+        $conectar = parent::conexion();
+        parent::set_names();
+
+        // La relacion con el superior usa la llave real evde_evaluador_id hacia empleados.id_empl.
+        $sql = "SELECT evaluador.nomb_empl AS superior_evaluador,
+                       o.fortalezas,
+                       o.oportunidades_mejora,
+                       o.apoyo_requerido,
+                       o.fecha_revision
+                FROM public.evaluacion_desempeno ed
+                INNER JOIN public.empleados evaluador ON evaluador.id_empl = ed.evde_evaluador_id
+                LEFT JOIN public.evaluacion_desempeno_observacion o ON o.evde_id = ed.evde_id
+                WHERE ed.evde_empleado_id = ?
+                  AND ed.evde_anio = ?
+                  AND ed.evde_tipo = 'SUBEVALUACION'
+                ORDER BY ed.evde_fecha DESC NULLS LAST, ed.evde_id DESC
+                LIMIT 1";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, (int)$empleado_id, PDO::PARAM_INT);
+        $stmt->bindValue(2, (string)$periodo, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }
