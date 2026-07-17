@@ -16,7 +16,7 @@ class MailHelper {
             $mail->Host       = 'outlook.office365.com';
             $mail->SMTPAuth   = true;
             $mail->Username   = 'admin@asfaltart.com';
-            $mail->Password   = '4dm1n.art22*';
+            $mail->Password   = 'ase@5X5p$BVQWmB';
             $mail->SMTPSecure = 'tls';
             $mail->Port       = 587;
 
