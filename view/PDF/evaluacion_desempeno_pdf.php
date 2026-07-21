@@ -87,7 +87,7 @@ class EvaluacionDesempenoPDF extends TCPDF {
      * No recibe parametros y no devuelve valor.
      */
     public function Header() {
-        $logo = __DIR__ . '/../../public/img/logo asf.png';
+        $logo = __DIR__ . '/../../public/img/logo asft vertical@3x.png';
         $this->SetDrawColor(35, 35, 35);
         $this->SetLineWidth(0.15);
 
@@ -163,9 +163,9 @@ try {
     }
 
     $tipos = array(
-        'AUTOEVALUACION' => array('etiqueta' => 'Autoevaluación', 'peso' => 0.05),
-        'COEVALUACION' => array('etiqueta' => 'Coevaluación', 'peso' => 0.05),
-        'SUBEVALUACION' => array('etiqueta' => 'Subevaluación', 'peso' => 0.90)
+        'AUTOEVALUACION' => array('etiqueta' => 'Autoevaluacion', 'peso' => 0.05),
+        'COEVALUACION' => array('etiqueta' => 'Coevaluacion', 'peso' => 0.05),
+        'SUBEVALUACION' => array('etiqueta' => 'Subevaluacion', 'peso' => 0.90)
     );
     $resultadoFinal = 0.0;
     foreach ($tipos as $codigo => $configuracion) {
@@ -222,6 +222,7 @@ try {
         .center { text-align:center; }
         .small { font-size:7.2px; text-align:center; }
         .resultado { font-weight:bold; }
+        .interpretacion { font-weight:bold; }
     </style>';
 
     /**
@@ -303,17 +304,19 @@ try {
         $indiceTipo++;
     }
     $html .= '<tr class="resultado"><td class="center" colspan="4">CALIFICACIÓN (A+B+C) =</td><td class="center">' . number_format($resultadoFinal, 2, ',', '.') . '</td></tr>
-        <tr class="resultado"><td class="center" colspan="4">RESULTADO DE LA EVALUACIÓN</td><td class="small">' . textoPdfSeguro(interpretarResultadoPdf($resultadoFinal)) . '</td></tr>
+        <tr class="resultado"><td class="center" colspan="4">RESULTADO DE LA EVALUACIÓN</td><td class="center">' . textoPdfSeguro(interpretarResultadoPdf($resultadoFinal)) . '</td></tr>
         </tbody></table><br>';
     $htmlConsolidado = $html;
 
-    // El cierre se presenta aunque falte alguna respuesta, sin incorporar observaciones de otro periodo.
+    // Las respuestas de cierre se integran en un unico bloque de observaciones, como en el formato institucional.
     $html = '<table cellpadding="4">
-        <thead><tr><th class="titulo" colspan="2">PREGUNTAS DE CIERRE DE LA SUBEVALUACIÓN</th></tr></thead><tbody>
-        <tr nobr="true"><td class="label" width="27%">Fortalezas:</td><td width="73%">' . textoPdfSeguro($cierre && $cierre['fortalezas'] ? $cierre['fortalezas'] : 'No registrada') . '</td></tr>
-        <tr nobr="true"><td class="label">Oportunidades de mejora:</td><td>' . textoPdfSeguro($cierre && $cierre['oportunidades_mejora'] ? $cierre['oportunidades_mejora'] : 'No registrada') . '</td></tr>
-        <tr nobr="true"><td class="label">Apoyo requerido:</td><td>' . textoPdfSeguro($cierre && $cierre['apoyo_requerido'] ? $cierre['apoyo_requerido'] : 'No registrado') . '</td></tr>
-        <tr nobr="true"><td class="label">Fecha de revisión:</td><td>' . textoPdfSeguro($cierre && $cierre['fecha_revision'] ? $cierre['fecha_revision'] : 'No registrada') . '</td></tr>
+        <thead><tr><th class="titulo">OBSERVACIONES</th></tr></thead><tbody>
+        <tr><td>
+            <b>1. Fortalezas:</b> ' . textoPdfSeguro($cierre && $cierre['fortalezas'] ? $cierre['fortalezas'] : 'No registrada') . '<br><br>
+            <b>2. Oportunidades de mejora:</b> ' . textoPdfSeguro($cierre && $cierre['oportunidades_mejora'] ? $cierre['oportunidades_mejora'] : 'No registrada') . '<br><br>
+            <b>3. Apoyo requerido:</b> ' . textoPdfSeguro($cierre && $cierre['apoyo_requerido'] ? $cierre['apoyo_requerido'] : 'No registrado') . '<br><br>
+            <b>4. Fecha de revisión:</b> ' . textoPdfSeguro($cierre && $cierre['fecha_revision'] ? $cierre['fecha_revision'] : 'No registrada') . '
+        </td></tr>
         </tbody></table><br><br>';
     $escribirHtml($html);
 
@@ -321,28 +324,32 @@ try {
     $html = '<table cellpadding="4" nobr="true">
         <thead><tr><th class="titulo" colspan="2">INTERPRETACIÓN DE LA EVALUACIÓN DE DESEMPEÑO</th></tr></thead><tbody>
         <tr><td colspan="2">La interpretación se determina con el resultado final ponderado:</td></tr>
-        <tr><td class="center" width="50%">Excelente:</td><td class="center" width="50%">4,60 a 5,00</td></tr>
-        <tr><td class="center">Bueno:</td><td class="center">4,00 a 4,59</td></tr>
-        <tr><td class="center">Aceptable:</td><td class="center">3,00 a 3,99</td></tr>
-        <tr><td class="center">Bajo:</td><td class="center">2,00 a 2,99</td></tr>
-        <tr><td class="center">Crítico:</td><td class="center">1,00 a 1,99</td></tr>
-        <tr><td class="center">Sin calificación suficiente:</td><td class="center">Menor a 1,00</td></tr>
+        <tr><td class="center interpretacion" width="50%">Excelente:</td><td class="center" width="50%">4,60 a 5,00</td></tr>
+        <tr><td class="center interpretacion">Bueno:</td><td class="center">4,00 a 4,59</td></tr>
+        <tr><td class="center interpretacion">Aceptable:</td><td class="center">3,00 a 3,99</td></tr>
+        <tr><td class="center interpretacion">Bajo:</td><td class="center">2,00 a 2,99</td></tr>
+        <tr><td class="center interpretacion">Crítico:</td><td class="center">1,00 a 1,99</td></tr>
         </tbody></table><br><br>';
     $escribirHtml($html);
 
     // El consolidado se presenta despues del detalle y la escala, como en el formato institucional.
     $escribirHtml($htmlConsolidado);
 
-    // Las firmas son espacios fisicos; esta version no incorpora imagenes ni firma digital.
-    $html = '<table cellpadding="5" nobr="true">
-        <tr><td width="47%" height="38"></td><td width="6%"></td><td width="47%"></td></tr>
-        <tr><td style="border-top:0.5px solid #333333; text-align:center;">Firma del empleado evaluado<br>' . textoPdfSeguro($resumen['nomb_empl']) . '</td>
-            <td></td>
-            <td style="border-top:0.5px solid #333333; text-align:center;">Firma del superior evaluador<br>' . textoPdfSeguro($superior) . '</td></tr>
+    // Las recomendaciones y firmas conservan espacios fisicos; no se incorporan imagenes ni firma digital.
+    $html = '<table cellpadding="3" nobr="true">
+        <tr><td class="titulo" colspan="2">RECOMENDACIONES</td></tr>
+        <tr><td width="12%" height="15">1.</td><td width="88%" height="15"></td></tr>
+        <tr><td height="15">2.</td><td height="15"></td></tr>
+        <tr><td height="15">3.</td><td height="15"></td></tr>
+        <tr><td height="15">4.</td><td height="15"></td></tr>
+        <tr><td colspan="2" height="48"><br><br><br><br>
+            <b>Evaluado:</b> ' . textoPdfSeguro($resumen['nomb_empl']) . '<br><br><br><br><br>
+            <b>Superior Evaluado:</b> ' . textoPdfSeguro($superior) . '
+        </td></tr>
         </table>';
     $escribirHtml($html);
 
-    $nombreArchivo = 'evaluacion_desempeno_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $resumen['nomb_empl']) . '_' . $periodo . '.pdf';
+    $nombreArchivo = 'EVALUACION_DESEMPEÑO_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $resumen['nomb_empl']) . '_' . $periodo . '.pdf';
     ob_end_clean();
     $pdf->Output($nombreArchivo, 'I');
 } catch (Exception $e) {
