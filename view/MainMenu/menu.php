@@ -2,7 +2,14 @@
                
     require_once("../../models/Menu.php");
     $menu = new Menu();
-    $datos =$menu->mostrar_menu_x_rol($_SESSION["user_rol"]);                    
+    // La relación activa es la fuente vigente. Así una sesión iniciada antes
+    // de asignar o activar al jefe actualiza el menú sin exigir otro ingreso.
+    $es_jefe = $menu->es_jefe_activo(
+        (int)($_SESSION["id_empl"] ?? 0)
+    );
+    $_SESSION["es_jefe"] = $es_jefe ? 1 : 0;
+
+    $datos =$menu->mostrar_menu_x_rol($_SESSION["user_rol"], $es_jefe);
                
 ?>
 

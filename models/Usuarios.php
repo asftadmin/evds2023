@@ -30,18 +30,18 @@ class Usuario extends Conectar {
                     $_SESSION["nomb_empl"] = $result["nomb_empl"];
                     $_SESSION["user_rol"] = $result["user_rol"];
 
-                    // ── Si es empleado verificar si es jefe inmediato ──
-                    if ($result["user_rol"] == 4) {
-                        $sql_jefe = "SELECT COUNT(*) FROM empleado_jefe 
-                     WHERE jefe_id = ? AND ej_estado = 1";
-                        $stmt_jefe = $conectar->prepare($sql_jefe);
-                        $stmt_jefe->bindValue(1, $result["id_empl"], PDO::PARAM_INT);
-                        $stmt_jefe->execute();
-
-                        if ($stmt_jefe->fetchColumn() > 0) {
-                            $_SESSION["user_rol"] = 5; // ← rol jefe en sesión
-                        }
-                    }
+                    // Conserva el rol principal y registra por separado la
+                    // capacidad de actuar como jefe. Esto permite que un jefe
+                    // con rol de Contabilidad, Gerencia o RR. HH. no pierda
+                    // los menús propios de su rol al iniciar sesión.
+                    $sql_jefe = "SELECT COUNT(*)
+                        FROM empleado_jefe
+                        WHERE jefe_id = ?
+                          AND ej_estado = 1";
+                    $stmt_jefe = $conectar->prepare($sql_jefe);
+                    $stmt_jefe->bindValue(1, $result["id_empl"], PDO::PARAM_INT);
+                    $stmt_jefe->execute();
+                    $_SESSION["es_jefe"] = ((int)$stmt_jefe->fetchColumn() > 0) ? 1 : 0;
 
                     header("Location:" . conectar::ruta() . "view/home/home2.php");
                     exit();
