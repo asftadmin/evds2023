@@ -1,45 +1,168 @@
-<!-- Modal -->
+<!-- ========================================================= -->
+<!-- MODAL CREAR / EDITAR ROL                                 -->
+<!-- ========================================================= -->
+
 <div class="modal fade" id="modalRol" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="modalRolLabel"
     aria-hidden="true">
+
+
     <div class="modal-dialog" role="document">
+
+
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="lblTitulo"></h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
+
+
+            <!-- ================================================= -->
+            <!-- HEADER                                            -->
+            <!-- ================================================= -->
+
+            <div class="modal-header bg-info">
+
+
+                <h5 class="modal-title" id="lblTitulo">
+
+                    <i class="fas fa-user-tag mr-2"></i>
+
+                    Rol
+
+                </h5>
+
+
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+
+                    <span aria-hidden="true">
+                        &times;
+                    </span>
+
                 </button>
+
+
             </div>
-            <form class="form-horizontal" method="post" id="mantenimiento_rol">
+
+
+            <!-- ================================================= -->
+            <!-- FORMULARIO                                        -->
+            <!-- ================================================= -->
+
+            <form id="mantenimiento_rol" autocomplete="off">
+
+
                 <div class="modal-body">
+
 
                     <input type="hidden" name="rol_id" id="rol_id">
 
-                    <div class="form-group row">
-                        <label for="nomb_rol" class="col-sm-2 col-form-label">Rol</label>
-                        <div class="col-sm-10" >
-                            <input type="text" class="form-control" name="nomb_rol" id="nomb_rol"
-                                placeholder="Nombre del Rol">
-                        </div>
+
+                    <!-- NOMBRE DEL ROL -->
+                    <div class="form-group">
+
+
+                        <label for="nomb_rol">
+
+                            <i class="fas fa-user-tag mr-1"></i>
+
+                            Nombre del Rol
+
+                            <span class="text-danger">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <input type="text" class="form-control" name="nomb_rol" id="nomb_rol" maxlength="100"
+                            placeholder="Ingrese el nombre del rol" required>
+
+
+                        <small class="form-text text-muted">
+
+                            Nombre con el que se identificará el rol
+                            dentro del sistema.
+
+                        </small>
+
+
                     </div>
 
 
-                    <span class="form-group row" id="selectEstadoRol">
-                        <label for="esta_rol" class="col-sm-2 col-form-label">Estado:</label>
-                        <div class="col-sm-10" style="display: inline-block; ">
-                            <select class="form-control select2bs4" name="esta_rol" id="esta_rol" required>
-                                <option value="1">Activo</option>
-                                <option value="0">Inactivo</option>
-                            </select>
-                        </div>
-                    </span>
+                    <!-- ESTADO -->
+                    <div class="form-group" id="contenedor_estado_rol" style="display:none;">
+
+
+                        <label for="esta_rol">
+
+                            <i class="fas fa-toggle-on mr-1"></i>
+
+                            Estado
+
+                        </label>
+
+
+                        <select class="form-control select2bs4" name="esta_rol" id="esta_rol" style="width:100%;">
+
+
+                            <option value="1">
+                                Activo
+                            </option>
+
+
+                            <option value="0">
+                                Inactivo
+                            </option>
+
+
+                        </select>
+
+
+                        <small class="form-text text-muted">
+
+                            Los roles inactivos se conservan en el sistema
+                            pero no estarán disponibles para nuevas asignaciones.
+
+                        </small>
+
+
+                    </div>
+
 
                 </div>
+
+
+                <!-- ================================================= -->
+                <!-- FOOTER                                            -->
+                <!-- ================================================= -->
 
                 <div class="modal-footer">
-                    <button type="reset" class="btn btn-secondary" data-dismiss="modal">Salir</button>
-                    <button type="submit" name="action" value="add" class="btn btn-info">Guardar</button>
+
+
+                    <button type="button" class="btn btn-default" data-dismiss="modal">
+
+                        <i class="fas fa-times mr-1"></i>
+
+                        Cancelar
+
+                    </button>
+
+
+                    <button type="submit" id="btnGuardarRol" class="btn btn-info">
+
+                        <i class="fas fa-save mr-1"></i>
+
+                        Guardar
+
+                    </button>
+
+
                 </div>
+
+
             </form>
+
+
         </div>
+
+
     </div>
+
+
 </div>

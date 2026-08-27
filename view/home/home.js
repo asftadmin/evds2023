@@ -18,7 +18,7 @@ $(document).ready(function () {
         console.log($userEmpleado);
         $userEmpleado.html(data);
     });
-});
+}); 
 
 $('#btnBuscarEmpl').click(function () {
 

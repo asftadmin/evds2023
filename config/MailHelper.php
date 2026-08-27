@@ -6,64 +6,86 @@ use PHPMailer\PHPMailer\Exception;
 require_once __DIR__ . '/../vendor/autoload.php';
 
 class MailHelper {
-    public static function enviar($destinatario, $asunto, $mensaje, $adjuntos = []) {
-        $mail = new PHPMailer(true);
+    public static function enviar($destinatario, $asunto, $mensaje, $adjuntos = [])
+{
+    $mail = new PHPMailer(true);
+    $archivos_temp = [];
 
-        $archivos_temp = [];
+    try {
+        // Configuración SMTP.
+        $mail->isSMTP();
+        $mail->Host       = 'outlook.office365.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'admin@asfaltart.com';
+        $mail->Password   = 'ase@5X5p$BVQWmB';
+        $mail->SMTPSecure = 'tls';
+        $mail->Port       = 587;
 
-        try {
-            $mail->isSMTP();
-            $mail->Host       = 'outlook.office365.com';
-            $mail->SMTPAuth   = true;
-            $mail->Username   = 'admin@asfaltart.com';
-            $mail->Password   = 'ase@5X5p$BVQWmB';
-            $mail->SMTPSecure = 'tls';
-            $mail->Port       = 587;
+        // Evita que una conexión SMTP demore demasiado si existe un problema.
+        $mail->Timeout = 15;
 
-            $mail->setFrom('admin@asfaltart.com', 'Sistema Permisos');
+        // Configuración del remitente.
+        $mail->setFrom('admin@asfaltart.com', 'Sistema Permisos');
 
-            $mail->CharSet = 'UTF-8';
-            $mail->Encoding = 'base64';
+        $mail->CharSet = 'UTF-8';
+        $mail->Encoding = 'base64';
 
-            $mail->addAddress($destinatario);
+        // Si se recibe un arreglo, enviar un solo correo a múltiples destinatarios.
+        if (is_array($destinatario)) {
+            $destinatarios = array_unique(array_filter($destinatario));
 
-            $mail->isHTML(true);
-            $mail->Subject = $asunto;
-            $mail->Body    = $mensaje;
-
-            // Adjuntar archivos
-            if (!empty($adjuntos) && is_array($adjuntos)) {
-                foreach ($adjuntos as $ruta) {
-                    // Siempre son rutas FTP, descargar temporalmente
-                    $ruta_local = self::descargar_de_ftp($ruta);
-                    if ($ruta_local) {
-                        $mail->addAttachment($ruta_local);
-                        $archivos_temp[] = $ruta_local;
-                    }
+            foreach ($destinatarios as $correo) {
+                if (filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+                    $mail->addBCC($correo);
                 }
             }
-
-            $mail->send();
-
-            if (!empty($archivos_temp)) {
-                foreach ($archivos_temp as $temp) {
-                    if (file_exists($temp)) {
-                        unlink($temp);
-                    }
-                }
+        } else {
+            // Mantener compatibilidad con los envíos existentes de un solo correo.
+            if (filter_var($destinatario, FILTER_VALIDATE_EMAIL)) {
+                $mail->addAddress($destinatario);
             }
-            /* 
-            foreach ($archivos_temp as $temp) {
-                if (file_exists($temp)) unlink($temp);
-            } */
+        }
 
-
-            return true;
-        } catch (Exception $e) {
-            error_log("Error enviando correo: " . $mail->ErrorInfo);
+        // Validar que exista al menos un destinatario válido.
+        if (count($mail->getAllRecipientAddresses()) === 0) {
+            error_log("MailHelper: No existen destinatarios válidos para enviar el correo.");
             return false;
         }
+
+        // Configuración del contenido.
+        $mail->isHTML(true);
+        $mail->Subject = $asunto;
+        $mail->Body    = $mensaje;
+
+        // Descargar y adjuntar archivos FTP una sola vez.
+        if (!empty($adjuntos) && is_array($adjuntos)) {
+            foreach ($adjuntos as $ruta) {
+                $ruta_local = self::descargar_de_ftp($ruta);
+
+                if ($ruta_local) {
+                    $mail->addAttachment($ruta_local);
+                    $archivos_temp[] = $ruta_local;
+                }
+            }
+        }
+
+        // Realizar un único envío SMTP.
+        $mail->send();
+
+        return true;
+    } catch (Exception $e) {
+        error_log("Error enviando correo: " . $mail->ErrorInfo);
+        return false;
+    } finally {
+        // Eliminar siempre los archivos temporales, exista o no error de envío.
+        foreach ($archivos_temp as $temp) {
+            if (file_exists($temp)) {
+                unlink($temp);
+            }
+        }
     }
+}
+
 
     private static function descargar_de_ftp($ruta_remota) {
         $ftp_server = "172.16.5.3";

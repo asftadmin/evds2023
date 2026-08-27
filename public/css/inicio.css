@@ -34,6 +34,324 @@
 }
 
 
+/* ============================================================
+   SIDEBAR - MENÚ PRINCIPAL
+   ============================================================ */
+
+
+/* Logo */
+.sidebar-brand-custom {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 78px;
+    padding: 14px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-brand-logo {
+    max-width: 165px;
+    max-height: 52px;
+}
+
+
+/* Título */
+.sidebar-menu-title {
+    padding: 17px 16px 9px;
+    color: rgba(255, 255, 255, 0.48);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+}
+
+
+/* Navegación */
+.sidebar-navigation {
+    padding-bottom: 15px;
+}
+
+.sidebar-menu-custom {
+    padding: 0 8px;
+}
+
+.sidebar-menu-custom > .nav-item {
+    margin-bottom: 4px;
+}
+
+
+/* ============================================================
+   MENÚ PRINCIPAL Y GRUPOS
+   ============================================================ */
+
+.sidebar-menu-custom > .nav-item > .nav-link {
+    min-height: 43px;
+    padding: 10px 12px;
+    border-radius: 7px;
+    color: rgba(255, 255, 255, 0.82);
+    transition:
+        background 0.2s ease,
+        color 0.2s ease;
+}
+
+.sidebar-menu-custom > .nav-item > .nav-link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+}
+
+
+/* Iconos principales */
+.sidebar-menu-custom > .nav-item > .nav-link > .nav-icon {
+    width: 22px;
+    margin-right: 8px;
+    font-size: 15px;
+    text-align: center;
+}
+
+
+/* Texto */
+.sidebar-menu-text,
+.sidebar-group-text {
+    font-size: 14px;
+}
+
+.sidebar-group-icon {
+    color: rgba(255, 255, 255, 0.82);
+    opacity: 1;
+}
+
+
+/* ============================================================
+   GRUPO ABIERTO
+   ============================================================ */
+
+.sidebar-menu-custom .sidebar-group-item.menu-open > .menu-group-link {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+.sidebar-menu-custom .sidebar-group-item.menu-open > .menu-group-link .sidebar-group-icon {
+    color: #ffffff !important;
+}
+
+
+/* Flecha */
+.sidebar-group-arrow {
+    top: 14px !important;
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+
+/* ============================================================
+   SUBMENÚ
+   ============================================================ */
+
+/* Contenedor de submenús */
+.sidebar-submenu {
+    margin: 5px 0 10px 22px !important;
+    padding: 3px 0 3px 10px !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* Cada fila del submenú */
+.sidebar-submenu-item {
+    width: calc(100% - 12px);
+    margin-right: 12px;
+    margin-bottom: 2px;
+}
+
+/* Enlace */
+.sidebar-menu-custom .sidebar-submenu-link {
+    width: 100% !important;
+    box-sizing: border-box;
+}
+
+/* Activo */
+.sidebar-menu-custom .sidebar-submenu-link.active {
+    background: rgba(23, 162, 184, 0.32) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    box-shadow: inset 4px 0 0 #17a2b8 !important;
+    border-radius: 6px;
+}
+
+.sidebar-menu-custom .sidebar-submenu-link:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #ffffff;
+}
+
+
+/* Iconos internos */
+.sidebar-submenu-icon {
+    width: 18px !important;
+    margin-right: 6px !important;
+    font-size: 12px !important;
+    opacity: 0.72;
+}
+
+.sidebar-submenu-text {
+    font-size: 13px !important;
+}
+
+
+/* ============================================================
+   SUBMENÚ ACTIVO
+   ============================================================ */
+
+.sidebar-menu-custom .sidebar-submenu-link.active {
+    width: auto !important;
+    margin-right: 0 !important;
+
+    background: rgba(10, 79, 84, 1) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+
+    box-shadow: inset 4px 0 0 #acdfe3!important;
+    border-radius: 6px;
+}
+
+
+/* Icono activo */
+.sidebar-menu-custom .sidebar-submenu-link.active .sidebar-submenu-icon {
+    color: #61e5ef !important;
+    opacity: 1;
+}
+
+
+/* Texto activo */
+.sidebar-menu-custom .sidebar-submenu-link.active .sidebar-submenu-text {
+    color: #ffffff !important;
+}
+
+
+/* ============================================================
+   ACCESO DIRECTO ACTIVO
+   ============================================================ */
+
+.sidebar-menu-custom .direct-menu-link.active {
+    background: rgba(23, 162, 184, 0.32) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    box-shadow: inset 4px 0 0 #17a2b8 !important;
+}
+
+.sidebar-menu-custom .direct-menu-link.active .sidebar-menu-icon {
+    color: #61e5ef !important;
+}
+
+
+/* ============================================================
+   ESTADO HOVER DEL GRUPO
+   ============================================================ */
+
+.sidebar-menu-custom .menu-group-link:hover .sidebar-group-icon {
+    color: #ffffff !important;
+    opacity: 1 !important;
+
+}
+
+
+/* ============================================================
+   SCROLL DEL SIDEBAR
+   ============================================================ */
+
+.main-sidebar .sidebar {
+    overflow-x: hidden;
+}
+
+/* ============================================================
+   SIDEBAR COMPRIMIDO
+   ============================================================ */
+
+/* Ocultar el título cuando el sidebar está comprimido */
+body.sidebar-collapse .sidebar-menu-title {
+    display: none;
+}
+
+
+/* Quitar espacios adicionales del menú */
+body.sidebar-collapse .sidebar-menu-custom {
+    padding: 0 6px;
+}
+
+
+/* Centrar los íconos principales */
+body.sidebar-collapse .sidebar-menu-custom > .nav-item > .nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 5px;
+}
+
+
+/* El ícono no necesita margen cuando no existe texto visible */
+body.sidebar-collapse .sidebar-menu-custom > .nav-item > .nav-link > .nav-icon {
+    width: 24px;
+    margin: 0 !important;
+    font-size: 16px;
+}
+
+
+/* Ocultar texto y flecha de los grupos */
+body.sidebar-collapse .sidebar-menu-custom > .nav-item > .nav-link > p {
+    display: none;
+}
+
+body.sidebar-collapse .sidebar-group-arrow {
+    display: none;
+}
+
+
+/* No mostrar submenús mientras el sidebar esté comprimido */
+body.sidebar-collapse .sidebar-menu-custom .nav-treeview {
+    display: none !important;
+}
+
+
+/* Eliminar cualquier formato residual del submenú */
+body.sidebar-collapse .sidebar-submenu {
+    margin: 0 !important;
+    padding: 0 !important;
+    border-left: 0 !important;
+}
+
+
+/* Evitar que un grupo abierto conserve estilos extraños */
+body.sidebar-collapse
+.sidebar-menu-custom
+.sidebar-group-item.menu-open
+> .menu-group-link {
+    background: transparent !important;
+}
+
+
+/* Mantener visible el grupo actual de forma discreta */
+body.sidebar-collapse
+.sidebar-menu-custom
+.sidebar-group-item.menu-open
+> .menu-group-link {
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+
+/* ============================================================
+   LOGO COMPRIMIDO
+   ============================================================ */
+
+body.sidebar-collapse .sidebar-brand-custom {
+    min-height: 74px;
+    padding: 15px 5px;
+    overflow: hidden;
+}
+
+body.sidebar-collapse .sidebar-brand-logo {
+    max-width: 45px;
+    width: 45px;
+    height: 38px;
+    object-fit: contain;
+}
 
 
 

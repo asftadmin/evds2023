@@ -355,32 +355,62 @@ PERMISOS EMPLEADO
         }
 
         error_log("Enviando correo con " . count($adjuntos) . " adjuntos");
-        // =================================================
-        // ENVIAR SOLO AL JEFE
-        // =================================================
-        if (!empty($jefes)) {
 
-            foreach ($jefes as $jefe) {
+// =================================================
+// ENVIAR CORREO A LOS JEFES
+// =================================================
+if (!empty($jefes)) {
 
-                if (!empty($jefe->correo_jefe)) {
+    $correos_jefes = [];
 
-                    error_log("Enviando correo al jefe: " . $jefe->correo_jefe);
+    // Recopilar los correos de los jefes.
+    foreach ($jefes as $jefe) {
 
-                    MailHelper::enviar(
-                        $jefe->correo_jefe,
-                        $asunto,
-                        $mensaje,
-                        $adjuntos
-                    );
-                } else {
+        if (!empty($jefe->correo_jefe)) {
 
-                    error_log("Jefe sin correo configurado: " . $jefe->nombre_jefe);
-                }
-            }
+            $correos_jefes[] = trim($jefe->correo_jefe);
+
+            error_log("Jefe agregado al envío: " . $jefe->correo_jefe);
+
         } else {
 
-            error_log("No se encontraron jefes para el empleado");
+            error_log("Jefe sin correo configurado: " . $jefe->nombre_jefe);
         }
+    }
+
+    // Eliminar correos duplicados.
+    $correos_jefes = array_unique($correos_jefes);
+
+    // Enviar un solo correo a todos los jefes.
+    if (!empty($correos_jefes)) {
+
+        error_log(
+            "Enviando correo a " .
+            count($correos_jefes) .
+            " jefe(s)"
+        );
+
+        $correo_enviado = MailHelper::enviar(
+            $correos_jefes,
+            $asunto,
+            $mensaje,
+            $adjuntos
+        );
+
+        if (!$correo_enviado) {
+
+            error_log("No se pudo enviar el correo de notificación.");
+        }
+
+    } else {
+
+        error_log("No existen correos válidos de jefes para enviar.");
+    }
+
+} else {
+
+    error_log("No se encontraron jefes para el empleado");
+}
         //MailHelper::enviar("rhumano@asfaltart.com", $asunto, $mensaje, $adjuntos);
 
         error_log("=== FIN GUARDAR PERMISO ===\n");

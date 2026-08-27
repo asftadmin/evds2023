@@ -1,121 +1,286 @@
 <?php
+
 require_once "../../config/conexion.php";
+
 if (isset($_SESSION["user_id"])) {
 
 ?>
 
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
+
     <meta charset="utf-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <?php require_once("../MainHead/head.php")?>
+
+    <?php require_once("../MainHead/head.php") ?>
+
+
     <!-- Select2 -->
     <link rel="stylesheet" href="../../public/plugins/select2/css/select2.min.css">
+
     <link rel="stylesheet" href="../../public/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
-    <link rel="stylesheet" href="../../public/css/preop.css">
 
-    <link rel="stylesheet" href="../../public/css/style.css">
-    <title>EVALUACIÓN DESEMPEÑO</title>
 
+    <title>ADMINISTRACIÓN DE ROLES</title>
 
 </head>
 
-<body class="hold-transition sidebar-mini">
-    <!-- Site wrapper -->
+
+<body class="hold-transition sidebar-mini layout-fixed layout-footer-fixed">
+
     <div class="wrapper">
+
+
         <!-- Navbar -->
-        <?php require_once("../MainNav/nav.php")?>
-        <!-- /.navbar -->
+        <?php require_once("../MainNav/nav.php") ?>
 
-        <?php require_once("../MainMenu/menu.php")?>
 
-        <!-- Content Wrapper. Contains page content -->
+        <!-- Main Sidebar -->
+        <?php require_once("../MainMenu/menu.php") ?>
+
+
+        <!-- Content Wrapper -->
         <div class="content-wrapper">
-            <!-- Content Header (Page header) -->
+
+
+            <!-- ================================================= -->
+            <!-- CONTENT HEADER                                    -->
+            <!-- ================================================= -->
+
             <section class="content-header">
+
                 <div class="container-fluid">
+
                     <div class="row mb-2">
+
+
                         <div class="col-sm-6">
-                            <h1>Mantenimiento Roles</h1>
+
+                            <h1>
+                                Administración de Roles
+                            </h1>
+
                         </div>
+
+
                         <div class="col-sm-6">
+
                             <ol class="breadcrumb float-sm-right">
-                                <li class="breadcrumb-item"><a href="#">Inicio</a></li>
-                                <li class="breadcrumb-item active">Roles</li>
+
+                                <li class="breadcrumb-item">
+
+                                    <a href="#">
+                                        Inicio
+                                    </a>
+
+                                </li>
+
+                                <li class="breadcrumb-item active">
+                                    Roles
+                                </li>
+
                             </ol>
+
                         </div>
+
+
                     </div>
-                </div><!-- /.container-fluid -->
+
+                </div>
+
             </section>
 
-            <!-- Main content -->
+
+            <!-- ================================================= -->
+            <!-- MAIN CONTENT                                      -->
+            <!-- ================================================= -->
+
             <section class="content">
 
-                <!-- Default box -->
-                <div class="card">
+
+                <!-- ================================================= -->
+                <!-- CARD ROLES REGISTRADOS                            -->
+                <!-- ================================================= -->
+
+                <div class="card card-outline card-dark">
+
+
                     <div class="card-header">
 
+                        <h3 class="card-title">
+
+                            <i class="fas fa-user-shield mr-2"></i>
+
+                            Roles Registrados
+
+                        </h3>
+
+
                         <div class="card-tools">
-                            <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
-                                <i class="fas fa-minus"></i>
+
+                            <button type="button" id="btnNuevoRol" class="btn btn-info btn-sm">
+
+                                <i class="fas fa-plus mr-1"></i>
+
+                                Nuevo Rol
+
                             </button>
 
                         </div>
-                        <button id="btnNuevoRol" type="button" class="btn btn-flat bg-gradient-info">Nuevo Rol</button>
+
                     </div>
+
+
                     <div class="card-body">
 
-                        <table id="pre_data" class="table table-bordered table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Codigo</th>
-                                    <th>Nombre Rol</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
 
-                            <tbody>
+                        <div class="alert alert-light border">
 
-                            </tbody>
+                            <i class="fas fa-info-circle text-info mr-1"></i>
 
-                        </table>
+                            Desde esta sección puede crear roles,
+                            modificar su estado y administrar los menús
+                            disponibles para cada rol.
+
+                        </div>
+
+
+                        <div class="table-responsive">
+
+
+                            <table id="roles_data" class="table table-hover table-striped table-bordered"
+                                style="width:100%;">
+
+
+                                <thead class="thead-light">
+
+                                    <tr>
+
+
+                                        <th style="width: 90px;">
+
+                                            <i class="fas fa-hashtag mr-1"></i>
+
+                                            Código
+
+                                        </th>
+
+
+                                        <th>
+
+                                            <i class="fas fa-user-tag mr-1"></i>
+
+                                            Nombre del Rol
+
+                                        </th>
+
+
+                                        <th class="text-center" style="width: 120px;">
+
+                                            Estado
+
+                                        </th>
+
+
+                                        <th class="text-center" style="width: 180px;">
+
+                                            Acciones
+
+                                        </th>
+
+
+                                    </tr>
+
+                                </thead>
+
+
+                                <tbody>
+
+                                </tbody>
+
+
+                            </table>
+
+
+                        </div>
 
 
                     </div>
-                    <!-- /.card-body -->
+
 
                 </div>
-                <!-- /.card -->
+
 
             </section>
             <!-- /.content -->
+
+
         </div>
         <!-- /.content-wrapper -->
 
-        <?php require_once("../MainFooter/footer.php")?>
+
+        <!-- Footer -->
+        <?php require_once("../MainFooter/footer.php") ?>
+
 
         <!-- Control Sidebar -->
         <aside class="control-sidebar control-sidebar-dark">
-            <!-- Control sidebar content goes here -->
+
         </aside>
-        <!-- /.control-sidebar -->
+
+
     </div>
     <!-- ./wrapper -->
-    <?php require_once("mantenimiento_rol.php")?>
-    <?php require_once("mantenimiento_permisos.php")?>
-    <?php require_once("../MainJS/JS.php")?>
+
+
+    <!-- ========================================================= -->
+    <!-- MODALES                                                   -->
+    <!-- ========================================================= -->
+
+    <?php require_once("mantenimiento_rol.php") ?>
+
+    <?php require_once("mantenimiento_permisos.php") ?>
+
+
+    <!-- ========================================================= -->
+    <!-- JS GENERAL                                                -->
+    <!-- ========================================================= -->
+
+    <?php require_once("../MainJS/JS.php") ?>
+
+
     <!-- Select2 -->
-    <script src="../../public/plugins/select2/js/select2.full.min.js"></script>
-    <script type="text/javascript" src="mntrol.js"></script>
+    <script src="../../public/plugins/select2/js/select2.full.min.js">
+    </script>
+
+
+    <!-- ========================================================= -->
+    <!-- JS DEL MÓDULO                                             -->
+    <!-- ========================================================= -->
+
+    <script type="text/javascript" src="mntrol.js">
+    </script>
+
 
 </body>
 
 </html>
+
+
 <?php
+
 } else {
-    header("location:" . Conectar::ruta() . "index.php");
+
+    header(
+        "location:"
+            . Conectar::ruta()
+            . "index.php"
+    );
+
+    exit();
 }
+
 ?>
