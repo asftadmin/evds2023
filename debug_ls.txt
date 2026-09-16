@@ -1,0 +1,11 @@
+SALIDA LS:
+batch           abort
+confirm         off
+Connecting to 172.16.5.3 ...
+Connected
+Starting the session...
+Session started.
+Active session: [1] asfaltart_admin@172.16.5.3
+/data01/permisos/LILIANA_MARCELA_RINCON_AMADO/2026-08-19
+D---------   0                           0              ..
+-rwxrwxrwx   0 1064     1000        256950 Aug 19  9:37:54 2026 SALUDTOTAL.pdf

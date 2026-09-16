@@ -174,16 +174,32 @@ function jornada_calcular_intervalo(
 
     $dia_semana = (int)$inicio->format('N');
     $es_festivo = $modelo->fecha_es_festiva($fecha);
-    $descuento_almuerzo = (
+    $descuento_almuerzo = 0;
+    $fin_cumplimiento_base = $inicio->modify(
+        '+' . (int)$regla['jreg_max_lunes_viernes_min'] . ' minutes'
+    );
+    $almuerzo_inicio = new DateTimeImmutable($fecha . ' 12:00:00');
+    if (
         $dia_semana >= 1
         && $dia_semana <= 5
-    ) ? (int)$regla['jreg_almuerzo_min'] : 0;
-
-    // Nunca permite que el descuento produzca una duración negativa.
-    $minutos_ordinarios = max(
-        0,
-        $duracion_minutos - $descuento_almuerzo
-    );
+        && $inicio < $almuerzo_inicio
+        && $fin_cumplimiento_base > $almuerzo_inicio
+    ) {
+        $almuerzo_fin = $almuerzo_inicio->modify(
+            '+' . (int)$regla['jreg_almuerzo_min'] . ' minutes'
+        );
+        $solapamiento_inicio = $inicio > $almuerzo_inicio
+            ? $inicio
+            : $almuerzo_inicio;
+        $solapamiento_fin = $fin < $almuerzo_fin ? $fin : $almuerzo_fin;
+        if ($solapamiento_fin > $solapamiento_inicio) {
+            $descuento_almuerzo = (int)(
+                ($solapamiento_fin->getTimestamp()
+                    - $solapamiento_inicio->getTimestamp()) / 60
+            );
+        }
+    }
+    $minutos_ordinarios = max(0, $duracion_minutos - $descuento_almuerzo);
 
     return [
         'inicio' => $inicio->format('Y-m-d H:i:s'),

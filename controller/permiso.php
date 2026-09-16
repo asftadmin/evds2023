@@ -1,19 +1,16 @@
 <?php
 
-require_once("../config/conexion.php");
-require_once("../models/Permiso.php");
-require_once("../models/Firma.php");
-require_once("../models/TipoPermiso.php");
-require_once("../models/Asignacion.php");
-require_once("../config/MailHelper.php");
-require_once("curl.php");
-
+require_once ('../config/conexion.php');
+require_once ('../models/Permiso.php');
+require_once ('../models/Firma.php');
+require_once ('../models/TipoPermiso.php');
+require_once ('../models/Asignacion.php');
+require_once ('../config/MailHelper.php');
+require_once ('curl.php');
 
 $permiso = new Permiso();
 $tipo_permiso = new TipoPermiso();
 $asignacion = new Asignacion();
-
-
 
 /**
  * Genera un nombre único basado en timestamp
@@ -25,46 +22,44 @@ $asignacion = new Asignacion();
     $ext   = isset($info['extension']) ? "." . $info['extension'] : "";
     return $base . "_" . date("Ymd_His") . $ext;
 } */
-
-
-function ftp_mksubdirs_safe($ftp, $path) {
+function ftp_mksubdirs_safe($ftp, $path)
+{
     $parts = explode('/', trim($path, '/'));
-    $fullpath = "";
+    $fullpath = '';
 
     foreach ($parts as $part) {
+        if ($part == '')
+            continue;
 
-        if ($part == "") continue;
-
-        $fullpath .= "/" . $part;
+        $fullpath .= '/' . $part;
 
         // Intentar cambiar
         if (@ftp_chdir($ftp, $fullpath)) {
             // Existe → regresar a raíz y seguir
-            ftp_chdir($ftp, "/");
+            ftp_chdir($ftp, '/');
             continue;
         }
 
         // Si no existe → intentar crearlo
         if (!@ftp_mkdir($ftp, $fullpath)) {
-            return false; // No se pudo crear
+            return false;  // No se pudo crear
         }
     }
 
     return true;
 }
 
-
-
-function obtenerSalarioSiesa($cedula) {
+function obtenerSalarioSiesa($cedula)
+{
     $cedula = trim($cedula);
 
     // OJO: sin espacios en "cedula=..."
-    $url  = "idCompania=6026";
-    $url .= "&descripcion=asfaltart_salarioxempleado";
-    $url .= "&paginacion=" . urlencode("numPag=1|tamPag=100");
-    $url .= "&parametros=" . urlencode("cedula={$cedula}");
+    $url = 'idCompania=6026';
+    $url .= '&descripcion=asfaltart_salarioxempleado';
+    $url .= '&paginacion=' . urlencode('numPag=1|tamPag=100');
+    $url .= '&parametros=' . urlencode("cedula={$cedula}");
 
-    $method = "GET";
+    $method = 'GET';
 
     // Esta es tu misma función CURL que ya usas con SIESA
     $response = CurlController::requestEstandar($url, $method);
@@ -80,11 +75,11 @@ function obtenerSalarioSiesa($cedula) {
     // Validación básica
     if (!isset($response->codigo) || $response->codigo != 0) {
         return [
-            "success" => false,
-            "cedula"  => $cedula,
-            "salario" => 0,
-            "message" => "Error consultando Siesa",
-            "debug"   => $response
+            'success' => false,
+            'cedula' => $cedula,
+            'salario' => 0,
+            'message' => 'Error consultando Siesa',
+            'debug' => $response
         ];
     }
 
@@ -98,11 +93,11 @@ function obtenerSalarioSiesa($cedula) {
 
     if (empty($rows) || !isset($rows[0])) {
         return [
-            "success" => true,
-            "cedula"  => $cedula,
-            "salario" => 0,
-            "message" => "Sin datos para esa cédula",
-            "debug"   => $response
+            'success' => true,
+            'cedula' => $cedula,
+            'salario' => 0,
+            'message' => 'Sin datos para esa cédula',
+            'debug' => $response
         ];
     }
 
@@ -112,40 +107,38 @@ function obtenerSalarioSiesa($cedula) {
     $salario_raw = $row->c0550_salario ?? 0;
 
     // Normalizar salario (por si viene con separadores)
-    $salario = (float) str_replace([",", " "], ["", ""], (string)$salario_raw);
+    $salario = (float) str_replace([',', ' '], ['', ''], (string) $salario_raw);
 
     return [
-        "success" => true,
-        "cedula"  => $cedula,
-        "salario" => $salario
+        'success' => true,
+        'cedula' => $cedula,
+        'salario' => $salario
     ];
 }
 
-switch ($_GET["op"]) {
-
+switch ($_GET['op']) {
     /*======================================================
 
 PERMISOS EMPLEADO
 
 ========================================================*/
     case 'guardarPermiso':
-
-        $id_empleado = $_POST["empleado_codi"];
-        $fecha_permiso = $_POST["fecha_permiso"];
-        $hora_salida = $_POST["timepicker_salida"];
-        $hora_ingreso = $_POST["timepicker_entrada"];
+        $id_empleado = $_POST['empleado_codi'];
+        $fecha_permiso = $_POST['fecha_permiso'];
+        $hora_salida = $_POST['timepicker_salida'];
+        $hora_ingreso = $_POST['timepicker_entrada'];
 
         // Datos recibidos del formulario
-        $motivo = $_POST["permiso_motivo"];
-        $detalle = $_POST["permiso_detalle"];
-        $firma_base64 = $_POST["firma"];
-        $permiso_token   = $_POST["permiso_token"] ?? null;
+        $motivo = $_POST['permiso_motivo'];
+        $detalle = $_POST['permiso_detalle'];
+        $firma_base64 = $_POST['firma'];
+        $permiso_token = $_POST['permiso_token'] ?? null;
 
         // LOG PARA DEPURAR
-        error_log("=== INICIO GUARDAR PERMISO ===");
-        error_log("Token recibido: " . ($permiso_token ?? 'NO HAY TOKEN'));
+        error_log('=== INICIO GUARDAR PERMISO ===');
+        error_log('Token recibido: ' . ($permiso_token ?? 'NO HAY TOKEN'));
         error_log("ID Empleado: $id_empleado");
-        error_log("Nombre sesión: " . $_SESSION["nomb_empl"]);
+        error_log('Nombre sesión: ' . $_SESSION['nomb_empl']);
 
         // =================================================
         // 1️⃣ CREAR PERMISO
@@ -160,12 +153,12 @@ PERMISOS EMPLEADO
             $firma_base64
         );
 
-        error_log("Permiso creado con ID: " . ($permiso_id ? $permiso_id : 'FALLO'));
+        error_log('Permiso creado con ID: ' . ($permiso_id ? $permiso_id : 'FALLO'));
 
         if (!$permiso_id) {
             echo json_encode([
-                "success" => false,
-                "error"   => "No se pudo guardar el permiso."
+                'success' => false,
+                'error' => 'No se pudo guardar el permiso.'
             ]);
             exit;
         }
@@ -174,59 +167,57 @@ PERMISOS EMPLEADO
         // MIGRAR SOPORTES TEMPORALES
         // =================================================
         if (!empty($permiso_token)) {
-
             error_log("=== INICIO MIGRACIÓN PARA TOKEN: $permiso_token ===");
 
             // 1️⃣ Obtener soportes temporales desde BD
             $soportes_temp = $permiso->get_soportes_temp_por_token($permiso_token);
 
-            error_log("Soportes temporales encontrados: " . count($soportes_temp));
+            error_log('Soportes temporales encontrados: ' . count($soportes_temp));
 
             if (!empty($soportes_temp)) {
-
                 // 2️⃣ Usar el nombre de empleado de la sesión (ya viene del login)
-                $nomb_empl = str_replace(" ", "_", trim($_SESSION["nomb_empl"]));
-                $fecha_actual = date("Y-m-d");
+                $nomb_empl = str_replace(' ', '_', trim($_SESSION['nomb_empl']));
+                $fecha_actual = date('Y-m-d');
 
                 error_log("Nombre empleado para ruta: $nomb_empl");
                 error_log("Fecha actual: $fecha_actual");
 
                 // 3️⃣ Conectar FTP
-                $ftp_server = "172.16.5.3";
-                $ftp_user   = "asfaltart_admin";
-                $ftp_pass   = "s1st3m4s19..";
+                $ftp_server = '172.16.5.3';
+                $ftp_user = 'asfaltart_admin';
+                $ftp_pass = 's1st3m4s19..';
 
                 $ftp = ftp_connect($ftp_server);
 
                 if ($ftp && ftp_login($ftp, $ftp_user, $ftp_pass)) {
                     ftp_pasv($ftp, true);
-                    error_log("Conexión FTP exitosa");
+                    error_log('Conexión FTP exitosa');
 
                     // 4️⃣ Crear carpeta definitiva
                     $remotePathDef = "data01/permisos/$nomb_empl/$fecha_actual";
                     error_log("Creando carpeta definitiva: $remotePathDef");
 
                     if (ftp_mksubdirs_safe($ftp, $remotePathDef)) {
-                        error_log("Carpeta definitiva creada/existe");
+                        error_log('Carpeta definitiva creada/existe');
 
                         // 5️⃣ Migrar cada archivo
                         foreach ($soportes_temp as $temp) {
-                            $ruta_origen = $temp["soporte_ruta"];
-                            $nombre_archivo = $temp["soporte_nombre"];
+                            $ruta_origen = $temp['soporte_ruta'];
+                            $nombre_archivo = $temp['soporte_nombre'];
                             $ruta_destino = "/$remotePathDef/$nombre_archivo";
 
-                            error_log("Intentando mover:");
+                            error_log('Intentando mover:');
                             error_log("  ORIGEN: $ruta_origen");
                             error_log("  DESTINO: $ruta_destino");
 
                             // Verificar si el archivo origen existe en FTP
                             $file_size = ftp_size($ftp, $ruta_origen);
-                            error_log("  Tamaño archivo origen: " . ($file_size !== -1 ? $file_size : 'NO EXISTE'));
+                            error_log('  Tamaño archivo origen: ' . ($file_size !== -1 ? $file_size : 'NO EXISTE'));
 
                             if ($file_size !== -1) {
                                 // Mover archivo en FTP
                                 if (ftp_rename($ftp, $ruta_origen, $ruta_destino)) {
-                                    error_log(" MOVIMIENTO EXITOSO");
+                                    error_log(' MOVIMIENTO EXITOSO');
 
                                     // Registrar en BD definitiva
                                     $registro_bd = $permiso->registrar_soporte_permiso(
@@ -234,50 +225,50 @@ PERMISOS EMPLEADO
                                         $nombre_archivo,
                                         $ruta_destino
                                     );
-                                    error_log("  Registro en BD: " . ($registro_bd ? 'EXITOSO' : 'FALLÓ'));
+                                    error_log('  Registro en BD: ' . ($registro_bd ? 'EXITOSO' : 'FALLÓ'));
                                 } else {
-                                    error_log("FALLÓ EL MOVIMIENTO");
+                                    error_log('FALLÓ EL MOVIMIENTO');
                                     // Intentar copiar y luego borrar como alternativa
-                                    error_log("  Intentando método alternativo...");
-                                    if (ftp_get($ftp, "temp_local_" . $nombre_archivo, $ruta_origen, FTP_BINARY)) {
-                                        if (ftp_put($ftp, $ruta_destino, "temp_local_" . $nombre_archivo, FTP_BINARY)) {
+                                    error_log('  Intentando método alternativo...');
+                                    if (ftp_get($ftp, 'temp_local_' . $nombre_archivo, $ruta_origen, FTP_BINARY)) {
+                                        if (ftp_put($ftp, $ruta_destino, 'temp_local_' . $nombre_archivo, FTP_BINARY)) {
                                             ftp_delete($ftp, $ruta_origen);
-                                            unlink("temp_local_" . $nombre_archivo);
+                                            unlink('temp_local_' . $nombre_archivo);
                                             $permiso->registrar_soporte_permiso($permiso_id, $nombre_archivo, $ruta_destino);
-                                            error_log("  ✅ MÉTODO ALTERNATIVO EXITOSO");
+                                            error_log('  ✅ MÉTODO ALTERNATIVO EXITOSO');
                                         }
                                     }
                                 }
                             } else {
-                                error_log("ARCHIVO ORIGEN NO EXISTE EN FTP");
+                                error_log('ARCHIVO ORIGEN NO EXISTE EN FTP');
                             }
                         }
                     } else {
-                        error_log("No se pudo crear carpeta definitiva");
+                        error_log('No se pudo crear carpeta definitiva');
                     }
 
                     ftp_close($ftp);
                 } else {
-                    error_log("No se pudo conectar al FTP");
+                    error_log('No se pudo conectar al FTP');
                 }
 
                 // 6️⃣ Eliminar registros temporales de BD
                 $eliminados = $permiso->eliminar_soportes_temp_por_token($permiso_token);
-                error_log("Registros temporales eliminados: " . ($eliminados ? 'SI' : 'NO'));
+                error_log('Registros temporales eliminados: ' . ($eliminados ? 'SI' : 'NO'));
             } else {
-                error_log("No hay soportes temporales para este token");
+                error_log('No hay soportes temporales para este token');
             }
         } else {
-            error_log("No hay token para migrar");
+            error_log('No hay token para migrar');
         }
 
         // =================================================
         // OBTENER SOPORTES DEFINITIVOS
         // =================================================
         $soportes = $permiso->get_soportes_permiso($permiso_id);
-        error_log("Soportes definitivos encontrados: " . count($soportes));
+        error_log('Soportes definitivos encontrados: ' . count($soportes));
         foreach ($soportes as $s) {
-            error_log("  Ruta guardada: " . $s["soporte_ruta"]);
+            error_log('  Ruta guardada: ' . $s['soporte_ruta']);
         }
 
         // =================================================
@@ -285,15 +276,14 @@ PERMISOS EMPLEADO
         // =================================================
         $jefes = $asignacion->obtener_jefe_inmediato($id_empleado);
 
-
         // =================================================
         // PREPARAR CORREO
         // =================================================
         $nomb_motiv = $tipo_permiso->listar_tipo_permiso_x_id($motivo);
-        $nombre_empleado = $_SESSION["nomb_empl"];
+        $nombre_empleado = $_SESSION['nomb_empl'];
 
-        $asunto = "Nueva solicitud de permiso";
-        $url = "http://181.204.219.154:3396/evds2023/view/MntInbox/inboxSol.php";
+        $asunto = 'Nueva solicitud de permiso';
+        $url = 'http://181.204.219.154:3396/evds2023/view/MntInbox/inboxSol.php';
 
         $mensaje = "
         <div style='font-family: Arial, sans-serif; background-color:#f4f6f9; padding:20px;'>
@@ -351,85 +341,76 @@ PERMISOS EMPLEADO
         // =================================================
         $adjuntos = [];
         foreach ($soportes as $s) {
-            $adjuntos[] = $s["soporte_ruta"];
+            $adjuntos[] = $s['soporte_ruta'];
         }
 
-        error_log("Enviando correo con " . count($adjuntos) . " adjuntos");
+        error_log('Enviando correo con ' . count($adjuntos) . ' adjuntos');
 
-// =================================================
-// ENVIAR CORREO A LOS JEFES
-// =================================================
-if (!empty($jefes)) {
+        // =================================================
+        // ENVIAR CORREO A LOS JEFES
+        // =================================================
+        if (!empty($jefes)) {
+            $correos_jefes = [];
 
-    $correos_jefes = [];
+            // Recopilar los correos de los jefes.
+            foreach ($jefes as $jefe) {
+                if (!empty($jefe->correo_jefe)) {
+                    $correos_jefes[] = trim($jefe->correo_jefe);
 
-    // Recopilar los correos de los jefes.
-    foreach ($jefes as $jefe) {
+                    error_log('Jefe agregado al envío: ' . $jefe->correo_jefe);
+                } else {
+                    error_log('Jefe sin correo configurado: ' . $jefe->nombre_jefe);
+                }
+            }
 
-        if (!empty($jefe->correo_jefe)) {
+            // Eliminar correos duplicados.
+            $correos_jefes = array_unique($correos_jefes);
 
-            $correos_jefes[] = trim($jefe->correo_jefe);
+            // Enviar un solo correo a todos los jefes.
+            if (!empty($correos_jefes)) {
+                error_log(
+                    'Enviando correo a '
+                    . count($correos_jefes)
+                    . ' jefe(s)'
+                );
 
-            error_log("Jefe agregado al envío: " . $jefe->correo_jefe);
+                $correo_enviado = MailHelper::enviar(
+                    $correos_jefes,
+                    $asunto,
+                    $mensaje,
+                    $adjuntos
+                );
 
+                if (!$correo_enviado) {
+                    error_log('No se pudo enviar el correo de notificación.');
+                }
+            } else {
+                error_log('No existen correos válidos de jefes para enviar.');
+            }
         } else {
-
-            error_log("Jefe sin correo configurado: " . $jefe->nombre_jefe);
+            error_log('No se encontraron jefes para el empleado');
         }
-    }
-
-    // Eliminar correos duplicados.
-    $correos_jefes = array_unique($correos_jefes);
-
-    // Enviar un solo correo a todos los jefes.
-    if (!empty($correos_jefes)) {
-
-        error_log(
-            "Enviando correo a " .
-            count($correos_jefes) .
-            " jefe(s)"
-        );
-
-        $correo_enviado = MailHelper::enviar(
-            $correos_jefes,
-            $asunto,
-            $mensaje,
-            $adjuntos
-        );
-
-        if (!$correo_enviado) {
-
-            error_log("No se pudo enviar el correo de notificación.");
-        }
-
-    } else {
-
-        error_log("No existen correos válidos de jefes para enviar.");
-    }
-
-} else {
-
-    error_log("No se encontraron jefes para el empleado");
-}
-        //MailHelper::enviar("rhumano@asfaltart.com", $asunto, $mensaje, $adjuntos);
+        // MailHelper::enviar("rhumano@asfaltart.com", $asunto, $mensaje, $adjuntos);
 
         error_log("=== FIN GUARDAR PERMISO ===\n");
-        echo json_encode(["success" => true]);
+        echo json_encode(['success' => true]);
         break;
-    /*========= FIN GUARDAR PERMISOS================*/
+        /* ========= FIN GUARDAR PERMISOS================ */
 
-    /**============================================= 
-     * 
+    /*
+     * =============================================
+     *
      * FUNCIONES PARA BUZON DE EMPLEADOS
-     * 
-     *============================================== */
+     *
+     * ==============================================
+     */
 
     case 'listarMisPermisos':
-        $empleado_id = $_SESSION["id_empl"];
-        $fecha_desde = !empty($_POST["fecha_desde"]) ? $_POST["fecha_desde"] : null;
-        $fecha_hasta = !empty($_POST["fecha_hasta"]) ? $_POST["fecha_hasta"] : null;
-        $estados_raw = $_POST["estados"] ?? '';
-        $estados     = !empty($estados_raw)
+        $empleado_id = $_SESSION['id_empl'];
+        $fecha_desde = !empty($_POST['fecha_desde']) ? $_POST['fecha_desde'] : null;
+        $fecha_hasta = !empty($_POST['fecha_hasta']) ? $_POST['fecha_hasta'] : null;
+        $estados_raw = $_POST['estados'] ?? '';
+        $estados = !empty($estados_raw)
             ? array_map('trim', explode(',', $estados_raw))
             : null;
 
@@ -443,24 +424,24 @@ if (!empty($jefes)) {
         break;
 
     case 'getPermisoEmpleado':
-        $permiso_id = $_POST["permiso_id"];
-        $datos      = $permiso->get_permiso_empleado($permiso_id);
+        $permiso_id = $_POST['permiso_id'];
+        $datos = $permiso->get_permiso_empleado($permiso_id);
         echo json_encode($datos);
         break;
 
-    /**FIN FUNCIONES BUZON EMPLEADOS */
+    /* FIN FUNCIONES BUZON EMPLEADOS */
 
-    case "listarSolicitudesJefe":
-        $empleado_id = $_SESSION["id_empl"];
+    case 'listarSolicitudesJefe':
+        $empleado_id = $_SESSION['id_empl'];
         $datos = $permiso->get_solicitudes_jefe($empleado_id);
         $data = array();
-        //$tickets = [];
+        // $tickets = [];
         foreach ($datos as $solicitud) {
             $sub_array = array();
-            $sub_array[] = date('d-m-Y', strtotime($solicitud["permiso_fecha"]));
-            $sub_array[] = $solicitud["tipo_nombre"];
-            $sub_array[] = $solicitud["nomb_empl"];
-            $estado = $solicitud["estado_permiso"];
+            $sub_array[] = date('d-m-Y', strtotime($solicitud['permiso_fecha']));
+            $sub_array[] = $solicitud['tipo_nombre'];
+            $sub_array[] = $solicitud['nomb_empl'];
+            $estado = $solicitud['estado_permiso'];
             $badge = '';
 
             switch ($estado) {
@@ -489,7 +470,7 @@ if (!empty($jefes)) {
 
             $sub_array[] = '<div class="text-center">' . $badge . '</div>';
             $sub_array[] = '<div class="button-container text-center" >
-                    <button type="button" onClick="verPermiso(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-dark btn-icon " >
+                    <button type="button" onClick="verPermiso(' . $solicitud['permiso_id'] . ');" id="' . $solicitud['permiso_id'] . '" class="btn btn-dark btn-icon " >
                         <div><i class="fas fa-eye"></i></div>
                     </button>
                 </div>';
@@ -498,37 +479,34 @@ if (!empty($jefes)) {
         }
 
         $results = array(
-            "sEcho" => 1,
-            "iTotalRecords" => count($data),
-            "iTotalDisplayRecords" => count($data),
-            "aaData" => $data
+            'sEcho' => 1,
+            'iTotalRecords' => count($data),
+            'iTotalDisplayRecords' => count($data),
+            'aaData' => $data
         );
         echo json_encode($results);
 
-
-
         break;
 
-    case "listarSolicitudesRecursos":
-
-        $empleado_id   = $_POST["empleado_id"] ?? "";
-        $fecha_desde = !empty($_POST["fecha_desde"]) ? $_POST["fecha_desde"] : null;
-        $fecha_hasta = !empty($_POST["fecha_hasta"]) ? $_POST["fecha_hasta"] : null;
+    case 'listarSolicitudesRecursos':
+        $empleado_id = $_POST['empleado_id'] ?? '';
+        $fecha_desde = !empty($_POST['fecha_desde']) ? $_POST['fecha_desde'] : null;
+        $fecha_hasta = !empty($_POST['fecha_hasta']) ? $_POST['fecha_hasta'] : null;
 
         $datos = $permiso->get_solicitudes_recursos($empleado_id, $fecha_desde, $fecha_hasta);
         $data = array();
-        //$tickets = [];
+        // $tickets = [];
         foreach ($datos as $solicitud) {
             $sub_array = array();
-            $sub_array[] = $solicitud["empleado_nombre"];
-            $sub_array[] = date('d-m-Y', strtotime($solicitud["permiso_fecha"]));
-            $sub_array[] = $solicitud["tipo_nombre"];
-            $sub_array[] = $solicitud["jefe_nombre"];
-            $sub_array[] = (!empty($solicitud["fecha_actu_permiso"]) && $solicitud["fecha_actu_permiso"] != "0000-00-00 00:00:00")
-                ? date('d-m-Y H:i:s', strtotime($solicitud["fecha_actu_permiso"]))
+            $sub_array[] = $solicitud['empleado_nombre'];
+            $sub_array[] = date('d-m-Y', strtotime($solicitud['permiso_fecha']));
+            $sub_array[] = $solicitud['tipo_nombre'];
+            $sub_array[] = $solicitud['jefe_nombre'];
+            $sub_array[] = (!empty($solicitud['fecha_actu_permiso']) && $solicitud['fecha_actu_permiso'] != '0000-00-00 00:00:00')
+                ? date('d-m-Y H:i:s', strtotime($solicitud['fecha_actu_permiso']))
                 : '';
 
-            $estado = $solicitud["estado_permiso"];
+            $estado = $solicitud['estado_permiso'];
             $badge = '';
 
             switch ($estado) {
@@ -558,47 +536,45 @@ if (!empty($jefes)) {
             $sub_array[] = '<div class="text-center">' . $badge . '</div>';
 
             $sub_array[] = '<div class="button-container text-center" >
-                    <button type="button" onClick="ver(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-warning btn-icon " >
+                    <button type="button" onClick="ver(' . $solicitud['permiso_id'] . ');" id="' . $solicitud['permiso_id'] . '" class="btn btn-warning btn-icon " >
                         <div><i class="fas fa-edit"></i></div>
                     </button>
-                    <button type="button" onClick="verTimeline(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-dark btn-icon " >
+                    <button type="button" onClick="verTimeline(' . $solicitud['permiso_id'] . ');" id="' . $solicitud['permiso_id'] . '" class="btn btn-dark btn-icon " >
                         <div><i class="fas fa-stream"></i></div>
                     </button>
-                    <button type="button" onClick="verPdf(' . $solicitud["permiso_id"] . ');" id="' . $solicitud["permiso_id"] . '" class="btn btn-success btn-icon " >
+                    <button type="button" onClick="verPdf(' . $solicitud['permiso_id'] . ');" id="' . $solicitud['permiso_id'] . '" class="btn btn-success btn-icon " >
                         <div><i class="fas fa-file-pdf"></i></div>
                     </button>
                     <button type="button" onclick="eliminar(
-                                ' . $solicitud["permiso_id"] . ',
-                                \'' . addslashes($solicitud["empleado_nombre"]) . '\',
-                                \'' . date('d/m/Y', strtotime($solicitud["permiso_fecha"])) . '\'
+                                ' . $solicitud['permiso_id'] . ",
+                                '" . addslashes($solicitud['empleado_nombre']) . "',
+                                '" . date('d/m/Y', strtotime($solicitud['permiso_fecha'])) . '\'
                             );"
                             class="btn btn-danger btn-icon">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>';
 
-            $sub_array[] = (!empty($solicitud["permiso_creado"]) && $solicitud["permiso_creado"] != "0000-00-00 00:00:00")
-                ? date('d-m-Y H:i:s', strtotime($solicitud["permiso_creado"]))
+            $sub_array[] = (!empty($solicitud['permiso_creado']) && $solicitud['permiso_creado'] != '0000-00-00 00:00:00')
+                ? date('d-m-Y H:i:s', strtotime($solicitud['permiso_creado']))
                 : '';
 
-            $sub_array[] = $solicitud["permiso_detalle"];
+            $sub_array[] = $solicitud['permiso_detalle'];
 
             $data[] = $sub_array;
         }
 
         $results = array(
-            "sEcho" => 1,
-            "iTotalRecords" => count($data),
-            "iTotalDisplayRecords" => count($data),
-            "aaData" => $data
+            'sEcho' => 1,
+            'iTotalRecords' => count($data),
+            'iTotalDisplayRecords' => count($data),
+            'aaData' => $data
         );
         echo json_encode($results);
 
         break;
 
-
-
-    case "detallePermiso":
+    case 'detallePermiso':
         if (!isset($_GET['id'])) {
             echo json_encode(['status' => 'error', 'message' => 'ID no proporcionado']);
             exit;
@@ -615,11 +591,11 @@ if (!empty($jefes)) {
             exit;
         }
 
-        $row = $detalle; // es solo un registro
+        $row = $detalle;  // es solo un registro
 
         // Datos del empleado y jefe inmediato
-        $empleado  = $row['empleado_nombre'];
-        $jefe      = $row['jefe_nombre'];
+        $empleado = $row['empleado_nombre'];
+        $jefe = $row['jefe_nombre'];
 
         // HTML construido dinámicamente
         $html = '';
@@ -631,7 +607,6 @@ if (!empty($jefes)) {
         $html .= '<p><b>Jefe Inmediato:</b> ' . htmlspecialchars($jefe) . '</p>';
 
         $html .= '</div><hr>';
-
 
         /* =============================
         FORMULARIO EDITABLE (RRHH)
@@ -655,21 +630,21 @@ if (!empty($jefes)) {
 
         // motivo
         $html .= '<label class="mt-2">Motivo:</label>';
-        $html .= '<select id="permiso_motivo" name="permiso_motivo" class="form-control" data-valorbd="' . $row["tipo_id"] . '">';
-        //$html .= '<option value="' . $row['tipo_id'] . '">' . $row['tipo_nombre'] . '</option>';
+        $html .= '<select id="permiso_motivo" name="permiso_motivo" class="form-control" data-valorbd="' . $row['tipo_id'] . '">';
+        // $html .= '<option value="' . $row['tipo_id'] . '">' . $row['tipo_nombre'] . '</option>';
         $html .= '</select>';
-        //<option value='".$row['tipo_id']."'>".$row['tipo_nombre']."</option>
+        // <option value='".$row['tipo_id']."'>".$row['tipo_nombre']."</option>
 
-        //incapacidad oculto
+        // incapacidad oculto
 
         $html .= '<div id="bloqueIncapacidad" style="display:none;">';
         $html .= '<label class="mt-2">Tipo de Incapacidad:</label>';
-        $html .= '<select id="incapacidad_id" name="incapacidad_id" class="form-control select2" data-valorbd="' . $row["perm_inca_id"] . '">';
+        $html .= '<select id="incapacidad_id" name="incapacidad_id" class="form-control select2" data-valorbd="' . $row['perm_inca_id'] . '">';
         $html .= '<option value="">Seleccione una incapacidad</option>';
         $html .= '</select>';
         $html .= '</div>';
 
-        // justificación 
+        // justificación
         $html .= '<label class="mt-2">Justificación:</label>';
         $html .= '<textarea id="permiso_justificacion" name="permiso_justificacion" class="form-control">' . $row['permiso_detalle'] . '</textarea>';
 
@@ -694,10 +669,17 @@ if (!empty($jefes)) {
         $html .= '</label>';
         $html .= '</div>';
         $html .= '</div>';
+        // Cargar la fecha de cierre guardada; si no existe, usar la fecha del permiso.
+        $fecha_cierre_valor = !empty($row['perm_fecha_cierre'])
+            ? date('Y-m-d', strtotime($row['perm_fecha_cierre']))
+            : $row['permiso_fecha'];
+
         $html .= '<label class="mt-2">Fecha Cierre Permiso:</label>';
-        $html .= '<input type="date" id="permiso_fecha_cierre" name="permiso_fecha_cierre" class="form-control" data-target="#reservationdate_fecha" value="' . $row['permiso_fecha'] . '">';
-        $html .= '<div class="input-group-append" data-target="#reservationdate_fecha" data-toggle="datetimepicker">';
-        $html .= '</div>';
+        $html .= '<input type="date" id="permiso_fecha_cierre" name="permiso_fecha_cierre" class="form-control" value="' . $fecha_cierre_valor . '">';
+        /*         $html .= '<label class="mt-2">Fecha Cierre Permiso:</label>';
+                $html .= '<input type="date" id="permiso_fecha_cierre" name="permiso_fecha_cierre" class="form-control" data-target="#reservationdate_fecha" value="' . $row['permiso_fecha'] . '">';
+                $html .= '<div class="input-group-append" data-target="#reservationdate_fecha" data-toggle="datetimepicker">';
+                $html .= '</div>'; */
 
         $html .= '<label class="mt-2">Total Horas:</label>';
         $html .= '<input type="text" id="permiso_total_horas" name="permiso_total_horas" class="form-control" autocomplete="off" value="" readonly>';
@@ -720,20 +702,16 @@ if (!empty($jefes)) {
 
         $html .= '</form>';
 
-
-
         echo json_encode([
             'status' => 'success',
             'html' => $html,
-            'trabaja_sabado' => (int)($row['trabaja_sabado'] ?? 0)
+            'trabaja_sabado' => (int) ($row['trabaja_sabado'] ?? 0)
         ]);
-
 
         break;
 
-    case "timeline":
-
-        $permiso_id = $_POST["permiso_id"];
+    case 'timeline':
+        $permiso_id = $_POST['permiso_id'];
 
         // Modelo trae SOLO el permiso (1 registro)
         $respuesta = $permiso->get_permiso($permiso_id);
@@ -747,56 +725,54 @@ if (!empty($jefes)) {
         // -----------------------------------------
         // FUNCIÓN DE ICONOS DENTRO DEL CONTROLLER
         // -----------------------------------------
-        function obtenerIconoPorEstado($estado) {
-
+        function obtenerIconoPorEstado($estado)
+        {
             $iconos = [
-                "1" => ["icon" => "fas fa-hourglass-half", "bg" => "bg-secondary"], // Pendiente
-                "2" => ["icon" => "fas fa-check",          "bg" => "bg-success"], // Aprobado Jefe
-                "3" => ["icon" => "fas fa-user-tie",       "bg" => "bg-primary"], // VoBo RRHH
-                "4" => ["icon" => "fas fa-exclamation",    "bg" => "bg-warning"],    // Aprobado con pendientes
-                "5" => ["icon" => "fas fa-exclamation",    "bg" => "bg-warning"],    // Aprobado con pendientes
-                "6" => ["icon" => "fas fa-times",          "bg" => "bg-danger"],  // Rechazado Jefe
-                "7" => ["icon" => "fas fa-ban",            "bg" => "bg-dark"],    // Cancelado Operación
+                '1' => ['icon' => 'fas fa-hourglass-half', 'bg' => 'bg-secondary'],  // Pendiente
+                '2' => ['icon' => 'fas fa-check', 'bg' => 'bg-success'],  // Aprobado Jefe
+                '3' => ['icon' => 'fas fa-user-tie', 'bg' => 'bg-primary'],  // VoBo RRHH
+                '4' => ['icon' => 'fas fa-exclamation', 'bg' => 'bg-warning'],  // Aprobado con pendientes
+                '5' => ['icon' => 'fas fa-exclamation', 'bg' => 'bg-warning'],  // Aprobado con pendientes
+                '6' => ['icon' => 'fas fa-times', 'bg' => 'bg-danger'],  // Rechazado Jefe
+                '7' => ['icon' => 'fas fa-ban', 'bg' => 'bg-dark'],  // Cancelado Operación
             ];
 
-            return $iconos[$estado] ?? ["icon" => "fas fa-info-circle", "bg" => "bg-primary"];
+            return $iconos[$estado] ?? ['icon' => 'fas fa-info-circle', 'bg' => 'bg-primary'];
         }
 
         // -----------------------------------------
         // GENERACIÓN DEL TIMELINE
         // -----------------------------------------
-        $html = "";
-
+        $html = '';
 
         // ------------------------
         // 1. PERMISO CREADO
         // ------------------------
-        if (!empty($data["permiso_creado"])) {
-
-            $fecha = date("d M Y", strtotime($data["permiso_creado"]));
-            $hora  = date("h:i A", strtotime($data["permiso_creado"]));
+        if (!empty($data['permiso_creado'])) {
+            $fecha = date('d M Y', strtotime($data['permiso_creado']));
+            $hora = date('h:i A', strtotime($data['permiso_creado']));
 
             // El icono SIEMPRE debe ser el del estado 1 (solicitado)
             $ico = obtenerIconoPorEstado(1);
 
             // Texto correspondiente
-            if ($data["permiso_estado"] >= 1) {
-                $titulo = "Permiso Solicitado";
-                $descripcion = "El empleado radicó la solicitud.";
+            if ($data['permiso_estado'] >= 1) {
+                $titulo = 'Permiso Solicitado';
+                $descripcion = 'El empleado radicó la solicitud.';
             } else {
                 // fallback seguro
-                $titulo = "Registro del Permiso";
-                $descripcion = "Se registró la radicación del permiso.";
+                $titulo = 'Registro del Permiso';
+                $descripcion = 'Se registró la radicación del permiso.';
             }
 
             // HTML del timeline
             $html .= '
                 <div class="time-label">
-                    <span class="' . $ico["bg"] . '">' . $fecha . '</span>
+                    <span class="' . $ico['bg'] . '">' . $fecha . '</span>
                 </div>
 
                 <div>
-                    <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
+                    <i class="' . $ico['icon'] . ' ' . $ico['bg'] . '"></i>
 
                     <div class="timeline-item">
                         <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
@@ -809,44 +785,40 @@ if (!empty($jefes)) {
             ';
         }
 
-
         // ------------------------
         // 2. APROBACIÓN / RECHAZO DEL JEFE
         // ------------------------
-        if (!empty($data["fecha_actu_permiso"])) {
-
-            $fecha = date("d M Y", strtotime($data["fecha_actu_permiso"]));
-            $hora  = date("h:i A", strtotime($data["fecha_actu_permiso"]));
+        if (!empty($data['fecha_actu_permiso'])) {
+            $fecha = date('d M Y', strtotime($data['fecha_actu_permiso']));
+            $hora = date('h:i A', strtotime($data['fecha_actu_permiso']));
 
             // Determinar si aprobó o rechazó
-            if ($data["permiso_estado"] == 2) {
-
+            if ($data['permiso_estado'] == 2) {
                 // Aprobado por jefe
                 $ico = obtenerIconoPorEstado(2);
-                $titulo = "Aprobación del Jefe";
-                $descripcion = "Aprobacion por el jefe inmediato.";
-            } elseif ($data["permiso_estado"] == 6) {
-
+                $titulo = 'Aprobación del Jefe';
+                $descripcion = 'Aprobacion por el jefe inmediato.';
+            } elseif ($data['permiso_estado'] == 6) {
                 // Rechazado por jefe
                 $ico = obtenerIconoPorEstado(6);
-                $titulo = "Permiso Rechazado por el Jefe";
-                $descripcion = !empty($data["rechazo_permiso"])
-                    ? $data["rechazo_permiso"]
-                    : "El jefe rechazó el permiso.";
+                $titulo = 'Permiso Rechazado por el Jefe';
+                $descripcion = !empty($data['rechazo_permiso'])
+                    ? $data['rechazo_permiso']
+                    : 'El jefe rechazó el permiso.';
             } else {
                 // Si el estado no corresponde, no mostrar este bloque.
                 $ico = obtenerIconoPorEstado(2);
-                $titulo = "Gestión del Jefe";
-                $descripcion = "Aprobacion realizada por el jefe.";
+                $titulo = 'Gestión del Jefe';
+                $descripcion = 'Aprobacion realizada por el jefe.';
             }
 
             $html .= '
                 <div class="time-label">
-                    <span class="' . $ico["bg"] . '">' . $fecha . '</span>
+                    <span class="' . $ico['bg'] . '">' . $fecha . '</span>
                 </div>
 
                 <div>
-                    <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
+                    <i class="' . $ico['icon'] . ' ' . $ico['bg'] . '"></i>
 
                     <div class="timeline-item">
                         <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
@@ -858,32 +830,30 @@ if (!empty($jefes)) {
                 </div>';
         }
 
-
         // --------------------------------
         // 3. VISTO BUENO DE RRHH
         // --------------------------------
         if (
-            !empty($data["fecha_actu_rrhh"]) &&
-            $data["fecha_actu_rrhh"] != "0000-00-00 00:00:00"
+            !empty($data['fecha_actu_rrhh']) &&
+            $data['fecha_actu_rrhh'] != '0000-00-00 00:00:00'
         ) {
+            $fecha = date('d M Y', strtotime($data['fecha_actu_rrhh']));
+            $hora = date('h:i A', strtotime($data['fecha_actu_rrhh']));
 
-            $fecha = date("d M Y", strtotime($data["fecha_actu_rrhh"]));
-            $hora  = date("h:i A", strtotime($data["fecha_actu_rrhh"]));
-
-            $ico = obtenerIconoPorEstado($data["permiso_estado"]);
+            $ico = obtenerIconoPorEstado($data['permiso_estado']);
 
             // ============================
             // TEXTO SEGÚN ESTADO
             // ============================
-            if ($data["permiso_estado"] == '3') {
-                $titulo = "V°B° Gestión Humana";
-                $descripcion = "Gestión Humana validó y cerró el permiso.";
-            } elseif ($data["permiso_estado"] == '4') {
-                $titulo = "Aprobado con Pendientes";
-                $descripcion = "El permiso fue aprobado, pero queda pendiente la carga de soportes.";
+            if ($data['permiso_estado'] == '3') {
+                $titulo = 'V°B° Gestión Humana';
+                $descripcion = 'Gestión Humana validó y cerró el permiso.';
+            } elseif ($data['permiso_estado'] == '4') {
+                $titulo = 'Aprobado con Pendientes';
+                $descripcion = 'El permiso fue aprobado, pero queda pendiente la carga de soportes.';
             } else {
-                $titulo = "Actualización de Gestión Humana";
-                $descripcion = "Se registró una actualización por parte de Gestión Humana.";
+                $titulo = 'Actualización de Gestión Humana';
+                $descripcion = 'Se registró una actualización por parte de Gestión Humana.';
             }
 
             // ============================
@@ -891,11 +861,11 @@ if (!empty($jefes)) {
             // ============================
             $html .= '
                 <div class="time-label">
-                    <span class="' . $ico["bg"] . '">' . $fecha . '</span>
+                    <span class="' . $ico['bg'] . '">' . $fecha . '</span>
                 </div>
 
                 <div>
-                    <i class="' . $ico["icon"] . ' ' . $ico["bg"] . '"></i>
+                    <i class="' . $ico['icon'] . ' ' . $ico['bg'] . '"></i>
 
                     <div class="timeline-item">
                         <span class="time"><i class="fas fa-clock"></i> ' . $hora . '</span>
@@ -907,8 +877,6 @@ if (!empty($jefes)) {
                 </div>
             ';
         }
-
-
 
         // ------------------------
         // FIN DEL TIMELINE
@@ -923,61 +891,54 @@ if (!empty($jefes)) {
 
         break;
 
-
-    case "subirSoporte":
-
-        $permiso_id    = $_POST["permiso_id"] ?? null;
-        $permiso_token = $_POST["permiso_token"] ?? null;
+    case 'subirSoporte':
+        $permiso_id = $_POST['permiso_id'] ?? null;
+        $permiso_token = $_POST['permiso_token'] ?? null;
 
         // ===========================
         // VALIDAR ARCHIVO
         // ===========================
 
-        if (!isset($_FILES["file"])) {
+        if (!isset($_FILES['file'])) {
             echo json_encode([
-                "success" => false,
-                "message" => "No se recibió archivo."
+                'success' => false,
+                'message' => 'No se recibió archivo.'
             ]);
             exit;
         }
 
-        $tmpFile  = $_FILES["file"]["tmp_name"];
-        $fileName = $_FILES["file"]["name"];
-        $fecha    = date("Y-m-d");
+        $tmpFile = $_FILES['file']['tmp_name'];
+        $fileName = $_FILES['file']['name'];
+        $fecha = date('Y-m-d');
 
         // ===========================
         // ESCENARIO 1: YA EXISTE PERMISO
         // ===========================
 
         if (!empty($permiso_id)) {
-
             $datosPermiso = $permiso->get_permiso_by_id($permiso_id);
 
             if (!$datosPermiso) {
                 echo json_encode([
-                    "success" => false,
-                    "message" => "Permiso no encontrado."
+                    'success' => false,
+                    'message' => 'Permiso no encontrado.'
                 ]);
                 exit;
             }
 
-            $nomb_empl = str_replace(" ", "_", trim($datosPermiso["nomb_empl"]));
+            $nomb_empl = str_replace(' ', '_', trim($datosPermiso['nomb_empl']));
             $remotePath = "data01/permisos/$nomb_empl/$fecha";
         }
-
         // ===========================
         // ESCENARIO 2: TOKEN TEMPORAL
         // ===========================
-
         elseif (!empty($permiso_token)) {
-
             // 🔹 NUEVO: Guardamos en carpeta temporal usando token
             $remotePath = "data01/permisos/temp/$permiso_token/$fecha";
         } else {
-
             echo json_encode([
-                "success" => false,
-                "message" => "No se recibió permiso_id ni permiso_token."
+                'success' => false,
+                'message' => 'No se recibió permiso_id ni permiso_token.'
             ]);
             exit;
         }
@@ -988,16 +949,16 @@ if (!empty($jefes)) {
         // CREAR CARPETAS FTP
         // ===========================
 
-        $ftp_server = "172.16.5.3";
-        $ftp_user   = "asfaltart_admin";
-        $ftp_pass   = "s1st3m4s19..";
+        $ftp_server = '172.16.5.3';
+        $ftp_user = 'asfaltart_admin';
+        $ftp_pass = 's1st3m4s19..';
 
         $ftp = ftp_connect($ftp_server);
 
         if (!$ftp || !ftp_login($ftp, $ftp_user, $ftp_pass)) {
             echo json_encode([
-                "success" => false,
-                "message" => "No se pudo conectar al servidor FTP."
+                'success' => false,
+                'message' => 'No se pudo conectar al servidor FTP.'
             ]);
             exit;
         }
@@ -1006,8 +967,8 @@ if (!empty($jefes)) {
 
         if (!ftp_mksubdirs_safe($ftp, $remotePath)) {
             echo json_encode([
-                "success" => false,
-                "message" => "No fue posible crear las carpetas en el NAS."
+                'success' => false,
+                'message' => 'No fue posible crear las carpetas en el NAS.'
             ]);
             ftp_close($ftp);
             exit;
@@ -1019,18 +980,18 @@ if (!empty($jefes)) {
         // SUBIR CON WinSCP
         // ===========================
 
-        $scriptPath = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\script_temp.txt";
-        $winscpCom  = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+        $scriptPath = 'C:\xampp\htdocs\evds2023\public\winscp\script_temp.txt';
+        $winscpCom = 'C:\xampp\htdocs\evds2023\public\winscp\WinSCP.com';
 
         $scriptContent =
-            "open ftp://$ftp_user:$ftp_pass@$ftp_server\n" .
-            "put \"$tmpFile\" \"$remoteFullPath\"\n" .
-            "exit\n";
+            "open ftp://$ftp_user:$ftp_pass@$ftp_server\n"
+            . "put \"$tmpFile\" \"$remoteFullPath\"\n"
+            . "exit\n";
 
         file_put_contents($scriptPath, $scriptContent);
 
         $cmd = "\"$winscpCom\" /ini=nul /script=\"$scriptPath\"";
-        exec($cmd . " 2>&1", $output, $resultCode);
+        exec($cmd . ' 2>&1', $output, $resultCode);
 
         unlink($scriptPath);
 
@@ -1039,10 +1000,8 @@ if (!empty($jefes)) {
         // ===========================
 
         if ($resultCode === 0) {
-
             // 🔹 CASO 1: Permiso ya existe
             if (!empty($permiso_id)) {
-
                 // Guardar directamente en tabla definitiva
                 $permiso->registrar_soporte_permiso(
                     $permiso_id,
@@ -1050,10 +1009,8 @@ if (!empty($jefes)) {
                     $remoteFullPath
                 );
             }
-
             // 🔹 CASO 2: Es temporal (ANTES de crear permiso)
             elseif (!empty($permiso_token)) {
-
                 // ===================================================
                 // NUEVO: Registrar en tabla temporal
                 // Esto permite luego migrarlo cuando se cree el permiso
@@ -1066,23 +1023,21 @@ if (!empty($jefes)) {
             }
 
             echo json_encode([
-                "success" => true,
-                "message" => "Soporte subido correctamente"
+                'success' => true,
+                'message' => 'Soporte subido correctamente'
             ]);
         } else {
-
             echo json_encode([
-                "success" => false,
-                "message" => "Error subiendo archivo",
-                "debug"   => $output
+                'success' => false,
+                'message' => 'Error subiendo archivo',
+                'debug' => $output
             ]);
         }
 
         break;
 
-    case "listarSoportes":
-
-        $permiso_id = $_POST["permiso_id"];
+    case 'listarSoportes':
+        $permiso_id = $_POST['permiso_id'];
         $data = $permiso->get_soportes_permiso($permiso_id);
 
         echo json_encode($data);
@@ -1143,41 +1098,40 @@ if (!empty($jefes)) {
 
         break; */
 
-    case "descargarSoporte":
-
-        if (!isset($_GET["file"]) || empty($_GET["file"])) {
-            echo "Archivo no especificado";
+    case 'descargarSoporte':
+        if (!isset($_GET['file']) || empty($_GET['file'])) {
+            echo 'Archivo no especificado';
             exit;
         }
 
-        //Ruta desde BD
-        $ruta_raw = $_GET["file"];
+        // Ruta desde BD
+        $ruta_raw = $_GET['file'];
         $ruta_remota = urldecode($ruta_raw);
 
         $directorio = dirname($ruta_remota);
-        $nombre_bd  = basename($ruta_remota);
+        $nombre_bd = basename($ruta_remota);
 
         // Configuración
-        $scriptPath = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\script.txt";
-        $winscpCom  = "C:\\xampp\\htdocs\\evds2023\\public\\winscp\\WinSCP.com";
+        $scriptPath = 'C:\xampp\htdocs\evds2023\public\winscp\script.txt';
+        $winscpCom = 'C:\xampp\htdocs\evds2023\public\winscp\WinSCP.com';
 
         // =========================================================
         // 1️⃣ LISTAR ARCHIVOS DEL DIRECTORIO FTP
         // =========================================================
         $scriptList =
-            "option batch abort\n" .
-            "option confirm off\n" .
-            "open ftp://asfaltart_admin:s1st3m4s19..@172.16.5.3\n" .
-            "cd \"$directorio\"\n" .
-            "ls\n" .
-            "exit\n";
+            "option batch abort\n"
+            . "option confirm off\n"
+            . "open ftp://asfaltart_admin:s1st3m4s19..@172.16.5.3\n"
+            . "cd \"$directorio\"\n"
+            . "ls\n"
+            . "exit\n";
 
         file_put_contents($scriptPath, $scriptList);
 
         exec("\"$winscpCom\" /ini=nul /script=\"$scriptPath\"", $outputList, $resultList);
 
         file_put_contents(
-            'C:\\xampp\\htdocs\\evds2023\\debug_ls.txt',
+            'C:\xampp\htdocs\evds2023\debug_ls.txt',
             "SALIDA LS:\n" . implode("\n", $outputList)
         );
 
@@ -1188,19 +1142,22 @@ if (!empty($jefes)) {
         $mejor_score = 0;
 
         foreach ($outputList as $linea) {
-
             $linea = trim($linea);
-            if (empty($linea)) continue;
+            if (empty($linea))
+                continue;
 
             $partes = preg_split('/\s+/', $linea);
-            if (count($partes) < 9) continue;
+            if (count($partes) < 9)
+                continue;
 
             // 🔥 EXTRAER NOMBRE REAL
             $nombre_real = implode(' ', array_slice($partes, 9));
 
             // ignorar directorios o líneas raras
-            if ($nombre_real == '..') continue;
-            if (!str_contains($nombre_real, '.')) continue;
+            if ($nombre_real == '..')
+                continue;
+            if (!str_contains($nombre_real, '.'))
+                continue;
 
             // 🔥 MATCH GENERAL (SIN FILTRO WhatsApp)
             similar_text(
@@ -1211,7 +1168,7 @@ if (!empty($jefes)) {
 
             // debug opcional
             file_put_contents(
-                'C:\\xampp\\htdocs\\evds2023\\debug_match.txt',
+                'C:\xampp\htdocs\evds2023\debug_match.txt',
                 "BD: $nombre_bd\nFTP: $nombre_real\nSIMILITUD: $porcentaje\n\n",
                 FILE_APPEND
             );
@@ -1226,40 +1183,39 @@ if (!empty($jefes)) {
         // 3️⃣ VALIDAR MATCH
         // =========================================================
         if ($mejor_score < 70 || !$mejor_match) {
-            echo "No se encontró archivo similar en el servidor.";
+            echo 'No se encontró archivo similar en el servidor.';
             exit;
         }
 
-        $ruta_real = $directorio . "/" . $mejor_match;
+        $ruta_real = $directorio . '/' . $mejor_match;
 
         // =========================================================
         // 4️⃣ DESCARGAR ARCHIVO CORRECTO
         // =========================================================
-        $temp_local = "C:\\xampp\\htdocs\\evds2023\\public\\temp\\";
+        $temp_local = "C:\\xampp\htdocs\\evds2023\public\\temp\\";
 
         if (!is_dir($temp_local)) {
             mkdir($temp_local, 0777, true);
         }
 
-        $nombre_temp = uniqid() . "_" . preg_replace('/[^A-Za-z0-9_\.\-]/', '_', $mejor_match);
-        $ruta_local  = $temp_local . $nombre_temp;
+        $nombre_temp = uniqid() . '_' . preg_replace('/[^A-Za-z0-9_\.\-]/', '_', $mejor_match);
+        $ruta_local = $temp_local . $nombre_temp;
 
-        //ESCAPAR RUTAS (CLAVE)
-        $ruta_real_escaped  = str_replace('"', '\"', $ruta_real);
+        // ESCAPAR RUTAS (CLAVE)
+        $ruta_real_escaped = str_replace('"', '\"', $ruta_real);
         $ruta_local_escaped = str_replace('"', '\"', $ruta_local);
 
         $scriptDownload =
-            "option batch abort\n" .
-            "option confirm off\n" .
-            "open ftp://asfaltart_admin:s1st3m4s19..@172.16.5.3\n" .
-            "cd \"$directorio\"\n" .
-            "get \"$mejor_match\" \"$ruta_local_escaped\"\n" .
-            "exit\n";
+            "option batch abort\n"
+            . "option confirm off\n"
+            . "open ftp://asfaltart_admin:s1st3m4s19..@172.16.5.3\n"
+            . "cd \"$directorio\"\n"
+            . "get \"$mejor_match\" \"$ruta_local_escaped\"\n"
+            . "exit\n";
 
         file_put_contents($scriptPath, $scriptDownload);
 
         exec("\"$winscpCom\" /ini=nul /script=\"$scriptPath\"", $output, $result);
-
 
         unlink($scriptPath);
 
@@ -1267,7 +1223,7 @@ if (!empty($jefes)) {
         // 5️⃣ VALIDAR DESCARGA
         // =========================================================
         if (!file_exists($ruta_local) || filesize($ruta_local) == 0) {
-            echo "No se pudo descargar el archivo.";
+            echo 'No se pudo descargar el archivo.';
             exit;
         }
 
@@ -1277,59 +1233,115 @@ if (!empty($jefes)) {
         $ext = strtolower(pathinfo($mejor_match, PATHINFO_EXTENSION));
 
         $mimeTypes = [
-            'pdf'  => 'application/pdf',
-            'jpg'  => 'image/jpeg',
+            'pdf' => 'application/pdf',
+            'jpg' => 'image/jpeg',
             'jpeg' => 'image/jpeg',
-            'png'  => 'image/png',
-            'doc'  => 'application/msword',
+            'png' => 'image/png',
+            'doc' => 'application/msword',
             'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         ];
 
         $contentType = $mimeTypes[$ext] ?? 'application/octet-stream';
-        $modo        = (isset($_GET["download"]) && $_GET["download"] == 1) ? 'attachment' : 'inline';
+        $modo = (isset($_GET['download']) && $_GET['download'] == 1) ? 'attachment' : 'inline';
 
         if (ob_get_length()) {
             ob_end_clean();
         }
 
-        header("Content-Description: File Transfer");
+        header('Content-Description: File Transfer');
         header("Content-Type: $contentType");
-        header("Content-Disposition: $modo; filename=\"" . $mejor_match . "\"");
-        header("Content-Length: " . filesize($ruta_local));
-        header("Cache-Control: no-cache, must-revalidate");
-        header("Pragma: public");
-        header("Expires: 0");
+        header("Content-Disposition: $modo; filename=\"" . $mejor_match . '"');
+        header('Content-Length: ' . filesize($ruta_local));
+        header('Cache-Control: no-cache, must-revalidate');
+        header('Pragma: public');
+        header('Expires: 0');
 
         readfile($ruta_local);
 
         unlink($ruta_local);
         exit;
 
-    case "updateRecursos":
-
-
+    case 'updateRecursos':
         $permisoID = $_POST['permiso_id'];
 
         // ID del empleado logueado
-        $fecha_permiso = $_POST["permiso_fecha"];
-        $hora_salida = $_POST["permiso_hora_salida"];
-        $hora_ingreso = $_POST["permiso_hora_entrada"];
+        $fecha_permiso = $_POST['permiso_fecha'];
+        $hora_salida = $_POST['permiso_hora_salida'];
+        $hora_ingreso = $_POST['permiso_hora_entrada'];
 
         // Datos recibidos del formulario
-        $motivo = $_POST["permiso_motivo"];
-        $detalle = $_POST["permiso_justificacion"];
-        $estado = $_POST["permiso_estado"];
+        $motivo = $_POST['permiso_motivo'];
+        $detalle = $_POST['permiso_justificacion'];
+        $estado = $_POST['permiso_estado'];
 
-        $rrhh_id     = $_SESSION["id_empl"];
-        //$fecha_actu  = date("Y-m-d H:i:s");
+        $rrhh_id = $_SESSION['id_empl'];
+        // $fecha_actu  = date("Y-m-d H:i:s");
 
-        $fecha_cierre = $_POST["permiso_fecha_cierre"];
+        $fecha_cierre = $_POST['permiso_fecha_cierre'];
 
-        $total_horas = $_POST["permiso_total_horas"];
+        $total_horas = $_POST['permiso_total_horas'];
 
-        $incapacidad_id = $_POST["incapacidad_id"] ?? null;
+        $incapacidad_id = $_POST['incapacidad_id'] ?? null;
 
-        $turno_nocturno = isset($_POST["chk_turno_nocturno"]) ? 1 : 0;
+        $turno_nocturno = isset($_POST['chk_turno_nocturno']) ? 1 : 0;
+
+        header('Content-Type: application/json; charset=utf-8');
+
+        // Validar que existan las fechas y horas necesarias.
+        if (
+            empty($fecha_permiso) ||
+            empty($fecha_cierre) ||
+            empty($hora_salida) ||
+            empty($hora_ingreso)
+        ) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Debe completar las fechas y horas del permiso.'
+            ]);
+            exit;
+        }
+
+        // Convertir las fechas para poder compararlas.
+        $fecha_inicio_obj = new DateTime($fecha_permiso);
+        $fecha_cierre_obj = new DateTime($fecha_cierre);
+
+        if ($fecha_cierre_obj < $fecha_inicio_obj) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'La fecha de cierre no puede ser anterior a la fecha del permiso.'
+            ]);
+            exit;
+        }
+
+        // Convertir horas a minutos.
+        $salida_minutos =
+            ((int) substr($hora_salida, 0, 2) * 60)
+            + (int) substr($hora_salida, 3, 2);
+
+        $entrada_minutos =
+            ((int) substr($hora_ingreso, 0, 2) * 60)
+            + (int) substr($hora_ingreso, 3, 2);
+
+        if (
+            $fecha_permiso === $fecha_cierre &&
+            $entrada_minutos <= $salida_minutos
+        ) {
+            echo json_encode([
+                'success' => false,
+                'error' => $turno_nocturno == 1
+                    ? 'El turno nocturno debe finalizar al día siguiente.'
+                    : 'La hora de entrada debe ser posterior a la hora de salida.'
+            ]);
+            exit;
+        }
+
+        if (!is_numeric($total_horas) || (float) $total_horas <= 0) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'El total de horas del permiso debe ser mayor a cero.'
+            ]);
+            exit;
+        }
 
         $resultado = $permiso->actualizar_permiso_rrhh(
             $permisoID,
@@ -1346,25 +1358,35 @@ if (!empty($jefes)) {
             $turno_nocturno
         );
 
-
-        if ($resultado) {
-            echo json_encode(["success" => true, "message" => "Actualizado correctamente"]);
+        if (!empty($resultado['success'])) {
+            echo json_encode([
+                'success' => true,
+                'message' => 'Actualizado correctamente'
+            ]);
         } else {
-            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+            echo json_encode([
+                'success' => false,
+                'error' => $resultado['error'] ?? 'No se pudo guardar el permiso.'
+            ]);
         }
 
-
+        /*
+         * if ($resultado) {
+         *     echo json_encode(['success' => true, 'message' => 'Actualizado correctamente']);
+         * } else {
+         *     echo json_encode(['success' => false, 'error' => 'No se pudo guardar el permiso.']);
+         * }
+         */
 
         break;
 
-    case "listarAusentismo":
-
-        error_log("POST recibido: " . print_r($_POST, true));
+    case 'listarAusentismo':
+        error_log('POST recibido: ' . print_r($_POST, true));
 
         // Recibe del daterangepicker (en formato YYYY-MM-DD)
-        $empleado_id = $_POST["empleado_id"] ?? "";
-        $fecha_ini = $_POST["fecha_ini"] ?? $_POST["fecha_desde"] ?? "";
-        $fecha_fin = $_POST["fecha_fin"] ?? $_POST["fecha_hasta"] ?? "";
+        $empleado_id = $_POST['empleado_id'] ?? '';
+        $fecha_ini = $_POST['fecha_ini'] ?? $_POST['fecha_desde'] ?? '';
+        $fecha_fin = $_POST['fecha_fin'] ?? $_POST['fecha_hasta'] ?? '';
 
         $datos = $permiso->get_ausentismo($fecha_ini, $fecha_fin, $empleado_id);
 
@@ -1372,48 +1394,46 @@ if (!empty($jefes)) {
         $cacheSalarios = [];
 
         foreach ($datos as $row) {
-
-            $cedula = $row["cedu_empl"] ?? "";
+            $cedula = $row['cedu_empl'] ?? '';
 
             if (!isset($cacheSalarios[$cedula])) {
-                $cacheSalarios[$cedula] = obtenerSalarioSiesa($cedula); // Esto devuelve un array
+                $cacheSalarios[$cedula] = obtenerSalarioSiesa($cedula);  // Esto devuelve un array
             }
 
             // CORRECCIÓN: Acceder correctamente al salario del array
-            $salario = (float)($cacheSalarios[$cedula]["salario"] ?? 0);
+            $salario = (float) ($cacheSalarios[$cedula]['salario'] ?? 0);
             $ibc_hora = ($salario > 0) ? ($salario / 30 / 7.34) : 0;
 
-            $horas = (float)($row["permiso_total_horas"] ?? 0);
+            $horas = (float) ($row['permiso_total_horas'] ?? 0);
             $costo = $ibc_hora * $horas;
 
             $sub = [];
-            $sub[] = $row["permiso_id"];
-            $sub[] = !empty($row["permiso_fecha"]) ? date("d/m/Y", strtotime($row["permiso_fecha"])) : "";
-            $sub[] = !empty($row["perm_fecha_cierre"]) ? date("d/m/Y", strtotime($row["perm_fecha_cierre"])) : "";
+            $sub[] = $row['permiso_id'];
+            $sub[] = !empty($row['permiso_fecha']) ? date('d/m/Y', strtotime($row['permiso_fecha'])) : '';
+            $sub[] = !empty($row['perm_fecha_cierre']) ? date('d/m/Y', strtotime($row['perm_fecha_cierre'])) : '';
             $sub[] = $cedula;
-            $sub[] = $row["nomb_empl"] ?? "";
-            $sub[] = $row["tipo_nombre"] ?? "";
+            $sub[] = $row['nomb_empl'] ?? '';
+            $sub[] = $row['tipo_nombre'] ?? '';
 
-            $sub[] = number_format($salario, 2, ".", ",");
-            $sub[] = number_format($ibc_hora, 2, ".", ",");
-            $sub[] = number_format($horas, 2, ".", ",");
-            $sub[] = number_format($costo, 2, ".", ",");
+            $sub[] = number_format($salario, 2, '.', ',');
+            $sub[] = number_format($ibc_hora, 2, '.', ',');
+            $sub[] = number_format($horas, 2, '.', ',');
+            $sub[] = number_format($costo, 2, '.', ',');
 
-            $sub[] = $row["inca_codigo"] ?? "";
-            $sub[] = $row["inca_nombre"] ?? "";
+            $sub[] = $row['inca_codigo'] ?? '';
+            $sub[] = $row['inca_nombre'] ?? '';
 
             $data[] = $sub;
         }
 
         echo json_encode([
-            "sEcho" => 1,
-            "iTotalRecords" => count($data),
-            "iTotalDisplayRecords" => count($data),
-            "aaData" => $data
+            'sEcho' => 1,
+            'iTotalRecords' => count($data),
+            'iTotalDisplayRecords' => count($data),
+            'aaData' => $data
         ]);
 
         break;
-
 
     /*=============================================================================
 
@@ -1422,22 +1442,21 @@ PERMISOS JEFE INMEDIATO
 ===============================================================================*/
 
     case 'listarConFiltros':
-        $jefe_id     = $_SESSION["id_empl"];
-        $busqueda    = $_POST["busqueda"]    ?? '';
-        $fecha_desde = $_POST["fecha_desde"] ?? null;
-        $fecha_hasta = $_POST["fecha_hasta"] ?? null;
-        $estado      = $_POST["estado"]      ?? null;
+        $jefe_id = $_SESSION['id_empl'];
+        $busqueda = $_POST['busqueda'] ?? '';
+        $fecha_desde = $_POST['fecha_desde'] ?? null;
+        $fecha_hasta = $_POST['fecha_hasta'] ?? null;
+        $estado = $_POST['estado'] ?? null;
 
         // Limpiar vacíos
         $fecha_desde = !empty($fecha_desde) ? $fecha_desde : null;
         $fecha_hasta = !empty($fecha_hasta) ? $fecha_hasta : null;
 
         // ── Convertir string de estados a array ──
-        $estados_raw = $_POST["estados"] ?? '';
-        $estados     = !empty($estados_raw)
+        $estados_raw = $_POST['estados'] ?? '';
+        $estados = !empty($estados_raw)
             ? array_map('trim', explode(',', $estados_raw))
             : null;
-
 
         $datos = $permiso->get_solicitudes_filtradas(
             $jefe_id,
@@ -1450,49 +1469,48 @@ PERMISOS JEFE INMEDIATO
         break;
 
     case 'contarPorEstado':
-        $jefe_id = $_SESSION["id_empl"];
-        $datos   = $permiso->get_conteo_por_estado($jefe_id);
+        $jefe_id = $_SESSION['id_empl'];
+        $datos = $permiso->get_conteo_por_estado($jefe_id);
         echo json_encode($datos);
         break;
 
     case 'getPermiso':
-        $permiso_id = $_POST["permiso_id"];
-        $datos      = $permiso->detalle_permiso_id($permiso_id);
+        $permiso_id = $_POST['permiso_id'];
+        $datos = $permiso->detalle_permiso_id($permiso_id);
         echo json_encode($datos);
         break;
 
-    case "aprobarPermiso":
-
-        $codigo_jefe = $_SESSION["id_empl"];
+    case 'aprobarPermiso':
+        $codigo_jefe = $_SESSION['id_empl'];
 
         $firma = new Firma();
 
         $firma_jefe = $firma->get_by_user_id($codigo_jefe);
 
-        if (!$firma_jefe || empty($firma_jefe["firma_base64"])) {
+        if (!$firma_jefe || empty($firma_jefe['firma_base64'])) {
             echo json_encode([
-                "success" => false,
-                "need_firma" => true,
-                "message" => "Debe registrar su firma antes de aprobar el permiso."
+                'success' => false,
+                'need_firma' => true,
+                'message' => 'Debe registrar su firma antes de aprobar el permiso.'
             ]);
             exit;
         }
 
-        $codigo_permiso = $_POST["codigo_permiso"];
-        $codigo_empleado = $_SESSION["id_empl"];
+        $codigo_permiso = $_POST['codigo_permiso'];
+        $codigo_empleado = $_SESSION['id_empl'];
         $datos = $permiso->update_aprobado($codigo_permiso, $codigo_empleado);
 
         if ($datos) {
             $info_permiso = $permiso->get_permiso_by_id($codigo_permiso);
-            $nombre_empleado = $info_permiso["nomb_empl"];
-            $fecha_permiso   = $info_permiso["permiso_fecha"];
-            $hora_salida     = $info_permiso["permiso_hora_salida"];
-            $hora_ingreso     = $info_permiso["permiso_hora_entrada"];
-            $motivo          = $info_permiso["permiso_detalle"];
-            $nombre_jefe     = $_SESSION["nomb_empl"];
+            $nombre_empleado = $info_permiso['nomb_empl'];
+            $fecha_permiso = $info_permiso['permiso_fecha'];
+            $hora_salida = $info_permiso['permiso_hora_salida'];
+            $hora_ingreso = $info_permiso['permiso_hora_entrada'];
+            $motivo = $info_permiso['permiso_detalle'];
+            $nombre_jefe = $_SESSION['nomb_empl'];
 
             $asunto = "Permiso Aprobado - $nombre_empleado";
-            $url = "http://181.204.219.154:3396/evds2023/view/MntInboxT/inbox.php"; //181.204.219.154:3396
+            $url = 'http://181.204.219.154:3396/evds2023/view/MntInboxT/inbox.php';  // 181.204.219.154:3396
 
             $mensaje = "
                         <div style='background-color:#f4f6f9; padding:30px 0; font-family: Arial, sans-serif;'>
@@ -1565,44 +1583,40 @@ PERMISOS JEFE INMEDIATO
                         </div>
                         ";
 
-            //ENVIAR A RRHH
+            // ENVIAR A RRHH
             MailHelper::enviar(
-                "rhumano@asfaltart.com",
+                'rhumano@asfaltart.com',
                 $asunto,
                 $mensaje,
-                [] // sin adjuntos
+                []  // sin adjuntos
             );
-            echo json_encode(["success" => true]);
+            echo json_encode(['success' => true]);
         } else {
-            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+            echo json_encode(['success' => false, 'error' => 'No se pudo guardar el permiso.']);
         }
-
 
         break;
 
-
-    case "rechazarPermiso":
-
-        $codigo_permiso = $_POST["codigo_permiso"];
-        $codigo_empleado = $_SESSION["id_empl"];
-        $motivo = $_POST["motivo_rechazo"];
+    case 'rechazarPermiso':
+        $codigo_permiso = $_POST['codigo_permiso'];
+        $codigo_empleado = $_SESSION['id_empl'];
+        $motivo = $_POST['motivo_rechazo'];
         $datos = $permiso->update_rechazo($codigo_permiso, $codigo_empleado, $motivo);
 
         if ($datos) {
-            echo json_encode(["success" => true]);
+            echo json_encode(['success' => true]);
         } else {
-            echo json_encode(["success" => false, "error" => "No se pudo guardar el permiso."]);
+            echo json_encode(['success' => false, 'error' => 'No se pudo guardar el permiso.']);
         }
-
 
         break;
 
     case 'eliminarPermiso':
-        $permiso_id = $_POST["permiso_id"];
-        $resultado  = $permiso->eliminar_permiso($permiso_id);
+        $permiso_id = $_POST['permiso_id'];
+        $resultado = $permiso->eliminar_permiso($permiso_id);
         echo json_encode([
             'success' => $resultado,
-            'error'   => $resultado ? null : 'No se pudo eliminar el permiso.'
+            'error' => $resultado ? null : 'No se pudo eliminar el permiso.'
         ]);
         break;
 }

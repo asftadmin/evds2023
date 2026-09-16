@@ -711,6 +711,7 @@ class JornadaContable extends Conectar {
                     jreg_ordinaria_continuacion_fin,
                     jreg_ordinaria_diurna_fin,
                     jreg_max_lunes_viernes_min,
+                    jreg_max_sabado_min,
                     jreg_almuerzo_min
                 FROM jornada_reglas
                 WHERE jreg_estado = 1
@@ -850,17 +851,35 @@ class JornadaContable extends Conectar {
             5
         );
         $es_nocturno = $hora >= $hora_nocturna || $hora < $hora_diurna;
+        $cumplimiento = $this->calcular_cumplimiento_habil($inicio, $regla);
 
         if ($es_festivo) {
             return $es_nocturno ? 'HENF' : 'HEDF';
         }
 
         if ($dia === 6) {
+            $fin_ordinario_sabado = $inicio->modify(
+                '+' . (int)$regla['jreg_max_sabado_min'] . ' minutes'
+            );
+            if (
+                $inicio->format('N') === '6'
+                && $momento < $fin_ordinario_sabado
+            ) {
+                return $es_nocturno ? 'RN' : 'ORD';
+            }
             return $es_nocturno ? 'HEN' : 'HED';
         }
 
         $es_dia_continuado = $fecha > $inicio->format('Y-m-d');
         if ($es_dia_continuado) {
+            if (
+                (int)$inicio->format('N') >= 1
+                && (int)$inicio->format('N') <= 5
+                && $inicio->format('H:i') < $ordinaria_diurna_fin
+                && $momento >= $cumplimiento['fin']
+            ) {
+                return $es_nocturno ? 'HEN' : 'HED';
+            }
             if ($hora >= $recargo_inicio && $hora < $recargo_fin) {
                 return 'RN';
             }
@@ -873,37 +892,36 @@ class JornadaContable extends Conectar {
             return $hora < $hora_nocturna ? 'HED' : 'HEN';
         }
 
-        // Si el turno empieza antes de las 06:00 en un día hábil, las
-        // primeras ocho horas cumplen la jornada ordinaria. La parte nocturna
-        // genera recargo y la parte diurna conserva el concepto ordinario.
+        // Si las ocho horas obligatorias atraviesan el mediodía, el almuerzo
+        // se separa de 12:00 a 13:00 y desplaza una hora el inicio de extras.
         if ($inicio->format('H:i') < $hora_diurna) {
-            $fin_ordinario = $inicio->modify(
-                '+' . (int)$regla['jreg_max_lunes_viernes_min'] . ' minutes'
-            );
-            if ($momento < $fin_ordinario) {
+            if ($momento < $cumplimiento['fin']) {
+                if (
+                    $cumplimiento['almuerzo_inicio'] !== null
+                    && $momento >= $cumplimiento['almuerzo_inicio']
+                    && $momento < $cumplimiento['almuerzo_fin']
+                ) {
+                    return 'NO_LIQ';
+                }
                 return $es_nocturno ? 'RN' : 'ORD';
             }
         }
 
-        // Para la jornada diurna, el almuerzo es una deducción abstracta:
-        // se ubica al final del tramo ordinario solo para representar sus
-        // minutos, sin afirmar a qué hora almorzó realmente el colaborador.
+        // La jornada diurna aplica el mismo máximo ordinario desde la entrada.
         if (
             $inicio->format('H:i') >= $hora_diurna
             && $inicio->format('H:i') < $ordinaria_diurna_fin
-            && $hora < $ordinaria_diurna_fin
         ) {
-            $fin_ordinario = new DateTimeImmutable(
-                $inicio->format('Y-m-d') . ' ' . $ordinaria_diurna_fin
-            );
-            $fin_descuento = $fin < $fin_ordinario ? $fin : $fin_ordinario;
-            $inicio_descuento = $fin_descuento->modify(
-                '-' . (int)$regla['jreg_almuerzo_min'] . ' minutes'
-            );
-            if ($momento >= $inicio_descuento) {
-                return 'NO_LIQ';
+            if ($momento < $cumplimiento['fin']) {
+                if (
+                    $cumplimiento['almuerzo_inicio'] !== null
+                    && $momento >= $cumplimiento['almuerzo_inicio']
+                    && $momento < $cumplimiento['almuerzo_fin']
+                ) {
+                    return 'NO_LIQ';
+                }
+                return $es_nocturno ? 'RN' : 'ORD';
             }
-            return 'ORD';
         }
 
         // En el caso operativo 18:00-06:00, la primera hora no se liquida.
@@ -919,6 +937,41 @@ class JornadaContable extends Conectar {
         }
 
         return $es_nocturno ? 'HEN' : 'HED';
+    }
+
+    /**
+     * Calcula el fin de las ocho horas obligatorias. El almuerzo solo aplica
+     * cuando ese cumplimiento empieza antes de las 12:00 y termina después.
+     */
+    private function calcular_cumplimiento_habil(
+        DateTimeImmutable $inicio,
+        array $regla
+    ) {
+        $fin_base = $inicio->modify(
+            '+' . (int)$regla['jreg_max_lunes_viernes_min'] . ' minutes'
+        );
+        $almuerzo_inicio = new DateTimeImmutable(
+            $inicio->format('Y-m-d') . ' 12:00:00'
+        );
+
+        if ($inicio < $almuerzo_inicio && $fin_base > $almuerzo_inicio) {
+            $almuerzo_fin = $almuerzo_inicio->modify(
+                '+' . (int)$regla['jreg_almuerzo_min'] . ' minutes'
+            );
+            return [
+                'fin' => $fin_base->modify(
+                    '+' . (int)$regla['jreg_almuerzo_min'] . ' minutes'
+                ),
+                'almuerzo_inicio' => $almuerzo_inicio,
+                'almuerzo_fin' => $almuerzo_fin
+            ];
+        }
+
+        return [
+            'fin' => $fin_base,
+            'almuerzo_inicio' => null,
+            'almuerzo_fin' => null
+        ];
     }
 
     /**

@@ -5,10 +5,22 @@ function init() {
         width: '100%'
     });
 
-    $("#form_detalle_rrhh").on("submit", function (e) {
-        guardar(e);
-    });
+    /*     $("#form_detalle_rrhh").on("submit", function (e) {
+            guardar(e);
+        });
+     */
 
+    // Evitar múltiples eventos submit sobre el mismo formulario.
+    $("#form_detalle_rrhh")
+        .off("submit.detallePermiso")
+        .on("submit.detallePermiso", function (e) {
+
+            e.preventDefault();
+
+            guardar(e);
+
+            return false;
+        });
 
 }
 
@@ -30,27 +42,34 @@ var getURLParameter = function (sParam) {
 }
 
 // ── Toggle turno nocturno ──────────────────────────────
-$('#chk_turno_nocturno').on('change', function () {
-    if ($(this).is(':checked')) {
-        //$('#bloque_fecha_cierre').show();
+// Configura automáticamente la fecha de cierre cuando el permiso cruza medianoche.
+$(document).on('change', '#chk_turno_nocturno', function () {
 
-        // Sugerir automáticamente el día siguiente
-        const fechaPermiso = $('#permiso_fecha').val();
-        if (fechaPermiso) {
-            const siguiente = new Date(fechaPermiso);
-            siguiente.setDate(siguiente.getDate() + 1);
-            const yyyy = siguiente.getFullYear();
-            const mm = String(siguiente.getMonth() + 1).padStart(2, '0');
-            const dd = String(siguiente.getDate()).padStart(2, '0');
-            $('#permiso_fecha_cierre').val(`${yyyy}-${mm}-${dd}`);
-        }
-    } else {
-        //$('#bloque_fecha_cierre').hide();
-        $('#permiso_fecha_cierre').val('');
+    const fechaPermiso = $('#permiso_fecha').val();
+
+    if (!fechaPermiso) {
+        return;
     }
+
+    if ($(this).is(':checked')) {
+
+        const fecha = parseYMD(fechaPermiso);
+        fecha.setDate(fecha.getDate() + 1);
+
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+
+        $('#permiso_fecha_cierre').val(`${yyyy}-${mm}-${dd}`);
+
+    } else {
+
+        // Un permiso normal finaliza inicialmente el mismo día.
+        $('#permiso_fecha_cierre').val(fechaPermiso);
+    }
+
     calcularHorasAusentesJornada();
 });
-
 
 $(document).ready(function () {
 
@@ -304,7 +323,7 @@ function cargarSoportes(permiso_id) {
                 const icono = getIconoArchivo(ext);
 
                 // ── URL preview — inline (sin &download) ──
-                const urlPreview = BASE_URL + "/controller/permiso.php?op=descargarSoporte&file=" 
+                const urlPreview = BASE_URL + "/controller/permiso.php?op=descargarSoporte&file="
                     + encodeURIComponent(s.soporte_ruta.trim());
 
                 // ── URL descarga — fuerza attachment ──
@@ -420,7 +439,38 @@ function imprimirSoporte(url, ext) {
 }
 
 function guardar(e) {
+
     e.preventDefault(); // Evitar recarga 
+
+    // Validar que las fechas y horas del permiso sean correctas.
+    const validacion = validarRangoPermiso();
+
+    if (!validacion.valido) {
+
+        Swal.fire({
+            icon: "warning",
+            title: "Horario inválido",
+            text: validacion.mensaje,
+            confirmButtonColor: "#3085d6"
+        });
+
+        return false;
+    }
+
+    // Validar que el cálculo haya generado horas mayores a cero.
+    const totalHoras = parseFloat($("#permiso_total_horas").val());
+
+    if (isNaN(totalHoras) || totalHoras <= 0) {
+
+        Swal.fire({
+            icon: "warning",
+            title: "Horas inválidas",
+            text: "El permiso debe generar una cantidad de horas mayor a cero.",
+            confirmButtonColor: "#3085d6"
+        });
+
+        return false;
+    }
 
     let permisoID = getURLParameter('id');
 
@@ -431,6 +481,7 @@ function guardar(e) {
         url: "../../controller/permiso.php?op=updateRecursos",
         type: "POST",
         data: formData,
+        dataType: "json",
         contentType: false,
         processData: false,
         beforeSend: function () {
@@ -444,10 +495,11 @@ function guardar(e) {
             });
         },
         success: function (response) {
-            Swal.close(); // cerrar la animación de carga
+            Swal.close();
 
             console.log("Respuesta del servidor:", response);
-            var data = JSON.parse(response);
+
+            const data = response;
 
             if (data.success) {
                 Swal.fire({
@@ -554,7 +606,55 @@ function overlapMinutes(aStart, aEnd, bStart, bEnd) {
     return Math.max(0, end - start);
 }
 
-function calcularHorasAusentesJornada() {
+// Valida que las fechas y horas del permiso formen un rango correcto.
+function validarRangoPermiso() {
+
+    const fechaPermiso = $('#permiso_fecha').val();
+    const fechaCierre = $('#permiso_fecha_cierre').val() || fechaPermiso;
+    const horaSalida = $('#permiso_hora_salida').val();
+    const horaEntrada = $('#permiso_hora_entrada').val();
+    const turnoNocturno = $('#chk_turno_nocturno').is(':checked');
+
+    // Verificar que todos los campos necesarios tengan información.
+    if (!fechaPermiso || !fechaCierre || !horaSalida || !horaEntrada) {
+        return {
+            valido: false,
+            mensaje: 'Debe completar las fechas y horas del permiso.'
+        };
+    }
+
+    const inicio = parseYMD(fechaPermiso);
+    const cierre = parseYMD(fechaCierre);
+
+    // La fecha de cierre no puede ser anterior a la fecha del permiso.
+    if (cierre < inicio) {
+        return {
+            valido: false,
+            mensaje: 'La fecha de cierre no puede ser anterior a la fecha del permiso.'
+        };
+    }
+
+    const salidaMin = timeToMinutes(horaSalida);
+    const entradaMin = timeToMinutes(horaEntrada);
+
+    // Si inicia y termina el mismo día, la entrada debe ser mayor a la salida.
+    if (sameDay(inicio, cierre) && entradaMin <= salidaMin) {
+
+        return {
+            valido: false,
+            mensaje: turnoNocturno
+                ? 'El turno nocturno debe finalizar al día siguiente.'
+                : 'La hora de entrada debe ser posterior a la hora de salida.'
+        };
+    }
+
+    return {
+        valido: true,
+        mensaje: ''
+    };
+}
+
+/* function calcularHorasAusentesJornada() {
 
     esNocturno = $('#chk_turno_nocturno').is(':checked');
 
@@ -607,6 +707,81 @@ function calcularHorasAusentesJornada() {
     }
 
     $("#permiso_total_horas").val((totalMinutes / 60).toFixed(2));
+} */
+
+// Calcula las horas ausentes dentro de la jornada laboral.
+function calcularHorasAusentesJornada() {
+
+    esNocturno = $('#chk_turno_nocturno').is(':checked');
+
+    const fechaPermiso = $("#permiso_fecha").val();
+    const horaSalida = $("#permiso_hora_salida").val();
+
+    // Si no existe fecha de cierre, usa la misma fecha del permiso.
+    const fechaCierre = $("#permiso_fecha_cierre").val() || fechaPermiso;
+
+    const horaCierre = $("#permiso_hora_entrada").val();
+
+    // Si falta información, limpiar el total de horas.
+    if (!fechaPermiso || !horaSalida || !fechaCierre || !horaCierre) {
+        $("#permiso_total_horas").val("");
+        return;
+    }
+
+    // Validar primero que el rango de fechas y horas sea correcto.
+    const validacion = validarRangoPermiso();
+
+    if (!validacion.valido) {
+        $("#permiso_total_horas").val("");
+        return;
+    }
+
+    const startDate = parseYMD(fechaPermiso);
+    const endDate = parseYMD(fechaCierre);
+
+    const startMin = timeToMinutes(horaSalida);
+    const endMin = timeToMinutes(horaCierre);
+
+    let totalMinutes = 0;
+
+    // Recorrer cada día comprendido en el permiso.
+    for (let d = new Date(startDate); d <= endDate; d = addDays(d, 1)) {
+
+        const intervals = getWorkIntervalsMinutes(d);
+
+        // Si ese día no tiene jornada laboral, continuar.
+        if (intervals.length === 0) {
+            continue;
+        }
+
+        let dayStart = 0;
+        let dayEnd = 24 * 60;
+
+        // Primer día: iniciar desde la hora de salida.
+        if (sameDay(d, startDate)) {
+            dayStart = startMin;
+        }
+
+        // Último día: finalizar en la hora de entrada.
+        if (sameDay(d, endDate)) {
+            dayEnd = endMin;
+        }
+
+        // Sumar únicamente el tiempo que se cruza con la jornada laboral.
+        for (const [wStart, wEnd] of intervals) {
+            totalMinutes += overlapMinutes(
+                dayStart,
+                dayEnd,
+                wStart,
+                wEnd
+            );
+        }
+    }
+
+    // Convertir minutos a horas con dos decimales.
+    $("#permiso_total_horas").val(
+        (totalMinutes / 60).toFixed(2)
+    );
 }
 
 // Cuando cambian las horas → actualizar cálculo
