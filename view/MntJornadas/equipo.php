@@ -1,327 +1,357 @@
 <?php
-require_once "../../config/conexion.php";
 
-if (!isset($_SESSION["user_id"])) {
-    header("location:" . Conectar::ruta() . "index.php");
+require_once '../../config/conexion.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header('location:' . Conectar::ruta() . 'index.php');
     exit;
 }
 
-if (empty($_SESSION["csrf_jornadas"])) {
-    $_SESSION["csrf_jornadas"] = bin2hex(random_bytes(32));
+// Token utilizado por las operaciones que modifican jornadas.
+if (empty($_SESSION['csrf_jornadas'])) {
+    $_SESSION['csrf_jornadas'] = bin2hex(random_bytes(32));
 }
+
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
-<?php require_once("../MainHead/head.php"); ?>
+
+<?php require_once ('../MainHead/head.php'); ?>
+
 <link rel="stylesheet" href="jornadas.css">
+
 <title>Jornadas de mi Equipo</title>
+
 </head>
 
 <body class="hold-transition sidebar-mini layout-fixed">
+
     <div class="wrapper">
-        <?php require_once("../MainNav/nav.php"); ?>
-        <?php require_once("../MainMenu/menu.php"); ?>
+
+        <?php require_once ('../MainNav/nav.php'); ?>
+        <?php require_once ('../MainMenu/menu.php'); ?>
 
         <div class="content-wrapper">
+
             <section class="content-header">
+
                 <div class="container-fluid">
+
                     <div class="row mb-2">
+
                         <div class="col-sm-7">
+
                             <h1>
                                 <i class="fas fa-users mr-2"></i>
                                 Jornadas de mi Equipo
                             </h1>
+
                         </div>
+
                         <div class="col-sm-5">
+
                             <ol class="breadcrumb float-sm-right">
+
                                 <li class="breadcrumb-item">
                                     <a href="../home/home2.php">Inicio</a>
                                 </li>
+
                                 <li class="breadcrumb-item active">
                                     Jornadas del equipo
                                 </li>
+
                             </ol>
+
                         </div>
+
                     </div>
+
                 </div>
+
             </section>
 
             <section class="content">
+
                 <div class="container-fluid">
+
+                    <!-- Valida el contexto del jefe autenticado. -->
                     <div id="alerta-contexto" class="alert alert-info py-2">
+
                         <i class="fas fa-info-circle mr-1"></i>
-                        <span id="texto-contexto">Validando jefe...</span>
+
+                        <span id="texto-contexto">
+                            Validando jefe inmediato...
+                        </span>
+
                     </div>
 
-                    <div class="alert alert-warning py-2">
-                        <i class="fas fa-check-circle mr-1"></i>
-                        Las jornadas registradas en esta pantalla quedan
-                        aprobadas automáticamente a nombre del jefe.
-                    </div>
-
+                    <!-- Selección del empleado y periodo que formarán el expediente. -->
                     <div class="card card-outline card-primary">
+
                         <div class="card-header">
+
                             <h3 class="card-title">
-                                <i class="fas fa-user-clock mr-1"></i>
-                                Registrar jornada de un subordinado
+
+                                <i class="fas fa-folder-open mr-1"></i>
+                                Consultar expediente
+
                             </h3>
-                        </div>
 
-                        <form id="form-jornada-equipo" autocomplete="off">
-                            <div class="card-body">
-                                <input
-                                    type="hidden"
-                                    id="csrf_token"
-                                    value="<?php echo htmlspecialchars(
-                                        $_SESSION["csrf_jornadas"],
-                                        ENT_QUOTES,
-                                        "UTF-8"
-                                    ); ?>"
-                                >
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="empleado_id">Empleado</label>
-                                            <select
-                                                class="form-control select2"
-                                                id="empleado_id"
-                                                required
-                                                style="width: 100%;"
-                                            >
-                                                <option value="">
-                                                    Seleccione un subordinado
-                                                </option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="fecha">Fecha</label>
-                                            <input
-                                                type="date"
-                                                class="form-control"
-                                                id="fecha"
-                                                required
-                                            >
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="dia_semana">Día</label>
-                                            <input
-                                                type="text"
-                                                class="form-control"
-                                                id="dia_semana"
-                                                readonly
-                                            >
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="hora_entrada">
-                                                Hora de entrada
-                                            </label>
-                                            <input
-                                                type="time"
-                                                class="form-control"
-                                                id="hora_entrada"
-                                                required
-                                            >
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="hora_salida">
-                                                Hora de salida
-                                            </label>
-                                            <input
-                                                type="time"
-                                                class="form-control"
-                                                id="hora_salida"
-                                                required
-                                            >
-                                            <div class="custom-control custom-checkbox mt-2">
-                                                <input
-                                                    type="checkbox"
-                                                    class="custom-control-input"
-                                                    id="salida_dia_siguiente"
-                                                >
-                                                <label
-                                                    class="custom-control-label"
-                                                    for="salida_dia_siguiente"
-                                                >
-                                                    La salida es al día siguiente
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="horas_ordinarias">
-                                                Horas ordinarias netas
-                                            </label>
-                                            <input
-                                                type="text"
-                                                class="form-control"
-                                                id="horas_ordinarias"
-                                                value="00:00"
-                                                readonly
-                                            >
-                                            <small
-                                                id="ayuda-horas-ordinarias"
-                                                class="form-text text-muted"
-                                            >
-                                                De lunes a viernes descuenta una
-                                                hora de almuerzo.
-                                            </small>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="ubicacion">
-                                                Frente, obra o ubicación
-                                            </label>
-                                            <input
-                                                type="text"
-                                                class="form-control"
-                                                id="ubicacion"
-                                                maxlength="250"
-                                                required
-                                            >
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="actividad">
-                                                Actividad ejecutada
-                                            </label>
-                                            <textarea
-                                                class="form-control"
-                                                id="actividad"
-                                                rows="3"
-                                                maxlength="4000"
-                                                required
-                                            ></textarea>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="observaciones">
-                                                Observaciones
-                                            </label>
-                                            <textarea
-                                                class="form-control"
-                                                id="observaciones"
-                                                rows="3"
-                                                maxlength="4000"
-                                            ></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="card-footer">
-                                <button
-                                    type="submit"
-                                    class="btn btn-success"
-                                    id="btn-guardar-equipo"
-                                >
-                                    <i class="fas fa-check mr-1"></i>
-                                    Registrar y aprobar
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn btn-default"
-                                    id="btn-limpiar"
-                                >
-                                    <i class="fas fa-eraser mr-1"></i>Limpiar
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">
-                                <i class="fas fa-history mr-1"></i>
-                                Historial del equipo
-                            </h3>
                         </div>
 
                         <div class="card-body">
-                            <div class="row mb-3">
+
+                            <div class="row">
+
+                                <!-- Empleado relacionado con el jefe inmediato. -->
                                 <div class="col-md-5">
-                                    <label for="filtro_fechas">Periodo</label>
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        id="filtro_fechas"
-                                        autocomplete="off"
-                                    >
+
+                                    <div class="form-group">
+
+                                        <label for="empleado_id">
+                                            Empleado
+                                        </label>
+
+                                        <select class="form-control select2" id="empleado_id" style="width: 100%;">
+                                            <option value="">
+                                                Seleccione un subordinado
+                                            </option>
+                                        </select>
+
+                                        <small class="form-text text-muted">
+                                            Solo se muestran empleados relacionados
+                                            activamente con el jefe inmediato.
+                                        </small>
+
+                                    </div>
+
                                 </div>
-                                <div class="col-md-7 d-flex align-items-end">
-                                    <button
-                                        type="button"
-                                        class="btn btn-info mr-2"
-                                        id="btn-filtrar"
-                                    >
-                                        <i class="fas fa-search mr-1"></i>Consultar
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="btn btn-secondary"
-                                        id="btn-limpiar-filtro"
-                                    >
-                                        <i class="fas fa-undo mr-1"></i>Restablecer
-                                    </button>
+
+                                <!-- Periodo de trabajo del expediente. -->
+                                <div class="col-md-4">
+
+                                    <div class="form-group">
+
+                                        <label for="filtro_fechas">
+                                            Periodo
+                                        </label>
+
+                                        <input type="text" class="form-control" id="filtro_fechas" autocomplete="off">
+
+                                    </div>
+
                                 </div>
+
+                                <!-- Consulta las jornadas del empleado seleccionado. -->
+                                <div class="col-md-3 d-flex align-items-end">
+
+                                    <div class="form-group w-100">
+
+                                        <button type="button" class="btn btn-info btn-block"
+                                            id="btn-consultar-expediente">
+                                            <i class="fas fa-search mr-1"></i>
+                                            Consultar
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
                             </div>
 
-                            <div class="table-responsive">
-                                <table
-                                    id="tabla-equipo"
-                                    class="table table-bordered table-striped table-hover"
-                                    width="100%"
-                                >
-                                    <thead>
-                                        <tr>
-                                            <th>Empleado</th>
-                                            <th>Fecha</th>
-                                            <th>Entrada</th>
-                                            <th>Salida</th>
-                                            <th>Horas</th>
-                                            <th>Ubicación</th>
-                                            <th>Actividad</th>
-                                            <th>Origen</th>
-                                            <th>Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
                         </div>
+
                     </div>
+
+                    <!-- Expediente del empleado. Inicialmente permanece oculto. -->
+                    <div id="contenedor-expediente" style="display: none;">
+
+                        <!-- Identificación del expediente consultado. -->
+                        <div class="card card-outline card-info">
+
+                            <div class="card-body py-3">
+
+                                <div class="row align-items-center">
+
+                                    <div class="col-md-8">
+
+                                        <h5 id="expediente-empleado" class="font-weight-bold mb-1">
+                                            Empleado
+                                        </h5>
+
+                                        <div class="text-muted">
+
+                                            Documento:
+                                            <span id="expediente-documento">
+                                                -
+                                            </span>
+
+                                            <span class="mx-2">|</span>
+
+                                            Periodo:
+                                            <span id="expediente-periodo">
+                                                -
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+                                    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+
+                                        <span class="badge badge-info p-2">
+                                            <i class="fas fa-folder-open mr-1"></i>
+                                            Expediente activo
+                                        </span>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <!-- Token utilizado para guardar y aprobar jornadas. -->
+                        <input type="hidden" id="csrf_token" value="<?php echo htmlspecialchars(
+    $_SESSION['csrf_jornadas'],
+    ENT_QUOTES,
+    'UTF-8'
+); ?>">
+
+                        <!-- Planilla editable del periodo seleccionado. -->
+                        <div class="card">
+
+                            <div class="card-header">
+
+                                <h3 class="card-title">
+
+                                    <i class="fas fa-calendar-alt mr-1"></i>
+                                    Registro de jornadas
+
+                                </h3>
+
+                            </div>
+
+                            <div class="card-body">
+
+                                <div class="alert alert-light border py-2">
+
+                                    <i class="fas fa-info-circle text-info mr-1"></i>
+
+                                    Diligencie únicamente los días trabajados.
+                                    Las filas completamente vacías no serán guardadas.
+
+                                </div>
+
+                                <div class="table-responsive">
+
+                                    <table id="tabla-expediente" class="table table-bordered table-hover table-sm"
+                                        width="100%">
+
+                                        <thead class="thead-light">
+
+                                            <tr>
+
+                                                <th style="min-width: 85px;">
+                                                    Día
+                                                </th>
+
+                                                <th style="min-width: 105px;">
+                                                    Fecha
+                                                </th>
+
+                                                <th style="min-width: 100px;">
+                                                    Entrada
+                                                </th>
+
+                                                <th style="min-width: 100px;">
+                                                    Salida
+                                                </th>
+
+                                                <th style="min-width: 90px;">
+                                                    Horas
+                                                </th>
+
+                                                <th style="min-width: 160px;">
+                                                    Ubicación
+                                                </th>
+
+                                                <th style="min-width: 220px;">
+                                                    Actividad
+                                                </th>
+
+                                                <th style="min-width: 220px;">
+                                                    Observaciones
+                                                </th>
+
+                                                <th style="min-width: 110px;">
+                                                    Estado
+                                                </th>
+
+                                            </tr>
+
+                                        </thead>
+
+                                        <tbody></tbody>
+
+                                    </table>
+
+                                </div>
+
+                            </div>
+
+                            <div class="card-footer">
+
+                                <div class="row">
+
+                                    <div class="col-md-6 mb-2 mb-md-0">
+
+                                        <!-- Guarda únicamente las filas nuevas o
+                                             modificadas como BORRADOR. -->
+                                        <button type="button" class="btn btn-secondary" id="btn-guardar-borrador"
+                                            disabled>
+                                            <i class="fas fa-save mr-1"></i>
+                                            Guardar borrador
+                                        </button>
+
+                                    </div>
+
+                                    <div class="col-md-6 text-md-right">
+
+                                        <!-- Valida y aprueba las jornadas diligenciadas
+                                             del expediente. -->
+                                        <button type="button" class="btn btn-success" id="btn-registrar-aprobar"
+                                            disabled>
+                                            <i class="fas fa-check-circle mr-1"></i>
+                                            Registrar y aprobar jornadas
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
                 </div>
+
             </section>
+
         </div>
 
-        <?php require_once("../MainFooter/footer.php"); ?>
+        <?php require_once ('../MainFooter/footer.php'); ?>
+
     </div>
 
-    <?php require_once("../MainJS/JS.php"); ?>
+    <?php require_once ('../MainJS/JS.php'); ?>
+
     <script src="equipo.js"></script>
+
 </body>
+
 </html>

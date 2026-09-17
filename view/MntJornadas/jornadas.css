@@ -5,6 +5,30 @@
     font-size: 0.78rem;
 }
 
+.jornada-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#tabla-jornadas .jornada-acciones {
+    min-width: 120px;
+}
+
+#tabla-jornadas input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
+}
+
+#tabla-jornadas .jornada-anulacion {
+    display: block;
+    min-width: 160px;
+    white-space: normal;
+    margin-top: 0.35rem;
+}
+
 #tabla-jornadas td,
 #tabla-aprobaciones td,
 #tabla-equipo td {

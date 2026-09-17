@@ -45,7 +45,9 @@ class JornadaReporteContable extends Conectar {
                         SELECT j.empleado_id
                         FROM jornadas_trabajo j
                         INNER JOIN empleados emp ON emp.id_empl = j.empleado_id
+                        INNER JOIN jornada_estados estado ON estado.je_id = j.jornada_estado_id
                         WHERE j.jornada_inicio::date <= ?::date
+                          AND estado.je_codigo <> 'ANULADO'
                           AND emp.esta_empl = 1
                         UNION
                         SELECT e.empleado_id
@@ -540,9 +542,11 @@ class JornadaReporteContable extends Conectar {
             return $desde;
         }
         $stmt = $db->prepare(
-            "SELECT MIN(jornada_inicio::date)
-             FROM jornadas_trabajo
-             WHERE empleado_id = ? AND jornada_inicio::date <= ?::date"
+            "SELECT MIN(j.jornada_inicio::date)
+             FROM jornadas_trabajo j
+             INNER JOIN jornada_estados estado ON estado.je_id = j.jornada_estado_id
+             WHERE j.empleado_id = ? AND j.jornada_inicio::date <= ?::date
+               AND estado.je_codigo <> 'ANULADO'"
         );
         $stmt->execute([$empleado_id, $corte]);
         return $stmt->fetchColumn() ?: null;
@@ -568,13 +572,13 @@ class JornadaReporteContable extends Conectar {
 
         $sql = "SELECT
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo <> 'RECHAZADO'
+                        WHERE estado.je_codigo NOT IN ('RECHAZADO', 'ANULADO')
                     )::integer AS registradas,
                     COUNT(*) FILTER (
                         WHERE estado.je_codigo = 'APROBADO'
                     )::integer AS aprobadas,
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo NOT IN ('APROBADO', 'RECHAZADO')
+                        WHERE estado.je_codigo NOT IN ('APROBADO', 'RECHAZADO', 'ANULADO')
                     )::integer AS sin_aprobar,
                     COUNT(*) FILTER (
                         WHERE estado.je_codigo = 'APROBADO'

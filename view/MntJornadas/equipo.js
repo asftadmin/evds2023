@@ -1,10 +1,21 @@
-let tablaEquipo = null;
+let tablaExpediente = null;
 let solicitudCalculoEquipo = 0;
 
+// Conserva la información del expediente actualmente consultado.
+let expedienteEquipo = {
+    empleadoId: null,
+    empleadoNombre: '',
+    documento: '',
+    fechaDesde: '',
+    fechaHasta: ''
+};
+
+// Escapa valores antes de mostrarlos dentro de HTML.
 function equipoEscapeHtml(valor) {
     return $('<div>').text(valor == null ? '' : String(valor)).html();
 }
 
+// Obtiene un mensaje legible de las respuestas AJAX con error.
 function equipoMensajeError(xhr, predeterminado) {
     if (xhr.responseJSON && xhr.responseJSON.message) {
         return xhr.responseJSON.message;
@@ -18,78 +29,56 @@ function equipoMensajeError(xhr, predeterminado) {
     }
 }
 
-function actualizarDiaEquipo() {
-    const fecha = $('#fecha').val();
-    const dias = [
-        'Domingo',
-        'Lunes',
-        'Martes',
-        'Miércoles',
-        'Jueves',
-        'Viernes',
-        'Sábado'
-    ];
-
-    if (!fecha) {
-        $('#dia_semana').val('');
-        return;
-    }
-
-    $('#dia_semana').val(
-        dias[new Date(fecha + 'T00:00:00').getDay()]
-    );
-}
-
-function calcularHorasEquipo() {
-    const fecha = $('#fecha').val();
-    const entrada = $('#hora_entrada').val();
-    const salida = $('#hora_salida').val();
-    const numeroSolicitud = ++solicitudCalculoEquipo;
-
-    $('#horas_ordinarias').val('00:00');
-    $('#ayuda-horas-ordinarias').text(
-        'De lunes a viernes descuenta una hora de almuerzo.'
-    );
-
-    if (!fecha || !entrada || !salida) {
-        return;
-    }
-
-    $.ajax({
-        url: '../../controller/jornada.php?op=calcularHorasEquipo',
-        type: 'GET',
-        dataType: 'json',
-        data: {
-            fecha: fecha,
-            hora_entrada: entrada,
-            hora_salida: salida,
-            cruza_medianoche: $('#salida_dia_siguiente').is(':checked') ? 1 : 0
-        }
-    }).done(function (respuesta) {
-        if (numeroSolicitud !== solicitudCalculoEquipo) {
-            return;
-        }
-
-        const datos = respuesta.data || {};
-        $('#horas_ordinarias').val(datos.horas_ordinarias || '00:00');
-        let detalle = 'Duración total: ' + (datos.duracion_total || '00:00') + '.';
-        detalle += datos.descuento_almuerzo !== '00:00'
-            ? ' Se descontó 01:00 de almuerzo.'
-            : ' Sin descuento de almuerzo.';
-        if (datos.cruza_medianoche) {
-            detalle += ' La salida corresponde al día siguiente.';
-        }
-        $('#ayuda-horas-ordinarias').text(detalle);
-    }).fail(function (xhr) {
-        if (numeroSolicitud !== solicitudCalculoEquipo) {
-            return;
-        }
-        $('#ayuda-horas-ordinarias').text(
-            equipoMensajeError(xhr, 'No fue posible calcular las horas.')
-        );
+// Inicializa el selector de empleados subordinados.
+function inicializarSelectEmpleadoEquipo() {
+    $('#empleado_id').select2({
+        theme: 'bootstrap4',
+        placeholder: 'Seleccione un subordinado',
+        allowClear: true,
+        width: '100%'
     });
 }
 
+// Inicializa el rango de fechas utilizado para consultar el expediente.
+function inicializarRangoEquipo() {
+    const inicio = moment().startOf('month');
+    const fin = moment();
+
+    $('#filtro_fechas').daterangepicker({
+        startDate: inicio,
+        endDate: fin,
+        maxDate: moment(),
+        showDropdowns: true,
+        autoApply: false,
+        locale: {
+            format: 'YYYY-MM-DD',
+            separator: ' - ',
+            applyLabel: 'Aplicar',
+            cancelLabel: 'Cancelar',
+            fromLabel: 'Desde',
+            toLabel: 'Hasta',
+            customRangeLabel: 'Personalizado',
+            daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+            monthNames: [
+                'Enero',
+                'Febrero',
+                'Marzo',
+                'Abril',
+                'Mayo',
+                'Junio',
+                'Julio',
+                'Agosto',
+                'Septiembre',
+                'Octubre',
+                'Noviembre',
+                'Diciembre'
+            ],
+            firstDay: 1
+        }
+    });
+}
+
+// Consulta el contexto del jefe autenticado.
 function cargarContextoEquipo() {
     $.ajax({
         url: '../../controller/jornada.php?op=contextoEquipo',
@@ -97,8 +86,9 @@ function cargarContextoEquipo() {
         dataType: 'json'
     }).done(function (respuesta) {
         const datos = respuesta.data || {};
+
         $('#texto-contexto').text(
-            'Jefe que registra: ' +
+            'Jefe inmediato: ' +
             (datos.empleado || '') +
             (datos.documento ? ' — ' + datos.documento : '')
         );
@@ -106,13 +96,21 @@ function cargarContextoEquipo() {
         $('#alerta-contexto')
             .removeClass('alert-info')
             .addClass('alert-danger');
+
         $('#texto-contexto').text(
-            equipoMensajeError(xhr, 'No fue posible validar al jefe.')
+            equipoMensajeError(
+                xhr,
+                'No fue posible validar al jefe inmediato.'
+            )
         );
-        $('#form-jornada-equipo :input').prop('disabled', true);
+
+        $('#empleado_id').prop('disabled', true);
+        $('#filtro_fechas').prop('disabled', true);
+        $('#btn-consultar-expediente').prop('disabled', true);
     });
 }
 
+// Carga únicamente los empleados relacionados activamente con el jefe.
 function cargarSubordinados() {
     $.ajax({
         url: '../../controller/jornada.php?op=listarSubordinadosJefe',
@@ -120,6 +118,7 @@ function cargarSubordinados() {
         dataType: 'json'
     }).done(function (respuesta) {
         const selector = $('#empleado_id');
+
         selector.find('option:not(:first)').remove();
 
         (respuesta.data || []).forEach(function (empleado) {
@@ -130,9 +129,13 @@ function cargarSubordinados() {
                         empleado.empleado_nombre +
                         ' — ' +
                         empleado.empleado_documento
+                }).attr({
+                    'data-nombre': empleado.empleado_nombre,
+                    'data-documento': empleado.empleado_documento
                 })
             );
         });
+
         selector.trigger('change.select2');
     }).fail(function (xhr) {
         Swal.fire({
@@ -146,291 +149,986 @@ function cargarSubordinados() {
     });
 }
 
-function inicializarRangoEquipo() {
-    const inicio = moment().startOf('month');
-    const fin = moment();
+// Obtiene el rango actualmente seleccionado.
+function obtenerPeriodoEquipo() {
+    const rango = $('#filtro_fechas').val().split(' - ');
 
-    $('#filtro_fechas').daterangepicker({
-        startDate: inicio,
-        endDate: fin,
-        showDropdowns: true,
-        maxDate: moment(),
-        locale: {
-            format: 'YYYY-MM-DD',
-            separator: ' - ',
-            applyLabel: 'Aplicar',
-            cancelLabel: 'Cancelar',
-            daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
-            monthNames: [
-                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre',
-                'Diciembre'
-            ]
+    return {
+        desde: rango.length === 2 ? rango[0] : '',
+        hasta: rango.length === 2 ? rango[1] : ''
+    };
+}
+
+// Devuelve el nombre del día correspondiente a una fecha ISO.
+function obtenerDiaSemanaEquipo(fecha) {
+    const dias = [
+        'Domingo',
+        'Lunes',
+        'Martes',
+        'Miércoles',
+        'Jueves',
+        'Viernes',
+        'Sábado'
+    ];
+
+    return dias[new Date(fecha + 'T00:00:00').getDay()];
+}
+
+// Genera todas las fechas existentes dentro del periodo consultado.
+function generarFechasPeriodoEquipo(fechaDesde, fechaHasta) {
+    const fechas = [];
+
+    let actual = moment(fechaDesde, 'YYYY-MM-DD');
+    const fin = moment(fechaHasta, 'YYYY-MM-DD');
+
+    while (actual.isSameOrBefore(fin, 'day')) {
+        fechas.push(actual.format('YYYY-MM-DD'));
+        actual.add(1, 'day');
+    }
+
+    return fechas;
+}
+
+// Construye una fila nueva que todavía no existe en la base de datos.
+function crearFilaNuevaEquipo(fecha) {
+    return {
+        jornada_id: null,
+        empleado_id: parseInt(expedienteEquipo.empleadoId, 10),
+        empleado: expedienteEquipo.empleadoNombre,
+        documento: expedienteEquipo.documento,
+        dia: obtenerDiaSemanaEquipo(fecha),
+        fecha: fecha,
+        hora_entrada: '',
+        fecha_salida: fecha,
+        hora_salida: '',
+        horas_ordinarias: '00:00',
+        ubicacion: '',
+        actividad: '',
+        observaciones: '',
+        estado_codigo: 'NUEVA',
+        estado_nombre: 'Nueva',
+        cruza_medianoche: false
+    };
+}
+
+// Mezcla las fechas del periodo con las jornadas existentes del empleado.
+function construirExpedienteEquipo(jornadasExistentes) {
+    const fechas = generarFechasPeriodoEquipo(
+        expedienteEquipo.fechaDesde,
+        expedienteEquipo.fechaHasta
+    );
+
+    const mapa = {};
+
+    jornadasExistentes.forEach(function (fila) {
+        if (
+            parseInt(fila.empleado_id, 10) ===
+            parseInt(expedienteEquipo.empleadoId, 10)
+        ) {
+            mapa[fila.fecha] = fila;
         }
+    });
+
+    return fechas.map(function (fecha) {
+        if (!mapa[fecha]) {
+            return crearFilaNuevaEquipo(fecha);
+        }
+
+        const fila = mapa[fecha];
+
+        fila.cruza_medianoche =
+            fila.fecha_salida &&
+            fila.fecha_salida !== fila.fecha;
+
+        return fila;
     });
 }
 
-function renderEstadoEquipo(codigo, nombre) {
+// Renderiza el estado de cada jornada.
+function renderEstadoExpediente(codigo, nombre) {
     const clases = {
+        NUEVA: 'badge-light border',
         BORRADOR: 'badge-secondary',
         PENDIENTE_APROBACION: 'badge-warning',
         APROBADO: 'badge-success',
         RECHAZADO: 'badge-danger',
+        ANULADO: 'badge-dark',
         PENDIENTE_CORRECCION: 'badge-info',
         CORREGIDO: 'badge-primary'
     };
+
     return (
-        '<span class="badge jornada-estado ' +
+        '<span class="badge ' +
         (clases[codigo] || 'badge-dark') +
-        '">' + equipoEscapeHtml(nombre || codigo) + '</span>'
+        '">' +
+        equipoEscapeHtml(nombre || codigo) +
+        '</span>'
     );
 }
 
-function cargarHistorialEquipo() {
-    const rango = $('#filtro_fechas').val().split(' - ');
-    const fechaDesde = rango.length === 2 ? rango[0] : '';
-    const fechaHasta = rango.length === 2 ? rango[1] : '';
+// Determina si una jornada puede ser modificada desde el expediente del jefe.
+function filaEditableEquipo(fila) {
+    return (
+        fila.estado_codigo === 'NUEVA' ||
+        fila.estado_codigo === 'BORRADOR'
+    );
+}
 
-    if ($.fn.DataTable.isDataTable('#tabla-equipo')) {
-        $('#tabla-equipo').DataTable().destroy();
+// Genera el input editable de la hora de entrada.
+function renderEntradaEquipo(fila) {
+    if (!filaEditableEquipo(fila)) {
+        return equipoEscapeHtml(fila.hora_entrada || '-');
     }
 
-    tablaEquipo = $('#tabla-equipo').DataTable({
-        processing: true,
-        responsive: true,
+    return (
+        '<input type="time" ' +
+        'class="form-control form-control-sm jornada-entrada" ' +
+        'value="' + equipoEscapeHtml(fila.hora_entrada || '') + '">'
+    );
+}
+
+// Genera el input editable de la hora de salida.
+function renderSalidaEquipo(fila) {
+    if (!filaEditableEquipo(fila)) {
+        let texto = fila.hora_salida || '-';
+
+        if (
+            fila.fecha_salida &&
+            fila.fecha_salida !== fila.fecha
+        ) {
+            texto += ' (+1 día)';
+        }
+
+        return equipoEscapeHtml(texto);
+    }
+
+    return (
+        '<input type="time" ' +
+        'class="form-control form-control-sm jornada-salida" ' +
+        'value="' + equipoEscapeHtml(fila.hora_salida || '') + '">'
+    );
+}
+
+// Genera el selector de ubicación para filas editables.
+function renderUbicacionEquipo(fila) {
+    if (!filaEditableEquipo(fila)) {
+        return equipoEscapeHtml(fila.ubicacion || '-');
+    }
+
+    let opciones = [
+        '<option value="">Seleccione</option>',
+        '<option value="Sede principal">Sede principal</option>',
+        '<option value="Obras varias">Obras varias</option>'
+    ];
+
+    // Conserva un valor histórico diferente sin eliminarlo visualmente.
+    if (
+        fila.ubicacion &&
+        fila.ubicacion !== 'Sede principal' &&
+        fila.ubicacion !== 'Obras varias'
+    ) {
+        opciones.push(
+            '<option value="' +
+            equipoEscapeHtml(fila.ubicacion) +
+            '">' +
+            equipoEscapeHtml(fila.ubicacion) +
+            '</option>'
+        );
+    }
+
+    const html = $(
+        '<select class="form-control form-control-sm jornada-ubicacion">' +
+        opciones.join('') +
+        '</select>'
+    );
+
+    html.val(fila.ubicacion || '');
+
+    return html.prop('outerHTML');
+}
+
+// Genera el campo actividad.
+function renderActividadEquipo(fila) {
+    if (!filaEditableEquipo(fila)) {
+        return equipoEscapeHtml(fila.actividad || '-');
+    }
+
+    return (
+        '<input type="text" ' +
+        'class="form-control form-control-sm jornada-actividad" ' +
+        'maxlength="4000" ' +
+        'value="' + equipoEscapeHtml(fila.actividad || '') + '">'
+    );
+}
+
+// Genera el campo observaciones.
+function renderObservacionesEquipo(fila) {
+    if (!filaEditableEquipo(fila)) {
+        return equipoEscapeHtml(fila.observaciones || '-');
+    }
+
+    return (
+        '<input type="text" ' +
+        'class="form-control form-control-sm jornada-observaciones" ' +
+        'maxlength="4000" ' +
+        'value="' + equipoEscapeHtml(fila.observaciones || '') + '">'
+    );
+}
+
+// Inicializa la DataTable que funciona como planilla del expediente.
+function cargarTablaExpediente(filas) {
+    if ($.fn.DataTable.isDataTable('#tabla-expediente')) {
+        $('#tabla-expediente').DataTable().destroy();
+    }
+
+    $('#tabla-expediente tbody').empty();
+
+    tablaExpediente = $('#tabla-expediente').DataTable({
+        data: filas,
+        processing: false,
+        responsive: false,
         autoWidth: false,
-        pageLength: 10,
-        order: [[1, 'desc']],
-        ajax: {
-            url: '../../controller/jornada.php?op=listarJornadasEquipo',
-            type: 'GET',
-            dataType: 'json',
-            data: {
-                fecha_desde: fechaDesde,
-                fecha_hasta: fechaHasta
-            },
-            dataSrc: function (respuesta) {
-                return respuesta.data || [];
-            },
-            error: function (xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'No fue posible consultar',
-                    text: equipoMensajeError(
-                        xhr,
-                        'No se pudo cargar el historial del equipo.'
-                    )
-                });
-            }
-        },
+        paging: false,
+        searching: false,
+        info: false,
+        ordering: false,
         columns: [
             {
-                data: 'empleado',
+                data: 'dia',
                 render: function (data) {
                     return equipoEscapeHtml(data);
                 }
             },
             {
-                data: null,
-                render: function (data, type, fila) {
-                    return equipoEscapeHtml(fila.dia + ' ' + fila.fecha);
-                }
-            },
-            { data: 'hora_entrada' },
-            {
-                data: null,
-                render: function (data, type, fila) {
-                    return equipoEscapeHtml(
-                        fila.hora_salida +
-                        (fila.fecha_salida !== fila.fecha ? ' (+1 día)' : '')
-                    );
-                }
-            },
-            { data: 'horas_ordinarias' },
-            {
-                data: 'ubicacion',
+                data: 'fecha',
                 render: function (data) {
-                    return equipoEscapeHtml(data);
-                }
-            },
-            {
-                data: 'actividad',
-                className: 'jornada-actividad',
-                render: function (data) {
-                    return equipoEscapeHtml(data);
-                }
-            },
-            {
-                data: 'origen',
-                render: function (data) {
-                    return data === 'REGISTRO_JEFE'
-                        ? 'Registrada por jefe'
-                        : 'Autoregistro';
+                    return moment(data, 'YYYY-MM-DD').format('DD/MM/YYYY');
                 }
             },
             {
                 data: null,
                 render: function (data, type, fila) {
-                    return renderEstadoEquipo(
+                    return renderEntradaEquipo(fila);
+                }
+            },
+            {
+                data: null,
+                render: function (data, type, fila) {
+                    return renderSalidaEquipo(fila);
+                }
+            },
+            {
+                data: 'horas_ordinarias',
+                className: 'text-center jornada-horas',
+                render: function (data) {
+                    return equipoEscapeHtml(data || '00:00');
+                }
+            },
+            {
+                data: null,
+                render: function (data, type, fila) {
+                    return renderUbicacionEquipo(fila);
+                }
+            },
+            {
+                data: null,
+                render: function (data, type, fila) {
+                    return renderActividadEquipo(fila);
+                }
+            },
+            {
+                data: null,
+                render: function (data, type, fila) {
+                    return renderObservacionesEquipo(fila);
+                }
+            },
+            {
+                data: null,
+                className: 'text-center',
+                render: function (data, type, fila) {
+                    return renderEstadoExpediente(
                         fila.estado_codigo,
                         fila.estado_nombre
                     );
                 }
             }
         ],
-        language: {
-            processing: 'Procesando...',
-            search: 'Buscar:',
-            lengthMenu: 'Mostrar _MENU_ registros',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros',
-            zeroRecords: 'No se encontraron jornadas',
-            emptyTable: 'No existen jornadas del equipo en el periodo',
-            paginate: {
-                first: 'Primero',
-                previous: 'Anterior',
-                next: 'Siguiente',
-                last: 'Último'
+        createdRow: function (row, data) {
+            $(row)
+                .attr('data-fecha', data.fecha)
+                .attr('data-jornada-id', data.jornada_id || '')
+                .attr(
+                    'data-cruza-medianoche',
+                    data.cruza_medianoche ? '1' : '0'
+                )
+                .attr('data-modificada', '0');
+
+            if (!filaEditableEquipo(data)) {
+                $(row).addClass('bg-light');
             }
+        },
+        language: {
+            emptyTable: 'No existen fechas para el periodo seleccionado.'
         }
     });
+
+    $('#btn-guardar-borrador').prop('disabled', false);
+    $('#btn-registrar-aprobar').prop('disabled', false);
 }
 
-function limpiarFormularioEquipo() {
-    $('#form-jornada-equipo')[0].reset();
-    $('#empleado_id').val('').trigger('change');
-    $('#fecha')
-        .val(moment().format('YYYY-MM-DD'))
-        .attr('max', moment().format('YYYY-MM-DD'));
-    $('#salida_dia_siguiente').prop('checked', false);
-    $('#horas_ordinarias').val('00:00');
-    actualizarDiaEquipo();
-    calcularHorasEquipo();
-}
+// Consulta las jornadas y construye el expediente seleccionado.
+function consultarExpedienteEquipo() {
+    const empleadoId = $('#empleado_id').val();
+    const periodo = obtenerPeriodoEquipo();
 
-function guardarJornadaEquipo(cruzaMedianoche) {
-    $('#btn-guardar-equipo').prop('disabled', true);
-
-    $.ajax({
-        url: '../../controller/jornada.php?op=guardarJornadaEquipo',
-        type: 'POST',
-        dataType: 'json',
-        data: {
-            csrf_token: $('#csrf_token').val(),
-            empleado_id: $('#empleado_id').val(),
-            fecha: $('#fecha').val(),
-            hora_entrada: $('#hora_entrada').val(),
-            hora_salida: $('#hora_salida').val(),
-            cruza_medianoche: cruzaMedianoche ? 1 : 0,
-            ubicacion: $('#ubicacion').val(),
-            actividad: $('#actividad').val(),
-            observaciones: $('#observaciones').val()
-        }
-    }).done(function (respuesta) {
+    if (!empleadoId) {
         Swal.fire({
-            icon: 'success',
-            title: 'Jornada aprobada',
-            text: respuesta.message,
-            timer: 2000,
-            showConfirmButton: false
+            icon: 'warning',
+            title: 'Empleado requerido',
+            text: 'Seleccione un subordinado.'
         });
-        limpiarFormularioEquipo();
-        cargarHistorialEquipo();
-    }).fail(function (xhr) {
-        Swal.fire({
-            icon: 'error',
-            title: 'No fue posible registrar',
-            text: equipoMensajeError(
-                xhr,
-                'Revise la información de la jornada.'
-            )
-        });
-    }).always(function () {
-        $('#btn-guardar-equipo').prop('disabled', false);
-    });
-}
-
-$(document).ready(function () {
-    $('.select2').select2({
-        theme: 'bootstrap4',
-        placeholder: 'Seleccione un subordinado',
-        allowClear: true
-    });
-    inicializarRangoEquipo();
-    limpiarFormularioEquipo();
-    cargarContextoEquipo();
-    cargarSubordinados();
-    cargarHistorialEquipo();
-});
-
-$('#fecha').on('change', function () {
-    actualizarDiaEquipo();
-    calcularHorasEquipo();
-});
-
-$('#hora_entrada, #hora_salida, #salida_dia_siguiente')
-    .on('change', calcularHorasEquipo);
-
-$('#btn-limpiar').on('click', limpiarFormularioEquipo);
-$('#btn-filtrar').on('click', cargarHistorialEquipo);
-
-$('#btn-limpiar-filtro').on('click', function () {
-    const inicio = moment().startOf('month');
-    const fin = moment();
-    const selector = $('#filtro_fechas').data('daterangepicker');
-    selector.setStartDate(inicio);
-    selector.setEndDate(fin);
-    $('#filtro_fechas').val(
-        inicio.format('YYYY-MM-DD') + ' - ' + fin.format('YYYY-MM-DD')
-    );
-    cargarHistorialEquipo();
-});
-
-$('#form-jornada-equipo').on('submit', function (evento) {
-    evento.preventDefault();
-
-    const entrada = $('#hora_entrada').val();
-    const salida = $('#hora_salida').val();
-    const salidaDiaSiguiente = $('#salida_dia_siguiente').is(':checked');
-
-    if (!$('#empleado_id').val()) {
-        Swal.fire(
-            'Empleado requerido',
-            'Seleccione el subordinado.',
-            'warning'
-        );
         return;
     }
 
-    if (salida <= entrada && !salidaDiaSiguiente) {
+    if (!periodo.desde || !periodo.hasta) {
         Swal.fire({
-            icon: 'question',
-            title: 'La jornada cruza medianoche',
-            text: '¿La salida corresponde al día siguiente?',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, día siguiente',
-            cancelButtonText: 'Revisar'
-        }).then(function (resultado) {
-            if (resultado.isConfirmed) {
-                $('#salida_dia_siguiente').prop('checked', true);
-                calcularHorasEquipo();
-                guardarJornadaEquipo(true);
-            }
+            icon: 'warning',
+            title: 'Periodo requerido',
+            text: 'Seleccione el periodo que desea consultar.'
         });
+        return;
+    }
+
+    const opcion = $('#empleado_id option:selected');
+
+    expedienteEquipo = {
+        empleadoId: empleadoId,
+        empleadoNombre: opcion.attr('data-nombre') || '',
+        documento: opcion.attr('data-documento') || '',
+        fechaDesde: periodo.desde,
+        fechaHasta: periodo.hasta
+    };
+
+    $('#btn-consultar-expediente')
+        .prop('disabled', true)
+        .html(
+            '<span class="spinner-border spinner-border-sm mr-1"></span>' +
+            'Consultando...'
+        );
+
+    $.ajax({
+        url: '../../controller/jornada.php?op=listarJornadasEquipo',
+        type: 'GET',
+        dataType: 'json',
+        data: {
+            empleado_id: empleadoId,
+            fecha_desde: periodo.desde,
+            fecha_hasta: periodo.hasta
+        }
+    }).done(function (respuesta) {
+        const filas = construirExpedienteEquipo(
+            respuesta.data || []
+        );
+
+        $('#expediente-empleado').text(
+            expedienteEquipo.empleadoNombre
+        );
+
+        $('#expediente-documento').text(
+            expedienteEquipo.documento || '-'
+        );
+
+        $('#expediente-periodo').text(
+            moment(expedienteEquipo.fechaDesde, 'YYYY-MM-DD')
+                .format('DD/MM/YYYY') +
+            ' al ' +
+            moment(expedienteEquipo.fechaHasta, 'YYYY-MM-DD')
+                .format('DD/MM/YYYY')
+        );
+
+        cargarTablaExpediente(filas);
+
+        $('#contenedor-expediente').slideDown(200);
+    }).fail(function (xhr) {
+        $('#contenedor-expediente').hide();
+
+        Swal.fire({
+            icon: 'error',
+            title: 'No fue posible consultar',
+            text: equipoMensajeError(
+                xhr,
+                'No fue posible cargar el expediente del empleado.'
+            )
+        });
+    }).always(function () {
+        $('#btn-consultar-expediente')
+            .prop('disabled', false)
+            .html(
+                '<i class="fas fa-search mr-1"></i>' +
+                'Consultar'
+            );
+    });
+}
+
+// Obtiene la información editable de una fila de la planilla.
+// Obtiene los valores actuales de una fila editable del expediente.
+function obtenerDatosFilaEquipo(filaDom) {
+    const fila = tablaExpediente.row(filaDom).data();
+
+    return {
+        jornada_id:
+            fila.jornada_id === null ||
+            fila.jornada_id === undefined ||
+            fila.jornada_id === ''
+                ? null
+                : parseInt(fila.jornada_id, 10),
+
+        fecha: fila.fecha,
+
+        hora_entrada:
+            $(filaDom).find('.jornada-entrada').val() || '',
+
+        hora_salida:
+            $(filaDom).find('.jornada-salida').val() || '',
+
+        ubicacion:
+            $(filaDom).find('.jornada-ubicacion').val() || '',
+
+        actividad:
+            $.trim(
+                $(filaDom).find('.jornada-actividad').val() || ''
+            ),
+
+        observaciones:
+            $.trim(
+                $(filaDom).find('.jornada-observaciones').val() || ''
+            ),
+
+        cruza_medianoche:
+            $(filaDom).attr('data-cruza-medianoche') === '1'
+    };
+}
+
+// Determina si una fila se encuentra completamente vacía.
+function filaVaciaEquipo(datos) {
+    return (
+        datos.hora_entrada === '' &&
+        datos.hora_salida === '' &&
+        datos.ubicacion === '' &&
+        datos.actividad === '' &&
+        datos.observaciones === ''
+    );
+}
+
+// Determina si una fila tiene los datos mínimos requeridos.
+function filaCompletaEquipo(datos) {
+    return (
+        datos.hora_entrada !== '' &&
+        datos.hora_salida !== '' &&
+        datos.ubicacion !== '' &&
+        datos.actividad !== ''
+    );
+}
+
+// Actualiza en el DataTable el cálculo devuelto por el servidor.
+function actualizarHorasFilaEquipo(filaDom, respuesta) {
+    const datos = respuesta.data || {};
+    const fila = tablaExpediente.row(filaDom).data();
+
+    fila.horas_ordinarias = datos.horas_ordinarias || '00:00';
+    fila.cruza_medianoche = !!datos.cruza_medianoche;
+
+    $(filaDom).attr(
+        'data-cruza-medianoche',
+        fila.cruza_medianoche ? '1' : '0'
+    );
+
+    $(filaDom)
+        .find('td')
+        .eq(4)
+        .text(fila.horas_ordinarias);
+}
+
+// Solicita al servidor el cálculo de horas de una fila.
+function calcularHorasFilaEquipo(filaDom) {
+    const datos = obtenerDatosFilaEquipo(filaDom);
+
+    if (!datos.hora_entrada || !datos.hora_salida) {
+        $(filaDom).find('td').eq(4).text('00:00');
+        return;
+    }
+
+    const numeroSolicitud = ++solicitudCalculoEquipo;
+
+    $.ajax({
+        url: '../../controller/jornada.php?op=calcularHorasEquipo',
+        type: 'GET',
+        dataType: 'json',
+        data: {
+            fecha: datos.fecha,
+            hora_entrada: datos.hora_entrada,
+            hora_salida: datos.hora_salida,
+            cruza_medianoche:
+                datos.cruza_medianoche ? 1 : 0
+        }
+    }).done(function (respuesta) {
+        if (numeroSolicitud !== solicitudCalculoEquipo) {
+            return;
+        }
+
+        actualizarHorasFilaEquipo(filaDom, respuesta);
+    }).fail(function (xhr) {
+        if (numeroSolicitud !== solicitudCalculoEquipo) {
+            return;
+        }
+
+        $(filaDom).find('td').eq(4).text('00:00');
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'No fue posible calcular',
+            text: equipoMensajeError(
+                xhr,
+                'Revise las horas ingresadas.'
+            )
+        });
+    });
+}
+
+// Evalúa si la salida inferior o igual a la entrada corresponde al día siguiente.
+function validarCruceMedianocheEquipo(filaDom) {
+    const datos = obtenerDatosFilaEquipo(filaDom);
+
+    if (!datos.hora_entrada || !datos.hora_salida) {
+        return;
+    }
+
+    if (datos.hora_salida > datos.hora_entrada) {
+        $(filaDom).attr('data-cruza-medianoche', '0');
+        calcularHorasFilaEquipo(filaDom);
         return;
     }
 
     Swal.fire({
         icon: 'question',
-        title: 'Registrar y aprobar',
-        text: 'La jornada quedará aprobada automáticamente.',
+        title: 'La jornada cruza medianoche',
+        html:
+            'La salida <strong>' +
+            equipoEscapeHtml(datos.hora_salida) +
+            '</strong> es anterior o igual a la entrada <strong>' +
+            equipoEscapeHtml(datos.hora_entrada) +
+            '</strong>.<br><br>' +
+            '¿La salida corresponde al día siguiente?',
         showCancelButton: true,
-        confirmButtonText: 'Registrar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#28a745'
+        confirmButtonText: 'Sí, día siguiente',
+        cancelButtonText: 'Revisar'
     }).then(function (resultado) {
         if (resultado.isConfirmed) {
-            guardarJornadaEquipo(salidaDiaSiguiente);
+            $(filaDom).attr('data-cruza-medianoche', '1');
+            calcularHorasFilaEquipo(filaDom);
+        } else {
+            $(filaDom).attr('data-cruza-medianoche', '0');
+            $(filaDom).find('.jornada-salida').val('');
+            $(filaDom).find('td').eq(4).text('00:00');
         }
     });
+}
+
+// Recorre la tabla y obtiene las filas nuevas o borradores diligenciados.
+// Obtiene únicamente jornadas nuevas o borradores modificados.
+function obtenerJornadasEditablesEquipo() {
+    const jornadas = [];
+    const errores = [];
+
+    $('#tabla-expediente tbody tr').each(function () {
+        const filaDom = this;
+        const fila = tablaExpediente.row(filaDom).data();
+
+        if (!fila || !filaEditableEquipo(fila)) {
+            return;
+        }
+
+        const datos = obtenerDatosFilaEquipo(filaDom);
+        const modificada =
+            $(filaDom).attr('data-modificada') === '1';
+
+        // Una fila nueva completamente vacía se ignora.
+        if (
+            fila.estado_codigo === 'NUEVA' &&
+            filaVaciaEquipo(datos)
+        ) {
+            return;
+        }
+
+        /*
+         * Un borrador existente que no fue modificado tampoco necesita
+         * enviarse nuevamente al guardar.
+         */
+        if (
+            fila.estado_codigo === 'BORRADOR' &&
+            !modificada
+        ) {
+            return;
+        }
+
+        // Las filas parcialmente diligenciadas deben corregirse.
+        if (!filaCompletaEquipo(datos)) {
+            errores.push({
+                fecha: datos.fecha,
+                mensaje:
+                    'La jornada tiene información incompleta.'
+            });
+
+            return;
+        }
+
+        jornadas.push(datos);
+    });
+
+    return {
+        jornadas: jornadas,
+        errores: errores
+    };
+}
+
+// En el Paso 3 este botón será conectado al guardado masivo del controller.
+// Valida y envía las jornadas editables para guardarlas como borrador.
+function guardarBorradoresEquipo() {
+    const resultado = obtenerJornadasEditablesEquipo();
+
+    // Si hay filas parcialmente diligenciadas, no permite guardar el lote.
+    if (resultado.errores.length > 0) {
+        const detalle = resultado.errores
+            .map(function (error) {
+                return (
+                    moment(error.fecha, 'YYYY-MM-DD').format('DD/MM/YYYY') +
+                    ': ' +
+                    error.mensaje
+                );
+            })
+            .join('<br>');
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'Revise las jornadas',
+            html: detalle
+        });
+
+        return;
+    }
+
+    // Si no hay filas diligenciadas, informa y no realiza petición.
+    if (resultado.jornadas.length === 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Sin cambios',
+            text: 'No existen jornadas nuevas o borradores para guardar.'
+        });
+
+        return;
+    }
+
+    Swal.fire({
+        icon: 'question',
+        title: 'Guardar borradores',
+        html:
+            'Se guardarán <strong>' +
+            resultado.jornadas.length +
+            '</strong> jornada(s) como borrador.<br><br>' +
+            'Podrá continuar diligenciándolas posteriormente.',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar borrador',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#6c757d'
+    }).then(function (respuesta) {
+        if (!respuesta.isConfirmed) {
+            return;
+        }
+
+        $('#btn-guardar-borrador').prop('disabled', true);
+        $('#btn-registrar-aprobar').prop('disabled', true);
+
+        $.ajax({
+            url:
+                '../../controller/jornada.php?' +
+                'op=guardarBorradoresEquipoMasivo',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                csrf_token: $('#csrf_token').val(),
+                empleado_id: expedienteEquipo.empleadoId,
+                jornadas: JSON.stringify(resultado.jornadas)
+            }
+        }).done(function (respuestaAjax) {
+            const datos = respuestaAjax.data || {};
+
+            let mensaje =
+                'Borradores creados: ' +
+                (datos.creadas || 0) +
+                '.';
+
+            mensaje +=
+                ' Actualizados: ' +
+                (datos.actualizadas || 0) +
+                '.';
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Borradores guardados',
+                text: mensaje,
+                timer: 2200,
+                showConfirmButton: false
+            });
+
+            // Recarga el expediente para obtener IDs y estados reales de BD.
+            consultarExpedienteEquipo();
+        }).fail(function (xhr) {
+            Swal.fire({
+                icon: 'error',
+                title: 'No fue posible guardar',
+                text: equipoMensajeError(
+                    xhr,
+                    'No fue posible guardar los borradores.'
+                )
+            });
+        }).always(function () {
+            $('#btn-guardar-borrador').prop('disabled', false);
+            $('#btn-registrar-aprobar').prop('disabled', false);
+        });
+    });
+}
+
+// En el Paso 3 este botón será conectado a la aprobación masiva.
+// Valida y envía las jornadas para registrarlas y aprobarlas masivamente.
+function registrarAprobarJornadasEquipo() {
+    const resultado = obtenerJornadasAprobacionEquipo();
+
+    // No se aprueba el expediente si existen filas parcialmente diligenciadas.
+    if (resultado.errores.length > 0) {
+        const detalle = resultado.errores
+            .map(function (error) {
+                return (
+                    moment(error.fecha, 'YYYY-MM-DD').format('DD/MM/YYYY') +
+                    ': ' +
+                    error.mensaje
+                );
+            })
+            .join('<br>');
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'Existen jornadas incompletas',
+            html: detalle
+        });
+
+        return;
+    }
+
+    // Las filas totalmente vacías se ignoran.
+    if (resultado.jornadas.length === 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Sin jornadas',
+            text:
+                'No existen jornadas nuevas o borradores ' +
+                'para registrar y aprobar.'
+        });
+
+        return;
+    }
+
+    Swal.fire({
+        icon: 'question',
+        title: 'Registrar y aprobar jornadas',
+        html:
+            'Se procesarán <strong>' +
+            resultado.jornadas.length +
+            '</strong> jornada(s).<br><br>' +
+            'Las jornadas quedarán aprobadas automáticamente ' +
+            'a nombre del jefe inmediato.',
+        showCancelButton: true,
+        confirmButtonText: 'Registrar y aprobar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#28a745'
+    }).then(function (respuesta) {
+        if (!respuesta.isConfirmed) {
+            return;
+        }
+
+        $('#btn-guardar-borrador').prop('disabled', true);
+        $('#btn-registrar-aprobar').prop('disabled', true);
+
+        $.ajax({
+            url:
+                '../../controller/jornada.php?' +
+                'op=registrarAprobarEquipoMasivo',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                csrf_token: $('#csrf_token').val(),
+                empleado_id: expedienteEquipo.empleadoId,
+                jornadas: JSON.stringify(resultado.jornadas)
+            }
+        }).done(function (respuestaAjax) {
+            const datos = respuestaAjax.data || {};
+
+            let mensaje =
+                'Nuevas jornadas aprobadas: ' +
+                (datos.creadas_aprobadas || 0) +
+                '.';
+
+            mensaje +=
+                ' Borradores aprobados: ' +
+                (datos.borradores_aprobados || 0) +
+                '.';
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Jornadas aprobadas',
+                text: mensaje,
+                timer: 2500,
+                showConfirmButton: false
+            });
+
+            // Al recargar, las jornadas aprobadas quedan bloqueadas.
+            consultarExpedienteEquipo();
+        }).fail(function (xhr) {
+            Swal.fire({
+                icon: 'error',
+                title: 'No fue posible aprobar',
+                text: equipoMensajeError(
+                    xhr,
+                    'No fue posible registrar y aprobar las jornadas.'
+                )
+            });
+        }).always(function () {
+            $('#btn-guardar-borrador').prop('disabled', false);
+            $('#btn-registrar-aprobar').prop('disabled', false);
+        });
+    });
+}
+
+// Obtiene nuevas jornadas y todos los borradores listos para aprobación.
+function obtenerJornadasAprobacionEquipo() {
+    const jornadas = [];
+    const errores = [];
+
+    $('#tabla-expediente tbody tr').each(function () {
+        const filaDom = this;
+        const fila = tablaExpediente.row(filaDom).data();
+
+        if (!fila || !filaEditableEquipo(fila)) {
+            return;
+        }
+
+        const datos = obtenerDatosFilaEquipo(filaDom);
+
+        // Las filas nuevas totalmente vacías no se incluyen.
+        if (
+            fila.estado_codigo === 'NUEVA' &&
+            filaVaciaEquipo(datos)
+        ) {
+            return;
+        }
+
+        // Borradores y nuevas diligenciadas deben estar completos.
+        if (!filaCompletaEquipo(datos)) {
+            errores.push({
+                fecha: datos.fecha,
+                mensaje:
+                    'La jornada tiene información incompleta.'
+            });
+
+            return;
+        }
+
+        jornadas.push(datos);
+    });
+
+    return {
+        jornadas: jornadas,
+        errores: errores
+    };
+}
+
+// Inicializa los componentes de la pantalla.
+$(document).ready(function () {
+    inicializarSelectEmpleadoEquipo();
+    inicializarRangoEquipo();
+    cargarContextoEquipo();
+    cargarSubordinados();
+
+    $('#contenedor-expediente').hide();
+});
+
+// Consulta el expediente seleccionado.
+$('#btn-consultar-expediente').on('click', function () {
+    consultarExpedienteEquipo();
+});
+
+// Si cambia el empleado, oculta el expediente anterior.
+$('#empleado_id').on('change', function () {
+    $('#contenedor-expediente').hide();
+
+    expedienteEquipo = {
+        empleadoId: null,
+        empleadoNombre: '',
+        documento: '',
+        fechaDesde: '',
+        fechaHasta: ''
+    };
+});
+
+// Si cambia el periodo, obliga a realizar una nueva consulta.
+$('#filtro_fechas').on('apply.daterangepicker', function () {
+    $('#contenedor-expediente').hide();
+});
+
+// Calcula las horas cuando cambia la entrada.
+$('#tabla-expediente tbody').on(
+    'change',
+    '.jornada-entrada',
+    function () {
+        const filaDom = $(this).closest('tr')[0];
+
+        if ($(filaDom).find('.jornada-salida').val()) {
+            validarCruceMedianocheEquipo(filaDom);
+        }
+    }
+);
+
+// Evalúa automáticamente cruce de medianoche cuando cambia la salida.
+$('#tabla-expediente tbody').on(
+    'change',
+    '.jornada-salida',
+    function () {
+        const filaDom = $(this).closest('tr')[0];
+        validarCruceMedianocheEquipo(filaDom);
+    }
+);
+
+// Marca visualmente una fila cuando el jefe modifica información.
+$('#tabla-expediente tbody').on(
+    'change input',
+    '.jornada-entrada, ' +
+    '.jornada-salida, ' +
+    '.jornada-ubicacion, ' +
+    '.jornada-actividad, ' +
+    '.jornada-observaciones',
+    function () {
+        $(this)
+            .closest('tr')
+            .attr('data-modificada', '1')
+            .addClass('table-warning');
+    }
+);
+
+// Guarda las filas diligenciadas como borradores.
+$('#btn-guardar-borrador').on('click', function () {
+    guardarBorradoresEquipo();
+});
+
+// Registra las nuevas jornadas y aprueba los borradores del expediente.
+$('#btn-registrar-aprobar').on('click', function () {
+    registrarAprobarJornadasEquipo();
 });

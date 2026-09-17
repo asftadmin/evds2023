@@ -1,5 +1,94 @@
 let tablaJornadas = null;
 let solicitudCalculoHoras = 0;
+let solicitudValidacionFecha = 0;
+let solicitudEdicion = 0;
+let usuarioAutorizado = false;
+let fechaDisponible = false;
+let operacionEnCurso = false;
+let ultimaBusquedaJornadas = '';
+const jornadasSeleccionadas = new Set();
+
+function actualizarControlesJornada() {
+    const bloqueado = !usuarioAutorizado || operacionEnCurso;
+    $('#form-jornada :input').prop('disabled', bloqueado);
+    $('#btn-guardar').prop('disabled', bloqueado || !fechaDisponible);
+    $('#btn-enviar-seleccionadas').prop(
+        'disabled', bloqueado || jornadasSeleccionadas.size === 0 || jornadasSeleccionadas.size > 500
+    );
+    $('#tabla-jornadas button, #tabla-jornadas input[type="checkbox"], #btn-filtrar, #btn-limpiar-filtro, #filtro_fechas')
+        .prop('disabled', bloqueado);
+}
+
+/** Verifica la fecha en todo el historial, también al editar un borrador. */
+function validarFechaJornada() {
+    const fecha = $('#fecha').val();
+    const solicitud = ++solicitudValidacionFecha;
+    fechaDisponible = false;
+    $('#fecha').removeClass('is-invalid');
+    $('#ayuda-fecha').removeClass('text-danger').addClass('text-muted')
+        .text(fecha ? 'Validando fecha en el historial...' : 'Seleccione una fecha.');
+    actualizarControlesJornada();
+    if (!fecha) {
+        return;
+    }
+    $.ajax({
+        url: '../../controller/jornada.php?op=validarFecha',
+        type: 'GET',
+        dataType: 'json',
+        timeout: 15000,
+        data: { fecha: fecha, jornada_id: $('#jornada_id').val() }
+    }).done(function (respuesta) {
+        if (solicitud !== solicitudValidacionFecha) {
+            return;
+        }
+        fechaDisponible = respuesta.data.disponible === true;
+        const existente = respuesta.data.jornada;
+        $('#fecha').toggleClass('is-invalid', !fechaDisponible);
+        $('#ayuda-fecha').toggleClass('text-danger', !fechaDisponible)
+            .toggleClass('text-muted', fechaDisponible).text(fechaDisponible
+                ? 'Fecha disponible.'
+                : 'Ya tiene una jornada para el ' + moment(fecha).format('DD/MM/YYYY')
+                    + ' (' + existente.estado_nombre + ', #' + existente.jornada_id + '). Consulte el historial.');
+    }).fail(function (xhr) {
+        if (solicitud !== solicitudValidacionFecha) {
+            return;
+        }
+        $('#ayuda-fecha').removeClass('text-muted').addClass('text-danger').text(
+            jornadaMensajeError(xhr, 'No se pudo validar la fecha. Vuelva a seleccionarla para reintentar.')
+        );
+    }).always(function () {
+        if (solicitud === solicitudValidacionFecha) {
+            actualizarControlesJornada();
+        }
+    });
+}
+
+function borradoresFiltrados() {
+    if (!tablaJornadas) {
+        return [];
+    }
+    return tablaJornadas.rows({ search: 'applied' }).data().toArray()
+        .filter(function (fila) { return fila.estado_codigo === 'BORRADOR'; })
+        .map(function (fila) { return Number(fila.jornada_id); });
+}
+
+function actualizarSeleccionJornadas() {
+    const ids = borradoresFiltrados();
+    const permitidos = new Set(ids);
+    jornadasSeleccionadas.forEach(function (id) {
+        if (!permitidos.has(id)) {
+            jornadasSeleccionadas.delete(id);
+        }
+    });
+    $('#tabla-jornadas .seleccionar-jornada').each(function () {
+        $(this).prop('checked', jornadasSeleccionadas.has(Number($(this).data('id'))));
+    });
+    $('#seleccionar-jornadas')
+        .prop('checked', ids.length > 0 && jornadasSeleccionadas.size === ids.length)
+        .prop('indeterminate', jornadasSeleccionadas.size > 0 && jornadasSeleccionadas.size < ids.length);
+    $('#conteo-seleccionadas').text(jornadasSeleccionadas.size + ' seleccionadas');
+    actualizarControlesJornada();
+}
 
 /**
  * Escapa texto antes de insertarlo en fragmentos HTML.
@@ -153,6 +242,8 @@ function cargarContextoUsuario() {
         dataType: 'json'
     }).done(function (respuesta) {
         const datos = respuesta.data || {};
+        usuarioAutorizado = true;
+        actualizarControlesJornada();
         $('#texto-contexto').text(
             'Registro para ' +
             (datos.empleado || '') +
@@ -179,7 +270,8 @@ function renderEstadoJornada(codigo, nombre) {
         APROBADO: 'badge-success',
         RECHAZADO: 'badge-danger',
         PENDIENTE_CORRECCION: 'badge-info',
-        CORREGIDO: 'badge-primary'
+        CORREGIDO: 'badge-primary',
+        ANULADO: 'badge-dark'
     };
 
     return (
@@ -200,13 +292,16 @@ function renderAccionesJornada(fila) {
     }
 
     return (
-        '<div class="btn-group btn-group-sm">' +
-        '<button type="button" class="btn btn-warning btn-editar" ' +
-        'data-id="' + Number(fila.jornada_id) + '" title="Editar">' +
+        '<div class="jornada-acciones">' +
+        '<button type="button" class="btn btn-sm btn-warning btn-editar" ' +
+        'data-id="' + Number(fila.jornada_id) + '" title="Editar" aria-label="Editar borrador">' +
         '<i class="fas fa-edit"></i></button>' +
-        '<button type="button" class="btn btn-success btn-enviar" ' +
-        'data-id="' + Number(fila.jornada_id) + '" title="Enviar a aprobación">' +
+        '<button type="button" class="btn btn-sm btn-success btn-enviar" ' +
+        'data-id="' + Number(fila.jornada_id) + '" title="Enviar a aprobación" aria-label="Enviar a aprobación">' +
         '<i class="fas fa-paper-plane"></i></button>' +
+        '<button type="button" class="btn btn-sm btn-danger btn-anular" ' +
+        'data-id="' + Number(fila.jornada_id) + '" title="Anular borrador" aria-label="Anular borrador">' +
+        '<i class="fas fa-ban"></i></button>' +
         '</div>'
     );
 }
@@ -215,27 +310,27 @@ function renderAccionesJornada(fila) {
  * Carga el historial propio mediante DataTables.
  */
 function cargarMisJornadas() {
-    const rango = $('#filtro_fechas').val().split(' - ');
-    const fechaDesde = rango.length === 2 ? rango[0] : '';
-    const fechaHasta = rango.length === 2 ? rango[1] : '';
-
-    if ($.fn.DataTable.isDataTable('#tabla-jornadas')) {
-        $('#tabla-jornadas').DataTable().destroy();
+    jornadasSeleccionadas.clear();
+    if (tablaJornadas) {
+        actualizarSeleccionJornadas();
+        tablaJornadas.ajax.reload();
+        return;
     }
 
     tablaJornadas = $('#tabla-jornadas').DataTable({
         processing: true,
         responsive: true,
         autoWidth: false,
-        order: [[1, 'desc']],
+        order: [[2, 'desc']],
         pageLength: 10,
         ajax: {
             url: '../../controller/jornada.php?op=listarMisJornadas',
             type: 'GET',
             dataType: 'json',
-            data: {
-                fecha_desde: fechaDesde,
-                fecha_hasta: fechaHasta
+            data: function (datos) {
+                const rango = $('#filtro_fechas').val().split(' - ');
+                datos.fecha_desde = rango.length === 2 ? rango[0] : '';
+                datos.fecha_hasta = rango.length === 2 ? rango[1] : '';
             },
             dataSrc: function (respuesta) {
                 return respuesta.data || [];
@@ -252,8 +347,22 @@ function cargarMisJornadas() {
             }
         },
         columns: [
+            {
+                data: null,
+                orderable: false,
+                searchable: false,
+                className: 'all text-center',
+                render: function (data, type, fila) {
+                    if (type !== 'display' || fila.estado_codigo !== 'BORRADOR') {
+                        return '';
+                    }
+                    return '<input type="checkbox" class="seleccionar-jornada" data-id="'
+                        + Number(fila.jornada_id) + '" aria-label="Seleccionar jornada '
+                        + jornadaEscapeHtml(fila.fecha) + '">';
+                }
+            },
             { data: 'dia' },
-            { data: 'fecha' },
+            { data: 'fecha', responsivePriority: 1 },
             { data: 'hora_entrada' },
             {
                 data: null,
@@ -281,21 +390,33 @@ function cargarMisJornadas() {
             {
                 data: null,
                 render: function (data, type, fila) {
-                    return renderEstadoJornada(
+                    if (type !== 'display') {
+                        return fila.estado_nombre;
+                    }
+                    let estado = renderEstadoJornada(
                         fila.estado_codigo,
                         fila.estado_nombre
                     );
+                    if (fila.estado_codigo === 'ANULADO' && fila.anulacion_motivo) {
+                        estado += '<small class="jornada-anulacion text-muted">'
+                            + jornadaEscapeHtml(fila.anulacion_motivo) + '<br>'
+                            + jornadaEscapeHtml(moment(fila.anulacion_fecha).format('DD/MM/YYYY HH:mm'))
+                            + '</small>';
+                    }
+                    return estado;
                 }
             },
             {
                 data: null,
                 orderable: false,
                 searchable: false,
+                className: 'all',
                 render: function (data, type, fila) {
                     return renderAccionesJornada(fila);
                 }
             }
         ],
+        drawCallback: actualizarSeleccionJornadas,
         language: {
             processing: 'Procesando...',
             search: 'Buscar:',
@@ -318,6 +439,8 @@ function cargarMisJornadas() {
  * Restablece el formulario y selecciona la fecha actual.
  */
 function limpiarFormularioJornada() {
+    ++solicitudEdicion;
+    $('#ubicacion option[data-anterior]').remove();
     $('#form-jornada')[0].reset();
     $('#jornada_id').val('');
     $('#fecha').val(moment().format('YYYY-MM-DD'));
@@ -326,6 +449,7 @@ function limpiarFormularioJornada() {
     $('#horas_ordinarias').val('00:00');
     actualizarDiaSemana();
     calcularHorasJornada();
+    validarFechaJornada();
     $('#btn-guardar').html(
         '<i class="fas fa-save mr-1"></i>Guardar borrador'
     );
@@ -335,6 +459,9 @@ function limpiarFormularioJornada() {
  * Guarda el formulario después de confirmar el cruce de medianoche.
  */
 function guardarBorrador(cruzaMedianoche) {
+    if (operacionEnCurso || !usuarioAutorizado || !fechaDisponible) {
+        return;
+    }
     const datos = {
         csrf_token: $('#csrf_token').val(),
         jornada_id: $('#jornada_id').val(),
@@ -347,7 +474,9 @@ function guardarBorrador(cruzaMedianoche) {
         cruza_medianoche: cruzaMedianoche ? 1 : 0
     };
 
-    $('#btn-guardar').prop('disabled', true);
+    operacionEnCurso = true;
+    ++solicitudEdicion;
+    actualizarControlesJornada();
 
     $.ajax({
         url: '../../controller/jornada.php?op=guardarBorrador',
@@ -371,7 +500,8 @@ function guardarBorrador(cruzaMedianoche) {
             text: jornadaMensajeError(xhr, 'Revise la información registrada.')
         });
     }).always(function () {
-        $('#btn-guardar').prop('disabled', false);
+        operacionEnCurso = false;
+        actualizarControlesJornada();
     });
 }
 
@@ -379,12 +509,19 @@ function guardarBorrador(cruzaMedianoche) {
  * Carga un borrador propio para edición.
  */
 function editarJornada(jornadaId) {
+    if (operacionEnCurso || !usuarioAutorizado) {
+        return;
+    }
+    const solicitud = ++solicitudEdicion;
     $.ajax({
         url: '../../controller/jornada.php?op=obtenerMiJornada',
         type: 'GET',
         dataType: 'json',
         data: { jornada_id: jornadaId }
     }).done(function (respuesta) {
+        if (solicitud !== solicitudEdicion) {
+            return;
+        }
         const fila = respuesta.data;
 
         if (fila.estado_codigo !== 'BORRADOR') {
@@ -404,11 +541,17 @@ function editarJornada(jornadaId) {
             'checked',
             Boolean(fila.cruza_medianoche)
         );
+        $('#ubicacion option[data-anterior]').remove();
+        if (!['Sede principal', 'Obras varias'].includes(fila.ubicacion)) {
+            $('<option>').val(fila.ubicacion).text(fila.ubicacion + ' (ubicación anterior)')
+                .attr('data-anterior', '1').appendTo('#ubicacion');
+        }
         $('#ubicacion').val(fila.ubicacion);
         $('#actividad').val(fila.actividad);
         $('#observaciones').val(fila.observaciones || '');
         actualizarDiaSemana();
         calcularHorasJornada();
+        validarFechaJornada();
         $('#btn-guardar').html(
             '<i class="fas fa-save mr-1"></i>Actualizar borrador'
         );
@@ -426,31 +569,61 @@ function editarJornada(jornadaId) {
  * Envía un borrador a la bandeja de los jefes relacionados.
  */
 function enviarAprobacion(jornadaId) {
+    enviarJornadas([jornadaId]);
+}
+
+function enviarJornadas(ids) {
+    if (operacionEnCurso || !usuarioAutorizado || ids.length === 0 || ids.length > 500) {
+        return;
+    }
+    operacionEnCurso = true;
+    ++solicitudEdicion;
+    actualizarControlesJornada();
     Swal.fire({
         icon: 'question',
-        title: 'Enviar a aprobación',
-        text: 'Después de enviarla no podrá editar esta jornada.',
+        title: 'Enviar ' + ids.length + ' jornada(s) a aprobación',
+        text: 'Se enviarán los borradores guardados. Después del envío no podrá editarlos ni anularlos.',
         showCancelButton: true,
         confirmButtonText: 'Enviar',
         cancelButtonText: 'Cancelar'
     }).then(function (resultado) {
         if (!resultado.isConfirmed) {
+            operacionEnCurso = false;
+            actualizarControlesJornada();
             return;
         }
 
         $.ajax({
-            url: '../../controller/jornada.php?op=enviarAprobacion',
+            url: '../../controller/jornada.php?op=enviarAprobacionMasiva',
             type: 'POST',
             dataType: 'json',
             data: {
                 csrf_token: $('#csrf_token').val(),
-                jornada_id: jornadaId
+                jornada_ids: ids
             }
         }).done(function (respuesta) {
+            const resultado = respuesta.data;
+            const fallidos = resultado.fallidos || [];
+            const enviados = resultado.enviados || [];
+            const resumen = enviados.length + ' jornada(s) enviada(s). ' + fallidos.length + ' sin enviar.';
+            const panel = $('#resultado-envio').empty().removeClass('d-none alert-success alert-warning')
+                .addClass(fallidos.length ? 'alert-warning' : 'alert-success');
+            $('<strong>').text(resumen).appendTo(panel);
+            if (fallidos.length) {
+                const lista = $('<ul class="mb-0 mt-2">').appendTo(panel);
+                fallidos.forEach(function (fila) {
+                    $('<li>').text('Jornada #' + fila.jornada_id + ': ' + fila.message).appendTo(lista);
+                });
+            }
+            if (enviados.map(Number).includes(Number($('#jornada_id').val()))) {
+                limpiarFormularioJornada();
+            } else {
+                validarFechaJornada();
+            }
             Swal.fire({
-                icon: 'success',
-                title: 'Jornada enviada',
-                text: respuesta.message
+                icon: fallidos.length ? 'warning' : 'success',
+                title: 'Resultado del envío',
+                text: resumen
             });
             cargarMisJornadas();
         }).fail(function (xhr) {
@@ -459,6 +632,64 @@ function enviarAprobacion(jornadaId) {
                 title: 'No fue posible enviar',
                 text: jornadaMensajeError(xhr, 'Intente nuevamente.')
             });
+        }).always(function () {
+            operacionEnCurso = false;
+            actualizarControlesJornada();
+        });
+    });
+}
+
+function anularJornada(jornadaId) {
+    if (operacionEnCurso || !usuarioAutorizado) {
+        return;
+    }
+    operacionEnCurso = true;
+    ++solicitudEdicion;
+    actualizarControlesJornada();
+    Swal.fire({
+        icon: 'warning',
+        title: 'Anular borrador',
+        text: 'Se conservará en el historial y podrá registrar nuevamente esa fecha.',
+        input: 'textarea',
+        inputLabel: 'Motivo de anulación',
+        inputAttributes: { maxlength: 2000, 'aria-label': 'Motivo de anulación' },
+        inputValidator: function (valor) {
+            if (!valor || !valor.trim()) {
+                return 'Indique el motivo de anulación.';
+            }
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Anular borrador',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545'
+    }).then(function (resultado) {
+        if (!resultado.isConfirmed) {
+            operacionEnCurso = false;
+            actualizarControlesJornada();
+            return;
+        }
+        $.ajax({
+            url: '../../controller/jornada.php?op=anularBorrador',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                csrf_token: $('#csrf_token').val(),
+                jornada_id: jornadaId,
+                motivo: resultado.value.trim()
+            }
+        }).done(function (respuesta) {
+            if (Number($('#jornada_id').val()) === jornadaId) {
+                limpiarFormularioJornada();
+            } else {
+                validarFechaJornada();
+            }
+            cargarMisJornadas();
+            Swal.fire('Borrador anulado', respuesta.message, 'success');
+        }).fail(function (xhr) {
+            Swal.fire('No fue posible anular', jornadaMensajeError(xhr, 'Intente nuevamente.'), 'error');
+        }).always(function () {
+            operacionEnCurso = false;
+            actualizarControlesJornada();
         });
     });
 }
@@ -473,6 +704,7 @@ $(document).ready(function () {
 $('#fecha').on('change', function () {
     actualizarDiaSemana();
     calcularHorasJornada();
+    validarFechaJornada();
 });
 
 $('#hora_entrada, #hora_salida').on('change', calcularHorasJornada);
@@ -497,6 +729,9 @@ $('#btn-limpiar-filtro').on('click', function () {
 
 $('#form-jornada').on('submit', function (evento) {
     evento.preventDefault();
+    if (operacionEnCurso || !usuarioAutorizado || !fechaDisponible) {
+        return;
+    }
 
     const entrada = $('#hora_entrada').val();
     const salida = $('#hora_salida').val();
@@ -534,4 +769,43 @@ $(document).on('click', '.btn-editar', function () {
 
 $(document).on('click', '.btn-enviar', function () {
     enviarAprobacion(Number($(this).data('id')));
+});
+
+$(document).on('click', '.btn-anular', function () {
+    anularJornada(Number($(this).data('id')));
+});
+
+$(document).on('change', '.seleccionar-jornada', function () {
+    const id = Number($(this).data('id'));
+    if (this.checked) {
+        jornadasSeleccionadas.add(id);
+    } else {
+        jornadasSeleccionadas.delete(id);
+    }
+    actualizarSeleccionJornadas();
+});
+
+$('#tabla-jornadas').on('click', 'input[type="checkbox"]', function (evento) {
+    evento.stopPropagation();
+});
+
+$('#seleccionar-jornadas').on('change', function () {
+    const seleccionar = this.checked;
+    jornadasSeleccionadas.clear();
+    if (seleccionar) {
+        borradoresFiltrados().forEach(function (id) { jornadasSeleccionadas.add(id); });
+    }
+    actualizarSeleccionJornadas();
+});
+
+$('#tabla-jornadas').on('search.dt', function () {
+    const busqueda = $('#tabla-jornadas').DataTable().search();
+    if (busqueda !== ultimaBusquedaJornadas) {
+        jornadasSeleccionadas.clear();
+        ultimaBusquedaJornadas = busqueda;
+    }
+}).on('responsive-display.dt', actualizarSeleccionJornadas);
+
+$('#btn-enviar-seleccionadas').on('click', function () {
+    enviarJornadas(Array.from(jornadasSeleccionadas));
 });

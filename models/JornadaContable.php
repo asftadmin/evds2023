@@ -183,7 +183,7 @@ class JornadaContable extends Conectar {
                             ON estado.je_id = otra.jornada_estado_id
                         WHERE otra.empleado_id = ?
                           AND otra.jornada_id <> ?
-                          AND estado.je_codigo <> 'RECHAZADO'
+                          AND estado.je_codigo NOT IN ('RECHAZADO', 'ANULADO')
                           AND otra.jornada_inicio < ?
                           AND otra.jornada_fin > ?
                     )";
@@ -400,6 +400,7 @@ class JornadaContable extends Conectar {
 
         $where = [
             "j.jornada_inconsistente = 1",
+            "e.je_codigo <> 'ANULADO'",
             "j.jornada_inicio::date >= :fecha_desde::date",
             "j.jornada_inicio::date <= :fecha_hasta::date"
         ];

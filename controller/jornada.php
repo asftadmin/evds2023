@@ -3,15 +3,16 @@
 ob_start();
 ini_set('display_errors', '0');
 
-require_once("../config/conexion.php");
-require_once("../models/Jornada.php");
+require_once ('../config/conexion.php');
+require_once ('../models/Jornada.php');
 
 $jornada = new Jornada();
 
 /**
  * Finaliza la petición con una única respuesta JSON limpia.
  */
-function jornada_responder($payload, $status_code = 200) {
+function jornada_responder($payload, $status_code = 200)
+{
     if (ob_get_length()) {
         ob_clean();
     }
@@ -25,7 +26,8 @@ function jornada_responder($payload, $status_code = 200) {
 /**
  * Lee un valor de entrada y lo normaliza como texto.
  */
-function jornada_entrada($nombre, $predeterminado = '') {
+function jornada_entrada($nombre, $predeterminado = '')
+{
     $valor = $_POST[$nombre] ?? $_GET[$nombre] ?? $predeterminado;
     return is_string($valor) ? trim($valor) : $predeterminado;
 }
@@ -33,14 +35,18 @@ function jornada_entrada($nombre, $predeterminado = '') {
 /**
  * Valida el token usado por las operaciones que modifican información.
  */
-function jornada_validar_csrf() {
+function jornada_validar_csrf()
+{
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        jornada_responder(['success' => false, 'message' => 'Utilice POST para esta operación.'], 405);
+    }
     $recibido = jornada_entrada('csrf_token');
     $esperado = $_SESSION['csrf_jornadas'] ?? '';
 
     if (
-        $recibido === ''
-        || $esperado === ''
-        || !hash_equals($esperado, $recibido)
+        $recibido === '' ||
+        $esperado === '' ||
+        !hash_equals($esperado, $recibido)
     ) {
         jornada_responder([
             'success' => false,
@@ -52,17 +58,19 @@ function jornada_validar_csrf() {
 /**
  * Convierte minutos al formato operativo HH:MM.
  */
-function jornada_minutos_a_horas($minutos) {
-    $minutos = max(0, (int)$minutos);
-    return str_pad((string)floor($minutos / 60), 2, '0', STR_PAD_LEFT)
+function jornada_minutos_a_horas($minutos)
+{
+    $minutos = max(0, (int) $minutos);
+    return str_pad((string) floor($minutos / 60), 2, '0', STR_PAD_LEFT)
         . ':'
-        . str_pad((string)($minutos % 60), 2, '0', STR_PAD_LEFT);
+        . str_pad((string) ($minutos % 60), 2, '0', STR_PAD_LEFT);
 }
 
 /**
  * Valida una fecha estricta en formato ISO.
  */
-function jornada_fecha_valida($fecha) {
+function jornada_fecha_valida($fecha)
+{
     $objeto = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
     return $objeto && $objeto->format('Y-m-d') === $fecha;
 }
@@ -70,7 +78,8 @@ function jornada_fecha_valida($fecha) {
 /**
  * Valida una hora estricta en formato de 24 horas.
  */
-function jornada_hora_valida($hora) {
+function jornada_hora_valida($hora)
+{
     return preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $hora) === 1;
 }
 
@@ -82,8 +91,8 @@ function jornada_contexto_autorizado(
     $menu_ident = 'mis_jornadas',
     $requiere_jefe = false
 ) {
-    $user_id = (int)($_SESSION['user_id'] ?? 0);
-    $rol_id = (int)($_SESSION['user_rol'] ?? 0);
+    $user_id = (int) ($_SESSION['user_id'] ?? 0);
+    $rol_id = (int) ($_SESSION['user_rol'] ?? 0);
 
     if ($user_id <= 0 || $rol_id <= 0) {
         jornada_responder([
@@ -93,14 +102,14 @@ function jornada_contexto_autorizado(
     }
 
     $empleado = $modelo->obtener_empleado_por_usuario($user_id);
-    if (!$empleado || (int)$empleado['esta_empl'] !== 1) {
+    if (!$empleado || (int) $empleado['esta_empl'] !== 1) {
         jornada_responder([
             'success' => false,
             'message' => 'El usuario no tiene un empleado activo asociado.'
         ], 403);
     }
 
-    $es_jefe = $modelo->es_jefe_activo((int)$empleado['id_empl']);
+    $es_jefe = $modelo->es_jefe_activo((int) $empleado['id_empl']);
     $_SESSION['es_jefe'] = $es_jefe ? 1 : 0;
 
     if ($requiere_jefe && !$es_jefe) {
@@ -141,8 +150,8 @@ function jornada_calcular_intervalo(
     }
 
     if (
-        !jornada_hora_valida($hora_entrada)
-        || !jornada_hora_valida($hora_salida)
+        !jornada_hora_valida($hora_entrada) ||
+        !jornada_hora_valida($hora_salida)
     ) {
         throw new InvalidArgumentException('La entrada o salida no es válida.');
     }
@@ -158,7 +167,7 @@ function jornada_calcular_intervalo(
         );
     }
 
-    $duracion_minutos = (int)(($fin->getTimestamp() - $inicio->getTimestamp()) / 60);
+    $duracion_minutos = (int) (($fin->getTimestamp() - $inicio->getTimestamp()) / 60);
     if ($duracion_minutos <= 0 || $duracion_minutos > 2880) {
         throw new InvalidArgumentException(
             'La duración debe ser mayor a cero y no superar 48 horas.'
@@ -172,28 +181,28 @@ function jornada_calcular_intervalo(
         );
     }
 
-    $dia_semana = (int)$inicio->format('N');
+    $dia_semana = (int) $inicio->format('N');
     $es_festivo = $modelo->fecha_es_festiva($fecha);
     $descuento_almuerzo = 0;
     $fin_cumplimiento_base = $inicio->modify(
-        '+' . (int)$regla['jreg_max_lunes_viernes_min'] . ' minutes'
+        '+' . (int) $regla['jreg_max_lunes_viernes_min'] . ' minutes'
     );
     $almuerzo_inicio = new DateTimeImmutable($fecha . ' 12:00:00');
     if (
-        $dia_semana >= 1
-        && $dia_semana <= 5
-        && $inicio < $almuerzo_inicio
-        && $fin_cumplimiento_base > $almuerzo_inicio
+        $dia_semana >= 1 &&
+        $dia_semana <= 5 &&
+        $inicio < $almuerzo_inicio &&
+        $fin_cumplimiento_base > $almuerzo_inicio
     ) {
         $almuerzo_fin = $almuerzo_inicio->modify(
-            '+' . (int)$regla['jreg_almuerzo_min'] . ' minutes'
+            '+' . (int) $regla['jreg_almuerzo_min'] . ' minutes'
         );
         $solapamiento_inicio = $inicio > $almuerzo_inicio
             ? $inicio
             : $almuerzo_inicio;
         $solapamiento_fin = $fin < $almuerzo_fin ? $fin : $almuerzo_fin;
         if ($solapamiento_fin > $solapamiento_inicio) {
-            $descuento_almuerzo = (int)(
+            $descuento_almuerzo = (int) (
                 ($solapamiento_fin->getTimestamp()
                     - $solapamiento_inicio->getTimestamp()) / 60
             );
@@ -214,7 +223,8 @@ function jornada_calcular_intervalo(
 /**
  * Valida los textos del formulario y añade el intervalo calculado.
  */
-function jornada_validar_formulario(Jornada $modelo, $empleado) {
+function jornada_validar_formulario(Jornada $modelo, $empleado)
+{
     $fecha = jornada_entrada('fecha');
     $hora_entrada = jornada_entrada('hora_entrada');
     $hora_salida = jornada_entrada('hora_salida');
@@ -261,18 +271,24 @@ try {
         'contextoAprobador',
         'listarPendientesJefe',
         'decidirJornadaJefe',
+        // Operaciones del expediente de jornadas del equipo.
         'contextoEquipo',
         'listarSubordinadosJefe',
         'calcularHorasEquipo',
         'guardarJornadaEquipo',
-        'listarJornadasEquipo'
+        'listarJornadasEquipo',
+        'guardarBorradoresEquipoMasivo',
+        'registrarAprobarEquipoMasivo'
     ];
     $operaciones_equipo = [
         'contextoEquipo',
         'listarSubordinadosJefe',
         'calcularHorasEquipo',
         'guardarJornadaEquipo',
-        'listarJornadasEquipo'
+        'listarJornadasEquipo',
+        // Nuevas operaciones masivas del expediente.
+        'guardarBorradoresEquipoMasivo',
+        'registrarAprobarEquipoMasivo'
     ];
     $es_operacion_jefe = in_array($op, $operaciones_jefe, true);
     $es_operacion_equipo = in_array($op, $operaciones_equipo, true);
@@ -284,6 +300,203 @@ try {
         $es_operacion_jefe
     );
     $empleado = $contexto['empleado'];
+
+    /**
+     * Valida una jornada recibida desde la planilla masiva del jefe.
+     * El cálculo de horas se ejecuta nuevamente en el servidor.
+     */
+    function jornada_validar_fila_equipo(Jornada $modelo, array $fila)
+    {
+        $fecha = isset($fila['fecha'])
+            ? trim((string) $fila['fecha'])
+            : '';
+
+        $hora_entrada = isset($fila['hora_entrada'])
+            ? trim((string) $fila['hora_entrada'])
+            : '';
+
+        $hora_salida = isset($fila['hora_salida'])
+            ? trim((string) $fila['hora_salida'])
+            : '';
+
+        $ubicacion = isset($fila['ubicacion'])
+            ? trim((string) $fila['ubicacion'])
+            : '';
+
+        $actividad = isset($fila['actividad'])
+            ? trim((string) $fila['actividad'])
+            : '';
+
+        $observaciones = isset($fila['observaciones'])
+            ? trim((string) $fila['observaciones'])
+            : '';
+
+        $cruza_medianoche = !empty($fila['cruza_medianoche']);
+
+        // La fecha se valida nuevamente aunque provenga del DataTable.
+        if (!jornada_fecha_valida($fecha)) {
+            throw new InvalidArgumentException(
+                'Una de las jornadas contiene una fecha no válida.'
+            );
+        }
+
+        // Entrada y salida son obligatorias para una fila enviada.
+        if (
+            !jornada_hora_valida($hora_entrada) ||
+            !jornada_hora_valida($hora_salida)
+        ) {
+            throw new InvalidArgumentException(
+                'La jornada del ' . $fecha . ' tiene una hora no válida.'
+            );
+        }
+
+        // Solo se permiten las ubicaciones ya aceptadas por el módulo.
+        if (!in_array(
+            $ubicacion,
+            ['Sede principal', 'Obras varias'],
+            true
+        )) {
+            throw new InvalidArgumentException(
+                'Seleccione una ubicación válida para la jornada del '
+                . $fecha . '.'
+            );
+        }
+
+        if ($actividad === '' || mb_strlen($actividad) > 4000) {
+            throw new InvalidArgumentException(
+                'La actividad de la jornada del '
+                . $fecha
+                . ' es obligatoria y admite máximo 4000 caracteres.'
+            );
+        }
+
+        if (mb_strlen($observaciones) > 4000) {
+            throw new InvalidArgumentException(
+                'Las observaciones de la jornada del '
+                . $fecha
+                . ' admiten máximo 4000 caracteres.'
+            );
+        }
+
+        // Las horas ordinarias nunca se reciben confiando en JavaScript.
+        $intervalo = jornada_calcular_intervalo(
+            $modelo,
+            $fecha,
+            $hora_entrada,
+            $hora_salida,
+            $cruza_medianoche
+        );
+
+        // Jornada existente cuando corresponde a un BORRADOR.
+        $jornada_id = null;
+
+        if (
+            isset($fila['jornada_id']) &&
+            $fila['jornada_id'] !== '' &&
+            $fila['jornada_id'] !== null
+        ) {
+            $jornada_id = filter_var(
+                $fila['jornada_id'],
+                FILTER_VALIDATE_INT
+            );
+
+            if (!$jornada_id || $jornada_id <= 0) {
+                throw new InvalidArgumentException(
+                    'La jornada del ' . $fecha . ' no es válida.'
+                );
+            }
+        }
+
+        return [
+            'jornada_id' => $jornada_id,
+            'fecha' => $fecha,
+            'inicio' => $intervalo['inicio'],
+            'fin' => $intervalo['fin'],
+            'minutos_ordinarios' => $intervalo['minutos_ordinarios'],
+            'ubicacion' => $ubicacion,
+            'actividad' => $actividad,
+            'observaciones' => $observaciones
+        ];
+    }
+
+    /**
+     * Lee y valida el lote JSON enviado desde el expediente del jefe.
+     */
+    function jornada_validar_lote_equipo(Jornada $modelo)
+    {
+        $empleado_id = filter_var(
+            jornada_entrada('empleado_id'),
+            FILTER_VALIDATE_INT
+        );
+
+        if (!$empleado_id || $empleado_id <= 0) {
+            throw new InvalidArgumentException(
+                'Seleccione un empleado válido.'
+            );
+        }
+
+        $jornadas_json = jornada_entrada('jornadas');
+
+        if ($jornadas_json === '') {
+            throw new InvalidArgumentException(
+                'No se recibieron jornadas para procesar.'
+            );
+        }
+
+        $jornadas = json_decode($jornadas_json, true);
+
+        if (!is_array($jornadas)) {
+            throw new InvalidArgumentException(
+                'El formato de las jornadas no es válido.'
+            );
+        }
+
+        if (count($jornadas) === 0) {
+            throw new InvalidArgumentException(
+                'No existen jornadas para procesar.'
+            );
+        }
+
+        // Evita envíos excesivamente grandes por error.
+        if (count($jornadas) > 62) {
+            throw new InvalidArgumentException(
+                'El lote no puede superar 62 jornadas.'
+            );
+        }
+
+        $validadas = [];
+        $fechas = [];
+
+        foreach ($jornadas as $fila) {
+            if (!is_array($fila)) {
+                throw new InvalidArgumentException(
+                    'El lote contiene una jornada no válida.'
+                );
+            }
+
+            $validada = jornada_validar_fila_equipo(
+                $modelo,
+                $fila
+            );
+
+            // Evita recibir dos filas de la misma fecha en el mismo lote.
+            if (isset($fechas[$validada['fecha']])) {
+                throw new InvalidArgumentException(
+                    'La fecha '
+                    . $validada['fecha']
+                    . ' está repetida dentro del lote.'
+                );
+            }
+
+            $fechas[$validada['fecha']] = true;
+            $validadas[] = $validada;
+        }
+
+        return [
+            'empleado_id' => (int) $empleado_id,
+            'jornadas' => $validadas
+        ];
+    }
 
     switch ($op) {
         case 'contextoUsuario':
@@ -324,7 +537,7 @@ try {
 
         case 'listarSubordinadosJefe':
             $subordinados = $jornada->listar_subordinados_jefe(
-                (int)$empleado['id_empl']
+                (int) $empleado['id_empl']
             );
             jornada_responder([
                 'success' => true,
@@ -335,6 +548,20 @@ try {
         case 'listarJornadasEquipo':
             $fecha_desde = jornada_entrada('fecha_desde');
             $fecha_hasta = jornada_entrada('fecha_hasta');
+
+            $empleado_objetivo_id = filter_var(
+                jornada_entrada('empleado_id'),
+                FILTER_VALIDATE_INT
+            );
+
+            if (
+                !$empleado_objetivo_id ||
+                $empleado_objetivo_id <= 0
+            ) {
+                throw new InvalidArgumentException(
+                    'Seleccione un empleado válido.'
+                );
+            }
 
             if ($fecha_desde !== '' && !jornada_fecha_valida($fecha_desde)) {
                 throw new InvalidArgumentException(
@@ -349,17 +576,18 @@ try {
             }
 
             if (
-                $fecha_desde !== ''
-                && $fecha_hasta !== ''
-                && $fecha_desde > $fecha_hasta
+                $fecha_desde !== '' &&
+                $fecha_hasta !== '' &&
+                $fecha_desde > $fecha_hasta
             ) {
                 throw new InvalidArgumentException(
                     'La fecha inicial no puede superar la fecha final.'
                 );
             }
 
-            $filas = $jornada->listar_jornadas_equipo(
-                (int)$empleado['id_empl'],
+            $filas = $jornada->listar_jornadas_equipo_empleado(
+                (int) $empleado['id_empl'],
+                (int) $empleado_objetivo_id,
                 $fecha_desde === '' ? null : $fecha_desde,
                 $fecha_hasta === '' ? null : $fecha_hasta
             );
@@ -378,11 +606,11 @@ try {
                 $inicio = new DateTimeImmutable($fila['jornada_inicio']);
                 $fin = new DateTimeImmutable($fila['jornada_fin']);
                 $data[] = [
-                    'jornada_id' => (int)$fila['jornada_id'],
-                    'empleado_id' => (int)$fila['empleado_id'],
+                    'jornada_id' => (int) $fila['jornada_id'],
+                    'empleado_id' => (int) $fila['empleado_id'],
                     'empleado' => $fila['empleado_nombre'],
                     'documento' => $fila['empleado_documento'],
-                    'dia' => $dias[(int)$inicio->format('N')],
+                    'dia' => $dias[(int) $inicio->format('N')],
                     'fecha' => $inicio->format('Y-m-d'),
                     'hora_entrada' => $inicio->format('H:i'),
                     'fecha_salida' => $fin->format('Y-m-d'),
@@ -421,7 +649,7 @@ try {
             $datos = jornada_validar_formulario($jornada, $empleado);
             $jornada_id = $jornada->guardar_jornada_equipo_aprobada(
                 $empleado_objetivo_id,
-                (int)$empleado['id_empl'],
+                (int) $empleado['id_empl'],
                 $contexto['user_id'],
                 $datos['inicio'],
                 $datos['fin'],
@@ -437,6 +665,58 @@ try {
                 'estado' => 'APROBADO',
                 'message' => 'La jornada fue registrada y aprobada automáticamente.'
             ]);
+            break;
+
+        case 'guardarBorradoresEquipoMasivo':
+            // Las operaciones de escritura requieren token CSRF válido.
+            jornada_validar_csrf();
+
+            // Valida empleado, cantidad de filas y cada jornada recibida.
+            $lote = jornada_validar_lote_equipo($jornada);
+
+            /*
+             * El método será implementado en el Paso 4.
+             * No existe todavía en models/Jornada.php.
+             */
+            $resultado = $jornada->guardar_borradores_equipo_masivo(
+                $lote['empleado_id'],
+                (int) $empleado['id_empl'],
+                $contexto['user_id'],
+                $lote['jornadas']
+            );
+
+            jornada_responder([
+                'success' => true,
+                'data' => $resultado,
+                'message' => 'Los borradores fueron guardados correctamente.'
+            ]);
+
+            break;
+
+        case 'registrarAprobarEquipoMasivo':
+            // Las operaciones de escritura requieren token CSRF válido.
+            jornada_validar_csrf();
+
+            // Valida nuevamente todo el lote antes de enviarlo al modelo.
+            $lote = jornada_validar_lote_equipo($jornada);
+
+            /*
+             * El modelo realizará una transacción para registrar o actualizar
+             * borradores y aprobar las jornadas correspondientes.
+             */
+            $resultado = $jornada->registrar_aprobar_equipo_masivo(
+                $lote['empleado_id'],
+                (int) $empleado['id_empl'],
+                $contexto['user_id'],
+                $lote['jornadas']
+            );
+
+            jornada_responder([
+                'success' => true,
+                'data' => $resultado,
+                'message' => 'Las jornadas fueron registradas y aprobadas correctamente.'
+            ]);
+
             break;
 
         case 'listarPendientesJefe':
@@ -456,9 +736,9 @@ try {
             }
 
             if (
-                $fecha_desde !== ''
-                && $fecha_hasta !== ''
-                && $fecha_desde > $fecha_hasta
+                $fecha_desde !== '' &&
+                $fecha_hasta !== '' &&
+                $fecha_desde > $fecha_hasta
             ) {
                 throw new InvalidArgumentException(
                     'La fecha inicial no puede superar la fecha final.'
@@ -466,7 +746,7 @@ try {
             }
 
             $filas = $jornada->listar_pendientes_jefe(
-                (int)$empleado['id_empl'],
+                (int) $empleado['id_empl'],
                 $fecha_desde === '' ? null : $fecha_desde,
                 $fecha_hasta === '' ? null : $fecha_hasta
             );
@@ -486,11 +766,11 @@ try {
                 $inicio = new DateTimeImmutable($fila['jornada_inicio']);
                 $fin = new DateTimeImmutable($fila['jornada_fin']);
                 $data[] = [
-                    'jornada_id' => (int)$fila['jornada_id'],
-                    'empleado_id' => (int)$fila['empleado_id'],
+                    'jornada_id' => (int) $fila['jornada_id'],
+                    'empleado_id' => (int) $fila['empleado_id'],
                     'empleado' => $fila['empleado_nombre'],
                     'documento' => $fila['empleado_documento'],
-                    'dia' => $dias[(int)$inicio->format('N')],
+                    'dia' => $dias[(int) $inicio->format('N')],
                     'fecha' => $inicio->format('Y-m-d'),
                     'hora_entrada' => $inicio->format('H:i'),
                     'fecha_salida' => $fin->format('Y-m-d'),
@@ -525,7 +805,7 @@ try {
 
             $estado_nuevo = $jornada->decidir_jornada_jefe(
                 $jornada_id,
-                (int)$empleado['id_empl'],
+                (int) $empleado['id_empl'],
                 $contexto['user_id'],
                 jornada_entrada('decision'),
                 jornada_entrada('motivo')
@@ -546,9 +826,9 @@ try {
             $hora_entrada = jornada_entrada('hora_entrada');
             $hora_salida = jornada_entrada('hora_salida');
             $cruza_medianoche = jornada_entrada('cruza_medianoche') === '1' || (
-                $hora_entrada !== ''
-                && $hora_salida !== ''
-                && $hora_salida <= $hora_entrada
+                $hora_entrada !== '' &&
+                $hora_salida !== '' &&
+                $hora_salida <= $hora_entrada
             );
 
             $calculo = jornada_calcular_intervalo(
@@ -577,6 +857,29 @@ try {
             ]);
             break;
 
+        case 'validarFecha':
+            $fecha = jornada_entrada('fecha');
+            if (!jornada_fecha_valida($fecha)) {
+                throw new InvalidArgumentException('La fecha no es válida.');
+            }
+            $id_texto = jornada_entrada('jornada_id');
+            $excluir = $id_texto === '' ? null : filter_var($id_texto, FILTER_VALIDATE_INT);
+            if ($id_texto !== '') {
+                if (!$excluir || $excluir <= 0) {
+                    throw new InvalidArgumentException('La jornada no es válida.');
+                }
+                $propia = $jornada->obtener_mi_jornada($excluir, (int) $empleado['id_empl']);
+                if (!$propia || $propia['estado_codigo'] !== 'BORRADOR') {
+                    throw new RuntimeException('La jornada no existe o ya no puede editarse.');
+                }
+            }
+            $existente = $jornada->obtener_jornada_fecha((int) $empleado['id_empl'], $fecha, $excluir);
+            jornada_responder([
+                'success' => true,
+                'data' => ['disponible' => !$existente, 'jornada' => $existente ?: null]
+            ]);
+            break;
+
         case 'guardarBorrador':
             jornada_validar_csrf();
             $datos = jornada_validar_formulario($jornada, $empleado);
@@ -589,22 +892,9 @@ try {
                 throw new InvalidArgumentException('La jornada no es válida.');
             }
 
-            if ($jornada->existe_superposicion(
-                (int)$empleado['id_empl'],
-                $datos['inicio'],
-                $datos['fin'],
-                $jornada_id
-            )) {
-                jornada_responder([
-                    'success' => false,
-                    'inconsistente' => true,
-                    'message' => 'El intervalo se superpone con otra jornada registrada.'
-                ], 409);
-            }
-
             $guardada_id = $jornada->guardar_borrador_propio(
                 $jornada_id,
-                (int)$empleado['id_empl'],
+                (int) $empleado['id_empl'],
                 $contexto['user_id'],
                 $datos['inicio'],
                 $datos['fin'],
@@ -632,34 +922,9 @@ try {
                 throw new InvalidArgumentException('La jornada no es válida.');
             }
 
-            $detalle = $jornada->obtener_mi_jornada(
-                $jornada_id,
-                (int)$empleado['id_empl']
-            );
-
-            if (!$detalle) {
-                jornada_responder([
-                    'success' => false,
-                    'message' => 'No se encontró la jornada.'
-                ], 404);
-            }
-
-            if ($jornada->existe_superposicion(
-                (int)$empleado['id_empl'],
-                $detalle['jornada_inicio'],
-                $detalle['jornada_fin'],
-                $jornada_id
-            )) {
-                jornada_responder([
-                    'success' => false,
-                    'inconsistente' => true,
-                    'message' => 'La jornada se superpone con otro registro.'
-                ], 409);
-            }
-
             $jornada->enviar_aprobacion_propia(
                 $jornada_id,
-                (int)$empleado['id_empl'],
+                (int) $empleado['id_empl'],
                 $contexto['user_id']
             );
 
@@ -667,6 +932,37 @@ try {
                 'success' => true,
                 'message' => 'La jornada fue enviada a aprobación.'
             ]);
+            break;
+
+        case 'enviarAprobacionMasiva':
+            jornada_validar_csrf();
+            $ids = $_POST['jornada_ids'] ?? [];
+            if (!is_array($ids) || count($ids) === 0 || count($ids) > 500) {
+                throw new InvalidArgumentException('Seleccione entre 1 y 500 borradores.');
+            }
+            $validados = [];
+            foreach ($ids as $id) {
+                if (!is_scalar($id) || !filter_var($id, FILTER_VALIDATE_INT) || (int) $id <= 0) {
+                    throw new InvalidArgumentException('La selección contiene una jornada no válida.');
+                }
+                $validados[] = (int) $id;
+            }
+            $resultado = $jornada->enviar_aprobacion_masiva(
+                array_values(array_unique($validados)), (int) $empleado['id_empl'], $contexto['user_id']
+            );
+            jornada_responder(['success' => true, 'data' => $resultado]);
+            break;
+
+        case 'anularBorrador':
+            jornada_validar_csrf();
+            $jornada_id = filter_var(jornada_entrada('jornada_id'), FILTER_VALIDATE_INT);
+            if (!$jornada_id || $jornada_id <= 0) {
+                throw new InvalidArgumentException('La jornada no es válida.');
+            }
+            $jornada->anular_borrador_propio(
+                $jornada_id, (int) $empleado['id_empl'], $contexto['user_id'], jornada_entrada('motivo')
+            );
+            jornada_responder(['success' => true, 'message' => 'Borrador anulado. La fecha queda disponible.']);
             break;
 
         case 'listarMisJornadas':
@@ -682,9 +978,9 @@ try {
             }
 
             if (
-                $fecha_desde !== ''
-                && $fecha_hasta !== ''
-                && $fecha_desde > $fecha_hasta
+                $fecha_desde !== '' &&
+                $fecha_hasta !== '' &&
+                $fecha_desde > $fecha_hasta
             ) {
                 throw new InvalidArgumentException(
                     'La fecha inicial no puede superar la fecha final.'
@@ -692,7 +988,7 @@ try {
             }
 
             $filas = $jornada->listar_mis_jornadas(
-                (int)$empleado['id_empl'],
+                (int) $empleado['id_empl'],
                 $fecha_desde === '' ? null : $fecha_desde,
                 $fecha_hasta === '' ? null : $fecha_hasta
             );
@@ -712,8 +1008,8 @@ try {
                 $inicio = new DateTimeImmutable($fila['jornada_inicio']);
                 $fin = new DateTimeImmutable($fila['jornada_fin']);
                 $data[] = [
-                    'jornada_id' => (int)$fila['jornada_id'],
-                    'dia' => $dias[(int)$inicio->format('N')],
+                    'jornada_id' => (int) $fila['jornada_id'],
+                    'dia' => $dias[(int) $inicio->format('N')],
                     'fecha' => $inicio->format('Y-m-d'),
                     'hora_entrada' => $inicio->format('H:i'),
                     'fecha_salida' => $fin->format('Y-m-d'),
@@ -726,8 +1022,10 @@ try {
                     'observaciones' => $fila['jornada_observaciones'],
                     'estado_codigo' => $fila['estado_codigo'],
                     'estado_nombre' => $fila['estado_nombre'],
-                    'inconsistente' => (int)$fila['jornada_inconsistente'] === 1,
-                    'inconsistencia' => $fila['jornada_inconsistencia_detalle']
+                    'inconsistente' => (int) $fila['jornada_inconsistente'] === 1,
+                    'inconsistencia' => $fila['jornada_inconsistencia_detalle'],
+                    'anulacion_motivo' => $fila['anulacion_motivo'],
+                    'anulacion_fecha' => $fila['anulacion_fecha']
                 ];
             }
 
@@ -749,7 +1047,7 @@ try {
 
             $fila = $jornada->obtener_mi_jornada(
                 $jornada_id,
-                (int)$empleado['id_empl']
+                (int) $empleado['id_empl']
             );
 
             if (!$fila) {
@@ -764,7 +1062,7 @@ try {
             jornada_responder([
                 'success' => true,
                 'data' => [
-                    'jornada_id' => (int)$fila['jornada_id'],
+                    'jornada_id' => (int) $fila['jornada_id'],
                     'fecha' => $inicio->format('Y-m-d'),
                     'hora_entrada' => $inicio->format('H:i'),
                     'hora_salida' => $fin->format('H:i'),
