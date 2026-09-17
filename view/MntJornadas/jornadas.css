@@ -12,7 +12,8 @@
     gap: 0.5rem;
 }
 
-#tabla-jornadas .jornada-acciones {
+#tabla-jornadas .jornada-acciones,
+#tabla-aprobaciones .jornada-acciones {
     min-width: 120px;
 }
 

@@ -73,7 +73,13 @@ if (empty($_SESSION["csrf_jornadas"])) {
 
                         <div class="card-body">
                             <div class="row mb-3">
-                                <div class="col-md-5">
+                                <div class="col-md-4 mb-2 mb-md-0">
+                                    <label for="filtro_empleado">Empleado</label>
+                                    <select id="filtro_empleado" class="form-control" disabled>
+                                        <option value="">Todos los empleados</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-2 mb-md-0">
                                     <label for="filtro_fechas">Periodo</label>
                                     <input
                                         type="text"
@@ -82,10 +88,10 @@ if (empty($_SESSION["csrf_jornadas"])) {
                                         autocomplete="off"
                                     >
                                 </div>
-                                <div class="col-md-7 d-flex align-items-end">
+                                <div class="col-md-4 d-flex align-items-end jornada-acciones">
                                     <button
                                         type="button"
-                                        class="btn btn-info mr-2"
+                                        class="btn btn-info"
                                         id="btn-filtrar"
                                     >
                                         <i class="fas fa-search mr-1"></i>Consultar
@@ -110,7 +116,8 @@ if (empty($_SESSION["csrf_jornadas"])) {
                                         <tr>
                                             <th>Empleado</th>
                                             <th>Documento</th>
-                                            <th>Día / fecha</th>
+                                            <th>Día</th>
+                                            <th>Fecha</th>
                                             <th>Entrada</th>
                                             <th>Salida</th>
                                             <th>Horas</th>

@@ -17,15 +17,21 @@ function aprobacionMensajeError(xhr, predeterminado) {
     }
 }
 
+function periodoPredeterminadoAprobaciones() {
+    const mesActual = moment().startOf('month');
+    return {
+        inicio: mesActual.clone().subtract(1, 'month').date(15),
+        fin: mesActual.clone().date(16)
+    };
+}
+
 function inicializarRangoAprobaciones() {
-    const inicio = moment().startOf('month');
-    const fin = moment();
+    const periodo = periodoPredeterminadoAprobaciones();
 
     $('#filtro_fechas').daterangepicker({
-        startDate: inicio,
-        endDate: fin,
+        startDate: periodo.inicio,
+        endDate: periodo.fin,
         showDropdowns: true,
-        maxDate: moment(),
         locale: {
             format: 'YYYY-MM-DD',
             separator: ' - ',
@@ -50,6 +56,43 @@ function inicializarRangoAprobaciones() {
     });
 }
 
+function inicializarEmpleadosAprobaciones() {
+    $('#filtro_empleado').select2({
+        theme: 'bootstrap4',
+        placeholder: 'Todos los empleados',
+        allowClear: true,
+        width: '100%',
+        language: {
+            noResults: function () { return 'No se encontraron empleados'; },
+            searching: function () { return 'Buscando...'; }
+        }
+    });
+}
+
+function cargarEmpleadosAprobaciones() {
+    return $.ajax({
+        url: '../../controller/jornada.php?op=listarSubordinadosAprobador',
+        type: 'GET',
+        dataType: 'json'
+    }).done(function (respuesta) {
+        const selector = $('#filtro_empleado');
+        selector.find('option:not(:first)').remove();
+        (respuesta.data || []).forEach(function (empleado) {
+            selector.append($('<option>', {
+                value: empleado.empleado_id,
+                text: empleado.empleado_nombre + ' — ' + empleado.empleado_documento
+            }));
+        });
+        selector.prop('disabled', false).trigger('change.select2');
+    }).fail(function (xhr) {
+        Swal.fire({
+            icon: 'error',
+            title: 'No fue posible cargar los empleados',
+            text: aprobacionMensajeError(xhr, 'Recargue la página para intentar nuevamente.')
+        });
+    });
+}
+
 function cargarContextoAprobador() {
     $.ajax({
         url: '../../controller/jornada.php?op=contextoAprobador',
@@ -62,6 +105,7 @@ function cargarContextoAprobador() {
             (datos.empleado || '') +
             (datos.documento ? ' — ' + datos.documento : '')
         );
+        cargarEmpleadosAprobaciones();
     }).fail(function (xhr) {
         $('#alerta-contexto')
             .removeClass('alert-info')
@@ -72,22 +116,22 @@ function cargarContextoAprobador() {
                 'No fue posible validar los permisos del jefe.'
             )
         );
-        $('#btn-filtrar').prop('disabled', true);
+        $('#btn-filtrar, #btn-limpiar-filtro, #filtro_fechas, #filtro_empleado').prop('disabled', true);
     });
 }
 
 function renderAccionesAprobacion(fila) {
     const id = Number(fila.jornada_id);
     return (
-        '<div class="btn-group btn-group-sm">' +
-        '<button type="button" class="btn btn-info btn-detalle" ' +
-        'data-id="' + id + '" title="Ver detalle">' +
+        '<div class="jornada-acciones">' +
+        '<button type="button" class="btn btn-sm btn-info btn-detalle" ' +
+        'data-id="' + id + '" title="Ver detalle" aria-label="Ver detalle">' +
         '<i class="fas fa-eye"></i></button>' +
-        '<button type="button" class="btn btn-success btn-aprobar" ' +
-        'data-id="' + id + '" title="Aprobar">' +
+        '<button type="button" class="btn btn-sm btn-success btn-aprobar" ' +
+        'data-id="' + id + '" title="Aprobar" aria-label="Aprobar jornada">' +
         '<i class="fas fa-check"></i></button>' +
-        '<button type="button" class="btn btn-danger btn-rechazar" ' +
-        'data-id="' + id + '" title="Rechazar">' +
+        '<button type="button" class="btn btn-sm btn-danger btn-rechazar" ' +
+        'data-id="' + id + '" title="Rechazar" aria-label="Rechazar jornada">' +
         '<i class="fas fa-times"></i></button>' +
         '</div>'
     );
@@ -97,6 +141,7 @@ function cargarPendientesJefe() {
     const rango = $('#filtro_fechas').val().split(' - ');
     const fechaDesde = rango.length === 2 ? rango[0] : '';
     const fechaHasta = rango.length === 2 ? rango[1] : '';
+    const empleadoId = $('#filtro_empleado').val() || '';
 
     if ($.fn.DataTable.isDataTable('#tabla-aprobaciones')) {
         $('#tabla-aprobaciones').DataTable().destroy();
@@ -107,14 +152,15 @@ function cargarPendientesJefe() {
         responsive: true,
         autoWidth: false,
         pageLength: 10,
-        order: [[2, 'asc']],
+        order: [[3, 'asc']],
         ajax: {
             url: '../../controller/jornada.php?op=listarPendientesJefe',
             type: 'GET',
             dataType: 'json',
             data: {
                 fecha_desde: fechaDesde,
-                fecha_hasta: fechaHasta
+                fecha_hasta: fechaHasta,
+                empleado_id: empleadoId
             },
             dataSrc: function (respuesta) {
                 return respuesta.data || [];
@@ -139,9 +185,15 @@ function cargarPendientesJefe() {
             },
             { data: 'documento' },
             {
-                data: null,
-                render: function (data, type, fila) {
-                    return aprobacionEscapeHtml(fila.dia + ' ' + fila.fecha);
+                data: 'dia',
+                render: function (data) {
+                    return aprobacionEscapeHtml(data);
+                }
+            },
+            {
+                data: 'fecha',
+                render: function (data) {
+                    return aprobacionEscapeHtml(data);
                 }
             },
             { data: 'hora_entrada' },
@@ -172,6 +224,7 @@ function cargarPendientesJefe() {
                 data: null,
                 orderable: false,
                 searchable: false,
+                className: 'all',
                 render: function (data, type, fila) {
                     return renderAccionesAprobacion(fila);
                 }
@@ -326,21 +379,24 @@ function solicitarRechazo(jornadaId) {
 
 $(document).ready(function () {
     inicializarRangoAprobaciones();
+    inicializarEmpleadosAprobaciones();
     cargarContextoAprobador();
     cargarPendientesJefe();
 });
 
 $('#btn-filtrar').on('click', cargarPendientesJefe);
 
+$('#filtro_empleado').on('change', cargarPendientesJefe);
+
 $('#btn-limpiar-filtro').on('click', function () {
-    const inicio = moment().startOf('month');
-    const fin = moment();
+    const periodo = periodoPredeterminadoAprobaciones();
     const selector = $('#filtro_fechas').data('daterangepicker');
-    selector.setStartDate(inicio);
-    selector.setEndDate(fin);
+    selector.setStartDate(periodo.inicio);
+    selector.setEndDate(periodo.fin);
     $('#filtro_fechas').val(
-        inicio.format('YYYY-MM-DD') + ' - ' + fin.format('YYYY-MM-DD')
+        periodo.inicio.format('YYYY-MM-DD') + ' - ' + periodo.fin.format('YYYY-MM-DD')
     );
+    $('#filtro_empleado').val('').trigger('change.select2');
     cargarPendientesJefe();
 });
 

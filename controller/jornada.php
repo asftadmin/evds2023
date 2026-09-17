@@ -270,6 +270,7 @@ try {
     $operaciones_jefe = [
         'contextoAprobador',
         'listarPendientesJefe',
+        'listarSubordinadosAprobador',
         'decidirJornadaJefe',
         // Operaciones del expediente de jornadas del equipo.
         'contextoEquipo',
@@ -535,6 +536,7 @@ try {
             ]);
             break;
 
+        case 'listarSubordinadosAprobador':
         case 'listarSubordinadosJefe':
             $subordinados = $jornada->listar_subordinados_jefe(
                 (int) $empleado['id_empl']
@@ -722,6 +724,13 @@ try {
         case 'listarPendientesJefe':
             $fecha_desde = jornada_entrada('fecha_desde');
             $fecha_hasta = jornada_entrada('fecha_hasta');
+            $empleado_id_texto = jornada_entrada('empleado_id');
+            $empleado_id_filtro = $empleado_id_texto === ''
+                ? null
+                : filter_var($empleado_id_texto, FILTER_VALIDATE_INT);
+            if ($empleado_id_texto !== '' && (!$empleado_id_filtro || $empleado_id_filtro <= 0)) {
+                throw new InvalidArgumentException('Seleccione un empleado válido.');
+            }
 
             if ($fecha_desde !== '' && !jornada_fecha_valida($fecha_desde)) {
                 throw new InvalidArgumentException(
@@ -748,7 +757,8 @@ try {
             $filas = $jornada->listar_pendientes_jefe(
                 (int) $empleado['id_empl'],
                 $fecha_desde === '' ? null : $fecha_desde,
-                $fecha_hasta === '' ? null : $fecha_hasta
+                $fecha_hasta === '' ? null : $fecha_hasta,
+                $empleado_id_filtro
             );
 
             $dias = [

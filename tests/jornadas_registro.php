@@ -72,8 +72,8 @@ CREATE TABLE jornada_estados (je_id serial PRIMARY KEY, je_codigo varchar(40) UN
 INSERT INTO jornada_estados (je_codigo, je_nombre) VALUES
 ('BORRADOR','Borrador'),('PENDIENTE_APROBACION','Pendiente de aprobación'),('APROBADO','Aprobado'),
 ('RECHAZADO','Rechazado'),('PENDIENTE_CORRECCION','Pendiente de corrección'),('CORREGIDO','Corregido');
-CREATE TABLE empleados (id_empl integer PRIMARY KEY, esta_empl integer DEFAULT 1);
-INSERT INTO empleados VALUES (1,1),(2,1),(3,1);
+CREATE TABLE empleados (id_empl integer PRIMARY KEY, esta_empl integer DEFAULT 1, cedu_empl varchar(30), nomb_empl varchar(100));
+INSERT INTO empleados VALUES (1,1,'111','Empleado uno'),(2,1,'222','Empleado dos'),(3,1,'333','Jefe');
 CREATE TABLE empleado_jefe (empleado_id integer, jefe_id integer, ej_estado integer DEFAULT 1);
 INSERT INTO empleado_jefe VALUES (1,3,1);
 CREATE TABLE jornadas_trabajo (
@@ -144,6 +144,17 @@ SQL
     $reintento = $modelo->enviar_aprobacion_masiva([$uno, $dos], 1, 1);
     verificar(count($reintento['enviados']) === 0 && count($reintento['fallidos']) === 2, 'Reintento no duplica envíos');
     verificar((int)$db->query("SELECT COUNT(*) FROM jornada_auditoria WHERE jornada_id IN ($uno,$dos) AND jaud_accion = 'ENVIAR_APROBACION'")->fetchColumn() === 2, 'Una auditoría por envío efectivo');
+
+    $modelo->enviar_aprobacion_propia($ajena, 2, 1);
+    verificar(count($modelo->listar_pendientes_jefe(3, '2026-08-15', '2026-09-16', 2)) === 0, 'Filtro no expone pendientes de empleados ajenos al jefe');
+    $db->exec('INSERT INTO empleado_jefe VALUES (2,3,1)');
+    verificar(count($modelo->listar_pendientes_jefe(3, '2026-08-15', '2026-09-16')) === 3, 'Todos los empleados incluye los pendientes de ambos subordinados');
+    $filtradas = $modelo->listar_pendientes_jefe(3, '2026-08-15', '2026-09-16', 2);
+    verificar(count($filtradas) === 1 && (int)$filtradas[0]['jornada_id'] === $ajena, 'Filtro por subordinado devuelve únicamente sus jornadas');
+    verificar(count($modelo->listar_pendientes_jefe(3, '2026-09-01', '2026-09-01', 1)) === 1, 'Filtro combina empleado y límites inclusivos del periodo');
+    $db->exec('UPDATE empleado_jefe SET ej_estado = 0 WHERE empleado_id = 2');
+    verificar(count($modelo->listar_pendientes_jefe(3, '2026-08-15', '2026-09-16', 2)) === 0, 'Relación inactiva no permite consultar al empleado');
+    verificar(count($modelo->listar_subordinados_jefe(3)) === 1, 'Opciones del selector incluyen solo relaciones activas');
 
     // Dos procesos esperan el mismo bloqueo y luego intentan crear la misma fecha.
     $db->query('SELECT pg_advisory_lock(1)');

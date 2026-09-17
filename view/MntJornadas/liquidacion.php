@@ -52,7 +52,7 @@ if (empty($_SESSION["csrf_jornadas"])) {
                 <div class="card card-outline card-primary">
                     <div class="card-header">
                         <h3 class="card-title">
-                            <i class="fas fa-filter mr-1"></i>Periodo y trabajador
+                            <i class="fas fa-filter mr-1"></i>Periodo, trabajador y estado
                         </h3>
                         <div class="card-tools">
                             <button
@@ -67,19 +67,30 @@ if (empty($_SESSION["csrf_jornadas"])) {
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="filtro_fechas">Periodo</label>
                                 <input type="text" class="form-control" id="filtro_fechas">
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-4">
                                 <label for="empleado_id">Trabajador</label>
                                 <select class="form-control select2" id="empleado_id" style="width:100%">
                                     <option value="">Todos los trabajadores</option>
                                 </select>
                             </div>
-                            <div class="col-md-3 d-flex align-items-end">
+                            <div class="col-md-2">
+                                <label for="estado_liquidacion">Estado liquidación</label>
+                                <select class="form-control" id="estado_liquidacion">
+                                    <option value="">Todos los estados</option>
+                                    <option value="PENDIENTE">Pendiente</option>
+                                    <option value="CLASIFICADA">Clasificada</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end flex-wrap">
                                 <button type="button" class="btn btn-info mr-2" id="btn-consultar">
                                     <i class="fas fa-search mr-1"></i>Consultar
+                                </button>
+                                <button type="button" class="btn btn-secondary" id="btn-restablecer">
+                                    <i class="fas fa-undo mr-1"></i>Restablecer
                                 </button>
                             </div>
                         </div>
@@ -92,10 +103,26 @@ if (empty($_SESSION["csrf_jornadas"])) {
                         </h3>
                     </div>
                     <div class="card-body">
+                        <div class="d-flex align-items-center flex-wrap mb-2">
+                            <button type="button" class="btn btn-success mr-3" id="btn-liquidar-seleccionadas" disabled>
+                                <i class="fas fa-calculator mr-1"></i>Liquidar seleccionadas
+                            </button>
+                            <span id="conteo-liquidacion" class="text-muted" aria-live="polite">0 seleccionadas</span>
+                        </div>
+                        <p class="small text-muted">
+                            La casilla del encabezado selecciona las filas de todas las páginas del resultado filtrado.
+                            Si una fila ya tiene segmentos, se solicitará confirmar su recálculo.
+                        </p>
+                        <div id="resultado-liquidacion" class="alert d-none" role="status" aria-live="polite"></div>
                         <div class="table-responsive">
-                            <table id="tabla-liquidacion" class="table table-bordered table-striped table-hover" width="100%">
+                            <table id="tabla-liquidacion" class="table table-bordered table-striped table-hover" width="100%"
+                                data-usuario-id="<?php echo (int) $_SESSION['user_id']; ?>">
                                 <thead>
                                     <tr>
+                                        <th>
+                                            <input type="checkbox" id="seleccionar-liquidacion"
+                                                aria-label="Seleccionar todas las jornadas filtradas">
+                                        </th>
                                         <th>Empleado</th>
                                         <th>Fecha</th>
                                         <th>Entrada</th>
