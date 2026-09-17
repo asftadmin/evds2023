@@ -190,7 +190,11 @@ class Jornada extends Conectar
     public function obtener_jornada_fecha($empleado_id, $fecha, $jornada_excluir = null)
     {
         return $this->buscar_conflicto(
-            parent::Conexion(), $empleado_id, $fecha . ' 00:00:00', null, $jornada_excluir
+            parent::Conexion(),
+            $empleado_id,
+            $fecha . ' 00:00:00',
+            null,
+            $jornada_excluir
         );
     }
 
@@ -204,7 +208,11 @@ class Jornada extends Conectar
     }
 
     private function buscar_conflicto(
-        PDO $conectar, $empleado_id, $inicio, $fin = null, $jornada_excluir = null
+        PDO $conectar,
+        $empleado_id,
+        $inicio,
+        $fin = null,
+        $jornada_excluir = null
     ) {
         $sql = "SELECT j.jornada_id, j.jornada_inicio::date AS fecha,
                        e.je_nombre AS estado_nombre
@@ -231,17 +239,25 @@ class Jornada extends Conectar
     }
 
     private function validar_disponibilidad(
-        PDO $conectar, $empleado_id, $inicio, $fin, $jornada_excluir = null
+        PDO $conectar,
+        $empleado_id,
+        $inicio,
+        $fin,
+        $jornada_excluir = null
     ) {
         $conflicto = $this->buscar_conflicto(
-            $conectar, $empleado_id, $inicio, $fin, $jornada_excluir
+            $conectar,
+            $empleado_id,
+            $inicio,
+            $fin,
+            $jornada_excluir
         );
         if ($conflicto) {
             $fecha = (new DateTimeImmutable($conflicto['fecha']))->format('d/m/Y');
             throw new RuntimeException(
                 'Ya existe una jornada registrada para el ' . $fecha
-                . ' o un cruce con ese día. Consulte el historial (registro #'
-                . $conflicto['jornada_id'] . ').'
+                    . ' o un cruce con ese día. Consulte el historial (registro #'
+                    . $conflicto['jornada_id'] . ').'
             );
         }
     }
@@ -275,11 +291,18 @@ class Jornada extends Conectar
                     throw new RuntimeException('La jornada no existe o ya no puede editarse.');
                 }
             }
+            $ubicaciones_permitidas = $this->listar_ubicaciones_jornada();
+
             if (
-                !in_array($ubicacion, ['Sede principal', 'Obras varias'], true) &&
-                (!$anterior || $ubicacion !== $anterior['jornada_ubicacion'])
+                !in_array($ubicacion, $ubicaciones_permitidas, true)
+                && (
+                    !$anterior
+                    || $ubicacion !== $anterior['jornada_ubicacion']
+                )
             ) {
-                throw new InvalidArgumentException('Seleccione Sede principal u Obras varias.');
+                throw new InvalidArgumentException(
+                    'Seleccione una ubicación válida.'
+                );
             }
             $this->validar_disponibilidad($conectar, $empleado_id, $inicio, $fin, $jornada_id);
 
@@ -404,8 +427,11 @@ class Jornada extends Conectar
             }
 
             $this->validar_disponibilidad(
-                $conectar, $empleado_id, $anterior['jornada_inicio'],
-                $anterior['jornada_fin'], $jornada_id
+                $conectar,
+                $empleado_id,
+                $anterior['jornada_inicio'],
+                $anterior['jornada_fin'],
+                $jornada_id
             );
 
             $estado_pendiente = $this->obtener_estado_id(
@@ -469,7 +495,8 @@ class Jornada extends Conectar
             } catch (PDOException $e) {
                 error_log('Envío masivo de jornadas: ' . $e->getMessage());
                 $resultado['fallidos'][] = [
-                    'jornada_id' => $id, 'message' => 'No fue posible procesar la jornada.'
+                    'jornada_id' => $id,
+                    'message' => 'No fue posible procesar la jornada.'
                 ];
             } catch (RuntimeException $e) {
                 $resultado['fallidos'][] = ['jornada_id' => $id, 'message' => $e->getMessage()];
@@ -504,8 +531,15 @@ class Jornada extends Conectar
             );
             $stmt->execute([$estado, $jornada_id, $empleado_id]);
             $this->registrar_auditoria(
-                $conectar, $jornada_id, 'ANULAR_BORRADOR', 'BORRADOR', 'ANULADO',
-                $anterior, null, $motivo, $user_id
+                $conectar,
+                $jornada_id,
+                'ANULAR_BORRADOR',
+                'BORRADOR',
+                'ANULADO',
+                $anterior,
+                null,
+                $motivo,
+                $user_id
             );
             $conectar->commit();
         } catch (Throwable $e) {
@@ -695,6 +729,19 @@ class Jornada extends Conectar
         $stmt->bindValue(1, $jefe_empleado_id, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Retorna las ubicaciones habilitadas para el registro de jornadas.
+     */
+    public function listar_ubicaciones_jornada()
+    {
+        return [
+            'Sede principal',
+            'Obras varias',
+            'Mario Huertas',
+            'Isagen'
+        ];
     }
 
     /**
@@ -1105,7 +1152,7 @@ class Jornada extends Conectar
                         'jornada_inicio' => $fila['inicio'],
                         'jornada_fin' => $fila['fin'],
                         'jornada_minutos_ordinarios' =>
-                            (int) $fila['minutos_ordinarios'],
+                        (int) $fila['minutos_ordinarios'],
                         'jornada_ubicacion' => $fila['ubicacion'],
                         'jornada_actividad' => $fila['actividad'],
                         'jornada_observaciones' => $fila['observaciones']
@@ -1204,7 +1251,7 @@ class Jornada extends Conectar
                     'jornada_inicio' => $fila['inicio'],
                     'jornada_fin' => $fila['fin'],
                     'jornada_minutos_ordinarios' =>
-                        (int) $fila['minutos_ordinarios'],
+                    (int) $fila['minutos_ordinarios'],
                     'jornada_ubicacion' => $fila['ubicacion'],
                     'jornada_actividad' => $fila['actividad'],
                     'jornada_observaciones' => $fila['observaciones'],
@@ -1391,7 +1438,7 @@ class Jornada extends Conectar
                         'jornada_inicio' => $fila['inicio'],
                         'jornada_fin' => $fila['fin'],
                         'jornada_minutos_ordinarios' =>
-                            (int) $fila['minutos_ordinarios'],
+                        (int) $fila['minutos_ordinarios'],
                         'jornada_ubicacion' => $fila['ubicacion'],
                         'jornada_actividad' => $fila['actividad'],
                         'jornada_observaciones' => $fila['observaciones']
@@ -1499,7 +1546,7 @@ class Jornada extends Conectar
                     'jornada_inicio' => $fila['inicio'],
                     'jornada_fin' => $fila['fin'],
                     'jornada_minutos_ordinarios' =>
-                        (int) $fila['minutos_ordinarios'],
+                    (int) $fila['minutos_ordinarios'],
                     'jornada_ubicacion' => $fila['ubicacion'],
                     'jornada_actividad' => $fila['actividad'],
                     'jornada_observaciones' => $fila['observaciones'],
@@ -1527,7 +1574,7 @@ class Jornada extends Conectar
                 'creadas_aprobadas' => count($resultado['creadas']),
                 'borradores_aprobados' => count($resultado['aprobadas']),
                 'total' =>
-                    count($resultado['creadas'])
+                count($resultado['creadas'])
                     + count($resultado['aprobadas'])
             ];
         } catch (Throwable $e) {
@@ -1907,5 +1954,3 @@ class Jornada extends Conectar
         }
     }
 }
-
-?>

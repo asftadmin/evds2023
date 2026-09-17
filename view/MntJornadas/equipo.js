@@ -1,6 +1,8 @@
 let tablaExpediente = null;
 let solicitudCalculoEquipo = 0;
 
+let ubicacionesJornada = [];
+
 // Conserva la información del expediente actualmente consultado.
 let expedienteEquipo = {
     empleadoId: null,
@@ -111,8 +113,9 @@ function cargarContextoEquipo() {
 }
 
 // Carga únicamente los empleados relacionados activamente con el jefe.
+// Carga los empleados relacionados activamente con el jefe.
 function cargarSubordinados() {
-    $.ajax({
+    return $.ajax({
         url: '../../controller/jornada.php?op=listarSubordinadosJefe',
         type: 'GET',
         dataType: 'json'
@@ -187,6 +190,29 @@ function generarFechasPeriodoEquipo(fechaDesde, fechaHasta) {
     }
 
     return fechas;
+}
+
+// Carga las ubicaciones habilitadas para el registro de jornadas.
+// Carga las ubicaciones habilitadas para las jornadas.
+function cargarUbicacionesJornada() {
+    return $.ajax({
+        url: '../../controller/jornada.php?op=listarUbicacionesJornada',
+        type: 'GET',
+        dataType: 'json'
+    }).done(function (respuesta) {
+        ubicacionesJornada = respuesta.data || [];
+    }).fail(function (xhr) {
+        ubicacionesJornada = [];
+
+        Swal.fire({
+            icon: 'error',
+            title: 'No fue posible consultar',
+            text: equipoMensajeError(
+                xhr,
+                'No se pudieron cargar las ubicaciones.'
+            )
+        });
+    });
 }
 
 // Construye una fila nueva que todavía no existe en la base de datos.
@@ -310,41 +336,50 @@ function renderSalidaEquipo(fila) {
 }
 
 // Genera el selector de ubicación para filas editables.
+// Genera el selector de ubicación utilizando la lista entregada por el servidor.
 function renderUbicacionEquipo(fila) {
     if (!filaEditableEquipo(fila)) {
         return equipoEscapeHtml(fila.ubicacion || '-');
     }
 
-    let opciones = [
-        '<option value="">Seleccione</option>',
-        '<option value="Sede principal">Sede principal</option>',
-        '<option value="Obras varias">Obras varias</option>'
-    ];
+    const ubicacion = fila.ubicacion || '';
 
-    // Conserva un valor histórico diferente sin eliminarlo visualmente.
-    if (
-        fila.ubicacion &&
-        fila.ubicacion !== 'Sede principal' &&
-        fila.ubicacion !== 'Obras varias'
-    ) {
-        opciones.push(
+    let html =
+        '<select class="form-control form-control-sm jornada-ubicacion">' +
+        '<option value=""' +
+        (ubicacion === '' ? ' selected' : '') +
+        '>Seleccione</option>';
+
+    ubicacionesJornada.forEach(function (opcion) {
+        html +=
             '<option value="' +
-            equipoEscapeHtml(fila.ubicacion) +
-            '">' +
-            equipoEscapeHtml(fila.ubicacion) +
-            '</option>'
-        );
+            equipoEscapeHtml(opcion) +
+            '"' +
+            (ubicacion === opcion ? ' selected' : '') +
+            '>' +
+            equipoEscapeHtml(opcion) +
+            '</option>';
+    });
+
+    /*
+     * Conserva visualmente una ubicación histórica que ya exista
+     * aunque posteriormente haya sido retirada de la lista activa.
+     */
+    if (
+        ubicacion !== '' &&
+        !ubicacionesJornada.includes(ubicacion)
+    ) {
+        html +=
+            '<option value="' +
+            equipoEscapeHtml(ubicacion) +
+            '" selected>' +
+            equipoEscapeHtml(ubicacion) +
+            '</option>';
     }
 
-    const html = $(
-        '<select class="form-control form-control-sm jornada-ubicacion">' +
-        opciones.join('') +
-        '</select>'
-    );
+    html += '</select>';
 
-    html.val(fila.ubicacion || '');
-
-    return html.prop('outerHTML');
+    return html;
 }
 
 // Genera el campo actividad.
@@ -578,8 +613,8 @@ function obtenerDatosFilaEquipo(filaDom) {
     return {
         jornada_id:
             fila.jornada_id === null ||
-            fila.jornada_id === undefined ||
-            fila.jornada_id === ''
+                fila.jornada_id === undefined ||
+                fila.jornada_id === ''
                 ? null
                 : parseInt(fila.jornada_id, 10),
 
@@ -1055,8 +1090,10 @@ function obtenerJornadasAprobacionEquipo() {
 $(document).ready(function () {
     inicializarSelectEmpleadoEquipo();
     inicializarRangoEquipo();
+
     cargarContextoEquipo();
     cargarSubordinados();
+    cargarUbicacionesJornada();
 
     $('#contenedor-expediente').hide();
 });

@@ -3,8 +3,8 @@
 ob_start();
 ini_set('display_errors', '0');
 
-require_once ('../config/conexion.php');
-require_once ('../models/Jornada.php');
+require_once('../config/conexion.php');
+require_once('../models/Jornada.php');
 
 $jornada = new Jornada();
 
@@ -278,7 +278,8 @@ try {
         'guardarJornadaEquipo',
         'listarJornadasEquipo',
         'guardarBorradoresEquipoMasivo',
-        'registrarAprobarEquipoMasivo'
+        'registrarAprobarEquipoMasivo',
+        'listarUbicacionesJornada'
     ];
     $operaciones_equipo = [
         'contextoEquipo',
@@ -288,7 +289,8 @@ try {
         'listarJornadasEquipo',
         // Nuevas operaciones masivas del expediente.
         'guardarBorradoresEquipoMasivo',
-        'registrarAprobarEquipoMasivo'
+        'registrarAprobarEquipoMasivo',
+        'listarUbicacionesJornada'
     ];
     $es_operacion_jefe = in_array($op, $operaciones_jefe, true);
     $es_operacion_equipo = in_array($op, $operaciones_equipo, true);
@@ -351,30 +353,28 @@ try {
         }
 
         // Solo se permiten las ubicaciones ya aceptadas por el módulo.
-        if (!in_array(
-            $ubicacion,
-            ['Sede principal', 'Obras varias'],
-            true
-        )) {
+        $ubicaciones_permitidas = $modelo->listar_ubicaciones_jornada();
+
+        if (!in_array($ubicacion, $ubicaciones_permitidas, true)) {
             throw new InvalidArgumentException(
                 'Seleccione una ubicación válida para la jornada del '
-                . $fecha . '.'
+                    . $fecha . '.'
             );
         }
 
         if ($actividad === '' || mb_strlen($actividad) > 4000) {
             throw new InvalidArgumentException(
                 'La actividad de la jornada del '
-                . $fecha
-                . ' es obligatoria y admite máximo 4000 caracteres.'
+                    . $fecha
+                    . ' es obligatoria y admite máximo 4000 caracteres.'
             );
         }
 
         if (mb_strlen($observaciones) > 4000) {
             throw new InvalidArgumentException(
                 'Las observaciones de la jornada del '
-                . $fecha
-                . ' admiten máximo 4000 caracteres.'
+                    . $fecha
+                    . ' admiten máximo 4000 caracteres.'
             );
         }
 
@@ -483,8 +483,8 @@ try {
             if (isset($fechas[$validada['fecha']])) {
                 throw new InvalidArgumentException(
                     'La fecha '
-                    . $validada['fecha']
-                    . ' está repetida dentro del lote.'
+                        . $validada['fecha']
+                        . ' está repetida dentro del lote.'
                 );
             }
 
@@ -948,7 +948,9 @@ try {
                 $validados[] = (int) $id;
             }
             $resultado = $jornada->enviar_aprobacion_masiva(
-                array_values(array_unique($validados)), (int) $empleado['id_empl'], $contexto['user_id']
+                array_values(array_unique($validados)),
+                (int) $empleado['id_empl'],
+                $contexto['user_id']
             );
             jornada_responder(['success' => true, 'data' => $resultado]);
             break;
@@ -960,7 +962,10 @@ try {
                 throw new InvalidArgumentException('La jornada no es válida.');
             }
             $jornada->anular_borrador_propio(
-                $jornada_id, (int) $empleado['id_empl'], $contexto['user_id'], jornada_entrada('motivo')
+                $jornada_id,
+                (int) $empleado['id_empl'],
+                $contexto['user_id'],
+                jornada_entrada('motivo')
             );
             jornada_responder(['success' => true, 'message' => 'Borrador anulado. La fecha queda disponible.']);
             break;
@@ -1079,6 +1084,15 @@ try {
             ]);
             break;
 
+        case 'listarUbicacionesJornada':
+
+            jornada_responder([
+                'success' => true,
+                'data' => $jornada->listar_ubicaciones_jornada()
+            ]);
+
+            break;
+
         default:
             jornada_responder([
                 'success' => false,
@@ -1102,5 +1116,3 @@ try {
         'message' => 'No fue posible procesar la solicitud.'
     ], 500);
 }
-
-?>
