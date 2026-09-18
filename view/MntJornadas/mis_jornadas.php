@@ -45,7 +45,7 @@ if (empty($_SESSION['csrf_jornadas'])) {
             </section>
 
             <section class="content">
-                <div class="container-fluid">
+                <div class="container-fluid p-2">
                     <!--                     <div id="alerta-contexto" class="alert alert-info py-2">
                         <i class="fas fa-info-circle mr-1"></i>
                         <span id="texto-contexto">Consultando usuario...</span>
@@ -183,7 +183,18 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                     <label for="filtro_fechas">Periodo</label>
                                     <input type="text" class="form-control" id="filtro_fechas" autocomplete="off">
                                 </div>
-                                <div class="col-md-7 d-flex align-items-end flex-wrap jornada-acciones">
+                                <div class="col-md-3">
+                                    <label for="filtro_estado">Estado</label>
+                                    <select class="form-control" id="filtro_estado">
+                                        <option value="">Todos los estados</option>
+                                        <option value="BORRADOR">Borrador</option>
+                                        <option value="APROBADO">Aprobado</option>
+                                        <option value="RECHAZADO">Rechazado</option>
+                                        <option value="ANULADO">Anulado</option>
+                                        <option value="PENDIENTE_CORRECCION">Pendiente de corrección</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end flex-wrap jornada-acciones">
                                     <button type="button" class="btn btn-info mr-2" id="btn-filtrar">
                                         <i class="fas fa-search mr-1"></i>Consultar
                                     </button>

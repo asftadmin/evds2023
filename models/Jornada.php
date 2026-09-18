@@ -546,7 +546,7 @@ class Jornada extends Conectar
     /**
      * Anula únicamente borradores propios, conservando datos y auditoría.
      */
-    public function anular_borrador_propio($jornada_id, $empleado_id, $user_id, $motivo)
+    public function anular_borrador_propio($jornada_id, $empleado_id, $user_id, $motivo, $jefe_id = null)
     {
         $motivo = trim((string) $motivo);
         if ($motivo === '' || mb_strlen($motivo) > 2000) {
@@ -556,9 +556,12 @@ class Jornada extends Conectar
         try {
             $conectar->beginTransaction();
             $this->bloquear_empleado($conectar, $empleado_id);
+            if ($jefe_id !== null) {
+                $this->validar_subordinado_activo($conectar, $empleado_id, $jefe_id);
+            }
             $anterior = $this->obtener_jornada_bloqueada($conectar, $jornada_id, $empleado_id);
             if (!$anterior || $anterior['je_codigo'] !== 'BORRADOR') {
-                throw new RuntimeException('Solo puede anular sus jornadas en estado borrador.');
+                throw new RuntimeException('Solo puede anular jornadas en estado borrador.');
             }
             $estado = $this->obtener_estado_id($conectar, 'ANULADO');
             $stmt = $conectar->prepare(
@@ -1965,6 +1968,37 @@ class Jornada extends Conectar
         $stmt->bindValue(7, $motivo, PDO::PARAM_STR);
         $stmt->bindValue(8, $user_id, PDO::PARAM_INT);
         $stmt->execute();
+    }
+
+    /**
+     * Prepara el formato preliminar con las horas registradas, sin liquidación.
+     */
+    public function obtener_borrador_equipo($jefe_id, $empleado_id, $desde, $hasta)
+    {
+        $db = parent::Conexion();
+        $this->validar_subordinado_activo($db, $empleado_id, $jefe_id);
+        $stmt = $db->prepare('SELECT emp.nomb_empl AS empleado,
+                emp.cedu_empl AS documento, cargo.nomb_carg AS cargo,
+                emp.fecha_naci_empl AS fecha_nacimiento, genero.desc_gene AS sexo
+            FROM empleados emp
+            LEFT JOIN cargo ON cargo.codi_carg = emp.carg_empl
+            LEFT JOIN genero ON genero.id_gene = emp.gene_empl
+            WHERE emp.id_empl = ?');
+        $stmt->execute([$empleado_id]);
+        $datos = $stmt->fetch(PDO::FETCH_ASSOC);
+        $datos['desde'] = $desde;
+        $datos['hasta'] = $hasta;
+        $datos['borrador'] = true;
+        $datos['jornadas'] = array_values(array_filter(
+            $this->listar_jornadas_equipo_empleado($jefe_id, $empleado_id, $desde, $hasta),
+            static function ($fila) {
+                return !in_array($fila['estado_codigo'], ['ANULADO', 'RECHAZADO'], true);
+            }
+        ));
+        $datos['totales'] = ['ORD' => array_sum(array_column(
+            $datos['jornadas'], 'jornada_minutos_ordinarios'
+        ))];
+        return $datos;
     }
 
     /**

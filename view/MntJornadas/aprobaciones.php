@@ -106,6 +106,17 @@ if (empty($_SESSION["csrf_jornadas"])) {
                                 </div>
                             </div>
 
+                            <div class="d-flex flex-wrap align-items-center mb-3">
+                                <button type="button" class="btn btn-success mr-3" id="btn-aprobar-masivo" disabled>
+                                    <i class="fas fa-check-double mr-1"></i>Aprobar seleccionadas
+                                </button>
+                                <label class="mb-0">
+                                    <input type="checkbox" id="seleccionar-aprobaciones" class="mr-1">
+                                    Seleccionar todas las jornadas filtradas (todas las páginas)
+                                </label>
+                                <span id="total-seleccionadas" class="ml-3">0 seleccionadas</span>
+                            </div>
+
                             <div class="table-responsive">
                                 <table
                                     id="tabla-aprobaciones"
@@ -114,6 +125,7 @@ if (empty($_SESSION["csrf_jornadas"])) {
                                 >
                                     <thead>
                                         <tr>
+                                            <th>Seleccionar</th>
                                             <th>Empleado</th>
                                             <th>Documento</th>
                                             <th>Día</th>

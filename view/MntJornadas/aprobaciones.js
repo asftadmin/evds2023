@@ -1,4 +1,18 @@
 let tablaAprobaciones = null;
+const aprobacionesSeleccionadas = new Set();
+let aprobacionMasivaEnCurso = false;
+
+function actualizarSeleccionAprobaciones() {
+    const filas = tablaAprobaciones ? tablaAprobaciones.rows({ search: 'applied' }).data().toArray() : [];
+    const seleccionadas = filas.filter(fila => aprobacionesSeleccionadas.has(Number(fila.jornada_id))).length;
+    $('#total-seleccionadas').text(seleccionadas + ' seleccionadas');
+    $('#btn-aprobar-masivo').prop('disabled', aprobacionMasivaEnCurso || seleccionadas === 0);
+    $('#seleccionar-aprobaciones').prop('checked', filas.length > 0 && seleccionadas === filas.length)
+        .prop('indeterminate', seleccionadas > 0 && seleccionadas < filas.length);
+    $('.seleccionar-jornada').each(function () {
+        $(this).prop('checked', aprobacionesSeleccionadas.has(Number($(this).data('id'))));
+    });
+}
 
 function aprobacionEscapeHtml(valor) {
     return $('<div>').text(valor == null ? '' : String(valor)).html();
@@ -138,6 +152,9 @@ function renderAccionesAprobacion(fila) {
 }
 
 function cargarPendientesJefe() {
+    if (aprobacionMasivaEnCurso) return;
+    aprobacionesSeleccionadas.clear();
+    actualizarSeleccionAprobaciones();
     const rango = $('#filtro_fechas').val().split(' - ');
     const fechaDesde = rango.length === 2 ? rango[0] : '';
     const fechaHasta = rango.length === 2 ? rango[1] : '';
@@ -152,7 +169,11 @@ function cargarPendientesJefe() {
         responsive: true,
         autoWidth: false,
         pageLength: 10,
-        order: [[3, 'asc']],
+        order: [[4, 'asc']],
+        drawCallback: function () {
+            tablaAprobaciones = this.api();
+            actualizarSeleccionAprobaciones();
+        },
         ajax: {
             url: '../../controller/jornada.php?op=listarPendientesJefe',
             type: 'GET',
@@ -177,6 +198,17 @@ function cargarPendientesJefe() {
             }
         },
         columns: [
+            {
+                data: 'jornada_id',
+                orderable: false,
+                searchable: false,
+                className: 'all text-center',
+                render: function (data) {
+                    const id = Number(data);
+                    return '<input type="checkbox" class="seleccionar-jornada" data-id="' + id +
+                        '" aria-label="Seleccionar jornada ' + id + '">';
+                }
+            },
             {
                 data: 'empleado',
                 render: function (data) {
@@ -264,6 +296,7 @@ function obtenerFilaAprobacion(jornadaId) {
 }
 
 function mostrarDetalleAprobacion(jornadaId) {
+    if (aprobacionMasivaEnCurso) return;
     const fila = obtenerFilaAprobacion(jornadaId);
     if (!fila) {
         return;
@@ -295,6 +328,28 @@ function mostrarDetalleAprobacion(jornadaId) {
 }
 
 function enviarDecisionJefe(jornadaId, decision, motivo) {
+    if (aprobacionMasivaEnCurso) return;
+    aprobacionMasivaEnCurso = true;
+    actualizarSeleccionAprobaciones();
+    const botones = $('#tabla-aprobaciones .btn-aprobar, #tabla-aprobaciones .btn-rechazar');
+    botones.prop('disabled', true);
+    const boton = botones.filter(function () {
+        return Number($(this).data('id')) === Number(jornadaId) &&
+            $(this).hasClass(decision === 'APROBAR' ? 'btn-aprobar' : 'btn-rechazar');
+    });
+    const contenidoOriginal = boton.html();
+    boton.attr('aria-busy', 'true').html(
+        '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>'
+    );
+    Swal.fire({
+        title: decision === 'APROBAR' ? 'Aprobando jornada...' : 'Rechazando jornada...',
+        html: '<div class="spinner-border text-primary my-3" role="status">' +
+            '<span class="sr-only">Procesando...</span></div>' +
+            '<p>Espere un momento. No recargue ni cierre la página.</p>',
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        allowEscapeKey: false
+    });
     $.ajax({
         url: '../../controller/jornada.php?op=decidirJornadaJefe',
         type: 'POST',
@@ -315,7 +370,6 @@ function enviarDecisionJefe(jornadaId, decision, motivo) {
             timer: 1800,
             showConfirmButton: false
         });
-        cargarPendientesJefe();
     }).fail(function (xhr) {
         Swal.fire({
             icon: 'error',
@@ -325,11 +379,16 @@ function enviarDecisionJefe(jornadaId, decision, motivo) {
                 'La jornada pudo cambiar de estado. Actualice la bandeja.'
             )
         });
+    }).always(function () {
+        aprobacionMasivaEnCurso = false;
+        boton.html(contenidoOriginal).removeAttr('aria-busy');
+        botones.prop('disabled', false);
         cargarPendientesJefe();
     });
 }
 
 function confirmarAprobacion(jornadaId) {
+    if (aprobacionMasivaEnCurso) return;
     const fila = obtenerFilaAprobacion(jornadaId);
     Swal.fire({
         icon: 'question',
@@ -347,6 +406,7 @@ function confirmarAprobacion(jornadaId) {
 }
 
 function solicitarRechazo(jornadaId) {
+    if (aprobacionMasivaEnCurso) return;
     Swal.fire({
         icon: 'warning',
         title: 'Rechazar jornada',
@@ -382,6 +442,82 @@ $(document).ready(function () {
     inicializarEmpleadosAprobaciones();
     cargarContextoAprobador();
     cargarPendientesJefe();
+});
+
+$(document).on('change', '.seleccionar-jornada', function () {
+    const id = Number($(this).data('id'));
+    if (this.checked) aprobacionesSeleccionadas.add(id);
+    else aprobacionesSeleccionadas.delete(id);
+    actualizarSeleccionAprobaciones();
+});
+
+$('#seleccionar-aprobaciones').on('change', function () {
+    if (!tablaAprobaciones || aprobacionMasivaEnCurso) return;
+    const seleccionar = this.checked;
+    tablaAprobaciones.rows({ search: 'applied' }).data().toArray().forEach(function (fila) {
+        const id = Number(fila.jornada_id);
+        if (seleccionar) aprobacionesSeleccionadas.add(id);
+        else aprobacionesSeleccionadas.delete(id);
+    });
+    actualizarSeleccionAprobaciones();
+});
+
+$('#btn-aprobar-masivo').on('click', async function () {
+    if (aprobacionMasivaEnCurso || !tablaAprobaciones) return;
+    const ids = tablaAprobaciones.rows({ search: 'applied' }).data().toArray()
+        .map(fila => Number(fila.jornada_id)).filter(id => aprobacionesSeleccionadas.has(id));
+    if (!ids.length) return;
+    aprobacionMasivaEnCurso = true;
+    actualizarSeleccionAprobaciones();
+    const confirmacion = await Swal.fire({
+        icon: 'question', title: 'Aprobar jornadas seleccionadas',
+        text: 'Se aprobarán ' + ids.length + ' jornadas. ¿Desea continuar?',
+        showCancelButton: true, confirmButtonText: 'Sí, aprobar todas',
+        cancelButtonText: 'Cancelar', confirmButtonColor: '#28a745'
+    });
+    if (!confirmacion.isConfirmed) {
+        aprobacionMasivaEnCurso = false;
+        actualizarSeleccionAprobaciones();
+        return;
+    }
+    const boton = $('#btn-aprobar-masivo');
+    const original = boton.html();
+    boton.attr('aria-busy', 'true').html('<span class="spinner-border spinner-border-sm mr-1"></span>Procesando...');
+    Swal.fire({
+        title: 'Aprobando jornadas...',
+        html: '<div class="spinner-border text-success my-3" role="status"><span class="sr-only">Procesando</span></div>' +
+            '<p id="progreso-aprobaciones">0 de ' + ids.length + '</p><p>No recargue ni cierre la página.</p>',
+        showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false
+    });
+    let aprobadas = 0;
+    const fallidas = [];
+    try {
+        // Cada decisión conserva los permisos, bloqueo y auditoría del flujo individual.
+        for (const id of ids) {
+            try {
+                await $.ajax({
+                    url: '../../controller/jornada.php?op=decidirJornadaJefe',
+                    type: 'POST', dataType: 'json',
+                    data: { csrf_token: $('#csrf_token').val(), jornada_id: id, decision: 'APROBAR', motivo: '' }
+                });
+                aprobadas++;
+            } catch (xhr) {
+                fallidas.push('#' + id + ': ' + aprobacionMensajeError(xhr, 'No se pudo confirmar la aprobación. Revise la bandeja.'));
+            }
+            $('#progreso-aprobaciones').text((aprobadas + fallidas.length) + ' de ' + ids.length);
+        }
+        Swal.fire({
+            icon: fallidas.length ? 'warning' : 'success',
+            title: 'Aprobación masiva finalizada',
+            html: '<p>Aprobadas: ' + aprobadas + '. Sin confirmar: ' + fallidas.length + '.</p>' +
+                (fallidas.length ? '<div class="text-left" style="max-height: 240px; overflow-y: auto;">' +
+                    fallidas.map(aprobacionEscapeHtml).join('<br>') + '</div>' : '')
+        });
+    } finally {
+        aprobacionMasivaEnCurso = false;
+        boton.html(original).removeAttr('aria-busy');
+        cargarPendientesJefe();
+    }
 });
 
 $('#btn-filtrar').on('click', cargarPendientesJefe);

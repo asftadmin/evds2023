@@ -274,6 +274,7 @@ try {
         'decidirJornadaJefe',
         // Operaciones del expediente de jornadas del equipo.
         'contextoEquipo',
+        'anularBorradorEquipo',
         'listarSubordinadosJefe',
         'calcularHorasEquipo',
         'guardarJornadaEquipo',
@@ -283,6 +284,7 @@ try {
         'listarUbicacionesJornada'
     ];
     $operaciones_equipo = [
+        'anularBorradorEquipo',
         'contextoEquipo',
         'listarSubordinadosJefe',
         'calcularHorasEquipo',
@@ -466,7 +468,7 @@ try {
         }
 
         $validadas = [];
-        $fechas = [];
+        $ids = [];
 
         foreach ($jornadas as $fila) {
             if (!is_array($fila)) {
@@ -480,16 +482,24 @@ try {
                 $fila
             );
 
-            // Evita recibir dos filas de la misma fecha en el mismo lote.
-            if (isset($fechas[$validada['fecha']])) {
+            // Una jornada existente solo puede editarse una vez por lote.
+            if ($validada['jornada_id'] !== null && isset($ids[$validada['jornada_id']])) {
                 throw new InvalidArgumentException(
-                    'La fecha '
-                        . $validada['fecha']
-                        . ' está repetida dentro del lote.'
+                    'La misma jornada está repetida dentro del lote.'
                 );
             }
 
-            $fechas[$validada['fecha']] = true;
+            if ($validada['jornada_id'] !== null) {
+                $ids[$validada['jornada_id']] = true;
+            }
+            foreach ($validadas as $otra) {
+                if ($validada['inicio'] < $otra['fin'] && $validada['fin'] > $otra['inicio']) {
+                    throw new InvalidArgumentException(
+                        'El horario del ' . $validada['fecha']
+                        . ' se superpone con otra jornada del lote. Revise las horas de entrada y salida.'
+                    );
+                }
+            }
             $validadas[] = $validada;
         }
 
@@ -633,6 +643,20 @@ try {
                 'success' => true,
                 'data' => $data
             ]);
+            break;
+
+        case 'anularBorradorEquipo':
+            jornada_validar_csrf();
+            $jornada_id = filter_var(jornada_entrada('jornada_id'), FILTER_VALIDATE_INT);
+            $empleado_id = filter_var(jornada_entrada('empleado_id'), FILTER_VALIDATE_INT);
+            if (!$jornada_id || $jornada_id <= 0 || !$empleado_id || $empleado_id <= 0) {
+                throw new InvalidArgumentException('Seleccione una jornada y un empleado válidos.');
+            }
+            $jornada->anular_borrador_propio(
+                $jornada_id, $empleado_id, $contexto['user_id'],
+                jornada_entrada('motivo'), (int) $empleado['id_empl']
+            );
+            jornada_responder(['success' => true, 'message' => 'Turno anulado.']);
             break;
 
         case 'guardarJornadaEquipo':

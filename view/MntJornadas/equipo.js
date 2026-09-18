@@ -43,13 +43,14 @@ function inicializarSelectEmpleadoEquipo() {
 
 // Inicializa el rango de fechas utilizado para consultar el expediente.
 function inicializarRangoEquipo() {
-    const inicio = moment().startOf('month');
     const fin = moment();
+    const inicio = fin.clone().subtract(1, 'month').startOf('month');
 
     $('#filtro_fechas').daterangepicker({
         startDate: inicio,
         endDate: fin,
-        maxDate: moment(),
+        minDate: inicio,
+        maxDate: fin,
         showDropdowns: true,
         autoApply: false,
         locale: {
@@ -251,23 +252,17 @@ function construirExpedienteEquipo(jornadasExistentes) {
             parseInt(fila.empleado_id, 10) ===
             parseInt(expedienteEquipo.empleadoId, 10)
         ) {
-            mapa[fila.fecha] = fila;
+            if (!mapa[fila.fecha]) {
+                mapa[fila.fecha] = [];
+            }
+            fila.cruza_medianoche = !!(fila.fecha_salida && fila.fecha_salida !== fila.fecha);
+            mapa[fila.fecha].push(fila);
         }
     });
 
-    return fechas.map(function (fecha) {
-        if (!mapa[fecha]) {
-            return crearFilaNuevaEquipo(fecha);
-        }
-
-        const fila = mapa[fecha];
-
-        fila.cruza_medianoche =
-            fila.fecha_salida &&
-            fila.fecha_salida !== fila.fecha;
-
-        return fila;
-    });
+    return fechas.reduce(function (filas, fecha) {
+        return filas.concat(mapa[fecha] || [crearFilaNuevaEquipo(fecha)]);
+    }, []);
 }
 
 // Renderiza el estado de cada jornada.
@@ -436,8 +431,14 @@ function cargarTablaExpediente(filas) {
             },
             {
                 data: 'fecha',
-                render: function (data) {
-                    return moment(data, 'YYYY-MM-DD').format('DD/MM/YYYY');
+                render: function (data, type, fila) {
+                    return moment(data, 'YYYY-MM-DD').format('DD/MM/YYYY') +
+                        '<br><button type="button" class="btn btn-outline-primary btn-sm jornada-agregar-turno mt-1">' +
+                        '<i class="fas fa-plus mr-1"></i>Agregar turno</button>' +
+                        ((fila.turno_adicional && fila.estado_codigo === 'NUEVA') || fila.estado_codigo === 'BORRADOR'
+                            ? '<br><button type="button" class="btn btn-outline-danger btn-sm jornada-eliminar-turno mt-1">' +
+                              '<i class="fas fa-trash-alt mr-1"></i>Eliminar turno</button>'
+                            : '');
                 }
             },
             {
@@ -488,6 +489,14 @@ function cargarTablaExpediente(filas) {
                 }
             }
         ],
+        drawCallback: function () {
+            // Mantiene los turnos junto a su fecha al agregar o eliminar filas.
+            const nodos = this.api().rows().nodes().toArray();
+            nodos.sort(function (a, b) {
+                return $(a).attr('data-fecha').localeCompare($(b).attr('data-fecha'));
+            });
+            $('#tabla-expediente tbody').append(nodos);
+        },
         createdRow: function (row, data) {
             $(row)
                 .attr('data-fecha', data.fecha)
@@ -694,6 +703,7 @@ function calcularHorasFilaEquipo(filaDom) {
     }
 
     const numeroSolicitud = ++solicitudCalculoEquipo;
+    $(filaDom).data('solicitud-calculo', numeroSolicitud);
 
     $.ajax({
         url: '../../controller/jornada.php?op=calcularHorasEquipo',
@@ -707,13 +717,13 @@ function calcularHorasFilaEquipo(filaDom) {
                 datos.cruza_medianoche ? 1 : 0
         }
     }).done(function (respuesta) {
-        if (numeroSolicitud !== solicitudCalculoEquipo) {
+        if (numeroSolicitud !== $(filaDom).data('solicitud-calculo')) {
             return;
         }
 
         actualizarHorasFilaEquipo(filaDom, respuesta);
     }).fail(function (xhr) {
-        if (numeroSolicitud !== solicitudCalculoEquipo) {
+        if (numeroSolicitud !== $(filaDom).data('solicitud-calculo')) {
             return;
         }
 
@@ -826,6 +836,37 @@ function obtenerJornadasEditablesEquipo() {
     };
 }
 
+// Muestra inmediatamente el progreso de las operaciones masivas.
+function mostrarProcesandoEquipo(botonId, titulo) {
+    $('#btn-guardar-borrador, #btn-registrar-aprobar').prop('disabled', true);
+    const boton = $(botonId);
+    boton.data('contenido-original', boton.html());
+    boton.attr('aria-busy', 'true').html(
+        '<span class="spinner-border spinner-border-sm mr-1" aria-hidden="true"></span>' +
+        'Procesando...'
+    );
+    Swal.fire({
+        title: titulo,
+        html: '<div class="spinner-border text-primary my-3" role="status">' +
+            '<span class="sr-only">Procesando...</span></div>' +
+            '<p>Espere un momento. No recargue ni cierre la página.</p>',
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        allowEscapeKey: false
+    });
+}
+
+function finalizarProcesandoEquipo() {
+    $('#btn-guardar-borrador, #btn-registrar-aprobar').each(function () {
+        const boton = $(this);
+        const contenido = boton.data('contenido-original');
+        if (contenido !== undefined) {
+            boton.html(contenido).removeData('contenido-original');
+        }
+        boton.removeAttr('aria-busy').prop('disabled', false);
+    });
+}
+
 // En el Paso 3 este botón será conectado al guardado masivo del controller.
 // Valida y envía las jornadas editables para guardarlas como borrador.
 function guardarBorradoresEquipo() {
@@ -880,8 +921,7 @@ function guardarBorradoresEquipo() {
             return;
         }
 
-        $('#btn-guardar-borrador').prop('disabled', true);
-        $('#btn-registrar-aprobar').prop('disabled', true);
+        mostrarProcesandoEquipo('#btn-guardar-borrador', 'Guardando borradores...');
 
         $.ajax({
             url:
@@ -927,8 +967,7 @@ function guardarBorradoresEquipo() {
                 )
             });
         }).always(function () {
-            $('#btn-guardar-borrador').prop('disabled', false);
-            $('#btn-registrar-aprobar').prop('disabled', false);
+            finalizarProcesandoEquipo();
         });
     });
 }
@@ -990,8 +1029,7 @@ function registrarAprobarJornadasEquipo() {
             return;
         }
 
-        $('#btn-guardar-borrador').prop('disabled', true);
-        $('#btn-registrar-aprobar').prop('disabled', true);
+        mostrarProcesandoEquipo('#btn-registrar-aprobar', 'Registrando y aprobando jornadas...');
 
         $.ajax({
             url:
@@ -1037,8 +1075,7 @@ function registrarAprobarJornadasEquipo() {
                 )
             });
         }).always(function () {
-            $('#btn-guardar-borrador').prop('disabled', false);
-            $('#btn-registrar-aprobar').prop('disabled', false);
+            finalizarProcesandoEquipo();
         });
     });
 }
@@ -1122,6 +1159,74 @@ $('#filtro_fechas').on('apply.daterangepicker', function () {
 });
 
 // Calcula las horas cuando cambia la entrada.
+$('#tabla-expediente tbody').on('click', '.jornada-agregar-turno', function () {
+    const filaDom = $(this).closest('tr')[0];
+    const fila = tablaExpediente.row(filaDom).data();
+    const nueva = crearFilaNuevaEquipo(fila.fecha);
+    nueva.turno_adicional = true;
+    const nodo = tablaExpediente.row.add(nueva).draw(false).node();
+    $(nodo).find('.jornada-entrada').trigger('focus');
+});
+
+$('#tabla-expediente tbody').on('click', '.jornada-eliminar-turno', function () {
+    const filaDom = $(this).closest('tr')[0];
+    const fila = tablaExpediente.row(filaDom).data();
+    if (fila && fila.estado_codigo === 'BORRADOR') {
+        const boton = $(this);
+        const empleadoId = expedienteEquipo.empleadoId;
+        Swal.fire({
+            icon: 'warning',
+            title: 'Eliminar turno en borrador',
+            text: 'Se anulará el turno del ' + moment(fila.fecha).format('DD/MM/YYYY') +
+                ' de ' + fila.hora_entrada + ' a ' + fila.hora_salida + '. Indique el motivo.',
+            input: 'textarea',
+            inputValue: 'Turno registrado por equivocación',
+            inputAttributes: { maxlength: 2000 },
+            inputValidator: function (valor) {
+                if (!valor || !valor.trim()) return 'Indique el motivo de anulación.';
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar turno',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc3545'
+        }).then(function (resultado) {
+            if (!resultado.isConfirmed) return;
+            boton.prop('disabled', true);
+            $.ajax({
+                url: '../../controller/jornada.php?op=anularBorradorEquipo',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    csrf_token: $('#csrf_token').val(),
+                    empleado_id: empleadoId,
+                    jornada_id: fila.jornada_id,
+                    motivo: resultado.value.trim()
+                }
+            }).done(function () {
+                // Actualiza solo esta fila para conservar los demás cambios pendientes.
+                if (!$.contains(document, filaDom)) return;
+                $(filaDom).removeData('solicitud-calculo');
+                fila.estado_codigo = 'ANULADO';
+                fila.estado_nombre = 'Anulado';
+                tablaExpediente.row(filaDom).data(fila).draw(false);
+                $(filaDom).attr('data-modificada', '0').removeClass('table-warning').addClass('bg-light');
+            }).fail(function (xhr) {
+                Swal.fire({ icon: 'error', title: 'No fue posible eliminar',
+                    text: equipoMensajeError(xhr, 'No fue posible anular el turno.') });
+            }).always(function () {
+                boton.prop('disabled', false);
+            });
+        });
+        return;
+    }
+    if (!fila || !fila.turno_adicional || fila.estado_codigo !== 'NUEVA') {
+        return;
+    }
+    // Ignora cualquier cálculo pendiente de la fila retirada.
+    $(filaDom).removeData('solicitud-calculo');
+    tablaExpediente.row(filaDom).remove().draw(false);
+});
+
 $('#tabla-expediente tbody').on(
     'change',
     '.jornada-entrada',
@@ -1161,6 +1266,28 @@ $('#tabla-expediente tbody').on(
 );
 
 // Guarda las filas diligenciadas como borradores.
+$('#btn-pdf-borrador').on('click', function () {
+    if (!expedienteEquipo.empleadoId) {
+        return;
+    }
+    const cambios = obtenerJornadasEditablesEquipo();
+    if (cambios.jornadas.length || cambios.errores.length) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Guarde los cambios',
+            text: 'Guarde las jornadas antes de generar el PDF borrador.'
+        });
+        return;
+    }
+    const parametros = $.param({
+        tipo: 'pdf_borrador_equipo',
+        empleado_id: expedienteEquipo.empleadoId,
+        fecha_desde: expedienteEquipo.fechaDesde,
+        fecha_hasta: expedienteEquipo.fechaHasta
+    });
+    window.open('../../controller/jornada_exportar.php?' + parametros, '_blank', 'noopener');
+});
+
 $('#btn-guardar-borrador').on('click', function () {
     guardarBorradoresEquipo();
 });

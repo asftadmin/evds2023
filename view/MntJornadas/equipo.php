@@ -73,7 +73,7 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
             <section class="content">
 
-                <div class="container-fluid">
+                <div class="container-fluid p-2">
 
                     <!-- Valida el contexto del jefe autenticado. -->
                     <div id="alerta-contexto" class="alert alert-info py-2">
@@ -137,7 +137,10 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                             Periodo
                                         </label>
 
-                                        <input type="text" class="form-control" id="filtro_fechas" autocomplete="off">
+                                        <input type="text" class="form-control" id="filtro_fechas" autocomplete="off" readonly>
+                                        <small class="form-text text-muted">
+                                            Disponible desde el primer día del mes anterior hasta hoy.
+                                        </small>
 
                                     </div>
 
@@ -200,6 +203,11 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
                                     <div class="col-md-4 text-md-right mt-3 mt-md-0">
 
+                                        <button type="button" class="btn btn-outline-danger btn-sm mr-2" id="btn-pdf-borrador">
+                                            <i class="fas fa-file-pdf mr-1"></i>
+                                            PDF borrador
+                                        </button>
+
                                         <span class="badge badge-info p-2">
                                             <i class="fas fa-folder-open mr-1"></i>
                                             Expediente activo
@@ -232,6 +240,17 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
                                 </h3>
 
+                                <div class="d-flex flex-wrap justify-content-start pt-3" style="clear: both;">
+                                    <button type="button" class="btn btn-secondary mr-2 mb-2" id="btn-guardar-borrador" disabled>
+                                        <i class="fas fa-save mr-1"></i>
+                                        Guardar borrador
+                                    </button>
+                                    <button type="button" class="btn btn-success mr-2 mb-2" id="btn-registrar-aprobar" disabled>
+                                        <i class="fas fa-check-circle mr-1"></i>
+                                        Registrar y aprobar jornadas
+                                    </button>
+                                </div>
+
                             </div>
 
                             <div class="card-body">
@@ -242,6 +261,7 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
                                     Diligencie únicamente los días trabajados.
                                     Las filas completamente vacías no serán guardadas.
+                                    Use «Agregar turno» para registrar otra jornada del mismo día sin superponer horarios.
 
                                 </div>
 
@@ -302,37 +322,6 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
                             </div>
 
-                            <div class="card-footer">
-
-                                <div class="row">
-
-                                    <div class="col-md-6 mb-2 mb-md-0">
-
-                                        <!-- Guarda únicamente las filas nuevas o
-                                             modificadas como BORRADOR. -->
-                                        <button type="button" class="btn btn-secondary" id="btn-guardar-borrador"
-                                            disabled>
-                                            <i class="fas fa-save mr-1"></i>
-                                            Guardar borrador
-                                        </button>
-
-                                    </div>
-
-                                    <div class="col-md-6 text-md-right">
-
-                                        <!-- Valida y aprueba las jornadas diligenciadas
-                                             del expediente. -->
-                                        <button type="button" class="btn btn-success" id="btn-registrar-aprobar"
-                                            disabled>
-                                            <i class="fas fa-check-circle mr-1"></i>
-                                            Registrar y aprobar jornadas
-                                        </button>
-
-                                    </div>
-
-                                </div>
-
-                            </div>
 
                         </div>
 

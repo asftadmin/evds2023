@@ -591,7 +591,10 @@ class JornadaReportePDF extends TCPDF
                 $jornada['jornada_fin']
             );
 
-            $totales = je_totales_jornada($jornada);
+            $borrador = !empty($this->datosEncabezado['borrador']);
+            $totales = $borrador
+                ? ['ORD' => (int) $jornada['jornada_minutos_ordinarios']]
+                : je_totales_jornada($jornada);
 
             $dias = [
                 1 => 'L',
@@ -647,6 +650,11 @@ class JornadaReportePDF extends TCPDF
 
             // El VoBo se deja disponible para la siguiente etapa.
             $valores[15] = '';
+            if ($borrador) {
+                for ($i = 5; $i < 16; $i++) {
+                    $valores[$i] = '';
+                }
+            }
         }
 
         foreach ($valores as $indice => $valor) {
@@ -708,6 +716,9 @@ class JornadaReportePDF extends TCPDF
             $valor = isset($totales[$codigo])
                 ? je_horas($totales[$codigo])
                 : '00:00';
+            if (!empty($this->datosEncabezado['borrador']) && $indice > 4) {
+                $valor = '';
+            }
 
             $this->celda(
                 $this->xColumna($indice),
@@ -1133,6 +1144,43 @@ function je_excel($snapshots, $lote)
 }
 
 try {
+    if (($_GET['tipo'] ?? '') === 'pdf_borrador_equipo') {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        $rolId = (int) ($_SESSION['user_rol'] ?? 0);
+        if ($userId <= 0 || $rolId <= 0) {
+            je_fallar('Debe iniciar sesión.', 401);
+        }
+        $jornada = new Jornada();
+        $jefe = $jornada->obtener_empleado_por_usuario($userId);
+        if (!$jefe || (int) $jefe['esta_empl'] !== 1
+            || !$jornada->es_jefe_activo((int) $jefe['id_empl'])
+            || !$jornada->tiene_permiso_menu($rolId, 'equipo', true)) {
+            je_fallar('No tiene permiso para exportar jornadas del equipo.', 403);
+        }
+        $empleadoId = je_entero('empleado_id');
+        if (!$empleadoId) {
+            throw new InvalidArgumentException('Seleccione un empleado válido.');
+        }
+        $fechas = [];
+        foreach (['fecha_desde', 'fecha_hasta'] as $campo) {
+            $valor = $_GET[$campo] ?? '';
+            $fecha = is_string($valor)
+                ? DateTimeImmutable::createFromFormat('!Y-m-d', $valor) : false;
+            if (!$fecha || $fecha->format('Y-m-d') !== $valor) {
+                throw new InvalidArgumentException('El periodo no es válido.');
+            }
+            $fechas[$campo] = $valor;
+        }
+        if ($fechas['fecha_desde'] > $fechas['fecha_hasta']) {
+            throw new InvalidArgumentException('La fecha inicial no puede superar la fecha final.');
+        }
+        $snapshot = $jornada->obtener_borrador_equipo(
+            (int) $jefe['id_empl'], $empleadoId,
+            $fechas['fecha_desde'], $fechas['fecha_hasta']
+        );
+        je_pdf([$snapshot], ['jlot_nombre' => 'Borrador de jornadas'],
+            je_nombre_archivo('GH-F-19_BORRADOR_' . $snapshot['documento'] . '_' . $snapshot['hasta']));
+    }
     je_validar_acceso();
     $tipo = trim((string) ($_GET['tipo'] ?? ''));
     $modelo = new JornadaReporteContable();

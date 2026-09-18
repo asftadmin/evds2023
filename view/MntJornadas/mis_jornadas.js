@@ -23,7 +23,7 @@ function actualizarControlesJornada() {
         jornadasSeleccionadas.size > 500
     );
 
-    $('#tabla-jornadas button, #tabla-jornadas input[type="checkbox"], #btn-filtrar, #btn-limpiar-filtro, #filtro_fechas')
+    $('#tabla-jornadas button, #tabla-jornadas input[type="checkbox"], #btn-filtrar, #btn-limpiar-filtro, #filtro_fechas, #filtro_estado')
         .prop('disabled', bloqueado);
 }
 
@@ -214,7 +214,7 @@ function calcularHorasJornada() {
  * Configura el rango inicial usado para consultar el historial.
  */
 function inicializarRangoFechas() {
-    const inicio = moment().startOf('month');
+    const inicio = moment().subtract(1, 'month').startOf('month');
     const fin = moment();
 
     $('#filtro_fechas').daterangepicker({
@@ -394,7 +394,10 @@ function cargarMisJornadas() {
             },
 
             dataSrc: function (respuesta) {
-                return respuesta.data || [];
+                const estado = $('#filtro_estado').val();
+                return (respuesta.data || []).filter(function (fila) {
+                    return !estado || fila.estado_codigo === estado;
+                });
             },
 
             error: function (xhr) {
@@ -1077,12 +1080,13 @@ $('#btn-filtrar').on(
 );
 
 /**
- * Restablece el filtro de fechas al mes actual.
+ * Restablece el periodo al mes anterior hasta hoy y muestra todos los estados.
  */
 $('#btn-limpiar-filtro').on(
     'click',
     function () {
         const inicio = moment()
+            .subtract(1, 'month')
             .startOf('month');
 
         const fin = moment();
@@ -1107,6 +1111,7 @@ $('#btn-limpiar-filtro').on(
             fin.format('YYYY-MM-DD')
         );
 
+        $('#filtro_estado').val('');
         cargarMisJornadas();
     }
 );
@@ -1344,3 +1349,5 @@ $('#btn-enviar-seleccionadas').on(
         );
     }
 );
+
+$('#filtro_estado').on('change', cargarMisJornadas);
