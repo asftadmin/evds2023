@@ -12,6 +12,12 @@ let expedienteEquipo = {
     fechaHasta: ''
 };
 
+let resumenConfirmacionEquipo = {
+    total_jornadas_rango: 0,
+    total_confirmadas: 0,
+    puede_registrar_aprobar: false
+};
+
 // Escapa valores antes de mostrarlos dentro de HTML.
 function equipoEscapeHtml(valor) {
     return $('<div>').text(valor == null ? '' : String(valor)).html();
@@ -270,6 +276,7 @@ function renderEstadoExpediente(codigo, nombre) {
     const clases = {
         NUEVA: 'badge-light border',
         BORRADOR: 'badge-secondary',
+        CONFIRMADO_EMPLEADO: 'badge-info',
         PENDIENTE_APROBACION: 'badge-warning',
         APROBADO: 'badge-success',
         RECHAZADO: 'badge-danger',
@@ -291,8 +298,70 @@ function renderEstadoExpediente(codigo, nombre) {
 function filaEditableEquipo(fila) {
     return (
         fila.estado_codigo === 'NUEVA' ||
-        fila.estado_codigo === 'BORRADOR'
+        fila.estado_codigo === 'BORRADOR' ||
+        fila.estado_codigo === 'CONFIRMADO_EMPLEADO'
     );
+}
+
+// Actualiza el resumen visual de confirmación del empleado.
+function actualizarResumenConfirmacionEquipo(filas) {
+    const jornadas = (filas || []).filter(function (fila) {
+        return (
+            fila.jornada_id &&
+            fila.estado_codigo !== 'ANULADO' &&
+            fila.estado_codigo !== 'RECHAZADO'
+        );
+    });
+
+    const confirmadas = jornadas.filter(function (fila) {
+        return fila.estado_codigo === 'CONFIRMADO_EMPLEADO';
+    });
+
+    const resumen = $('#resumen-confirmacion-empleado');
+    const badge = $('#badge-confirmacion-empleado');
+
+    resumen.show();
+
+    // Todavía no existen jornadas guardadas dentro del periodo.
+    if (jornadas.length === 0) {
+        badge
+            .removeClass('badge-success badge-info badge-warning')
+            .addClass('badge-secondary')
+            .html(
+                '<i class="fas fa-user-check mr-1"></i>' +
+                'Sin jornadas registradas'
+            );
+
+        return;
+    }
+
+    // Todas las jornadas ya fueron confirmadas por el empleado.
+    if (confirmadas.length === jornadas.length) {
+        badge
+            .removeClass('badge-secondary badge-warning badge-info')
+            .addClass('badge-success')
+            .html(
+                '<i class="fas fa-check-circle mr-1"></i>' +
+                confirmadas.length +
+                ' de ' +
+                jornadas.length +
+                ' jornadas confirmadas'
+            );
+
+        return;
+    }
+
+    // Existen jornadas pendientes de confirmación.
+    badge
+        .removeClass('badge-secondary badge-success badge-info')
+        .addClass('badge-warning')
+        .html(
+            '<i class="fas fa-clock mr-1"></i>' +
+            confirmadas.length +
+            ' de ' +
+            jornadas.length +
+            ' jornadas confirmadas'
+        );
 }
 
 // Genera el input editable de la hora de entrada.
@@ -437,7 +506,7 @@ function cargarTablaExpediente(filas) {
                         '<i class="fas fa-plus mr-1"></i>Agregar turno</button>' +
                         ((fila.turno_adicional && fila.estado_codigo === 'NUEVA') || fila.estado_codigo === 'BORRADOR'
                             ? '<br><button type="button" class="btn btn-outline-danger btn-sm jornada-eliminar-turno mt-1">' +
-                              '<i class="fas fa-trash-alt mr-1"></i>Eliminar turno</button>'
+                            '<i class="fas fa-trash-alt mr-1"></i>Eliminar turno</button>'
                             : '');
                 }
             },
@@ -517,7 +586,8 @@ function cargarTablaExpediente(filas) {
     });
 
     $('#btn-guardar-borrador').prop('disabled', false);
-    $('#btn-registrar-aprobar').prop('disabled', false);
+    actualizarBotonRegistrarAprobarEquipo(filas);
+
 }
 
 // Consulta las jornadas y construye el expediente seleccionado.
@@ -574,6 +644,13 @@ function consultarExpedienteEquipo() {
             respuesta.data || []
         );
 
+        resumenConfirmacionEquipo =
+            respuesta.resumen || {
+                total_jornadas_rango: 0,
+                total_confirmadas: 0,
+                puede_registrar_aprobar: false
+            };
+
         $('#expediente-empleado').text(
             expedienteEquipo.empleadoNombre
         );
@@ -591,6 +668,7 @@ function consultarExpedienteEquipo() {
         );
 
         cargarTablaExpediente(filas);
+        actualizarResumenConfirmacionEquipo(filas);
 
         $('#contenedor-expediente').slideDown(200);
     }).fail(function (xhr) {
@@ -810,7 +888,10 @@ function obtenerJornadasEditablesEquipo() {
          * enviarse nuevamente al guardar.
          */
         if (
-            fila.estado_codigo === 'BORRADOR' &&
+            (
+                fila.estado_codigo === 'BORRADOR' ||
+                fila.estado_codigo === 'CONFIRMADO_EMPLEADO'
+            ) &&
             !modificada
         ) {
             return;
@@ -857,17 +938,31 @@ function mostrarProcesandoEquipo(botonId, titulo) {
 }
 
 function finalizarProcesandoEquipo() {
-    $('#btn-guardar-borrador, #btn-registrar-aprobar').each(function () {
-        const boton = $(this);
-        const contenido = boton.data('contenido-original');
-        if (contenido !== undefined) {
-            boton.html(contenido).removeData('contenido-original');
-        }
-        boton.removeAttr('aria-busy').prop('disabled', false);
-    });
-}
+    $('#btn-guardar-borrador, #btn-registrar-aprobar')
+        .each(function () {
+            const boton = $(this);
+            const contenido = boton.data('contenido-original');
 
-// En el Paso 3 este botón será conectado al guardado masivo del controller.
+            // Restaura el contenido original del botón si fue reemplazado.
+            if (contenido !== undefined) {
+                boton
+                    .html(contenido)
+                    .removeData('contenido-original');
+            }
+
+            boton.removeAttr('aria-busy');
+        });
+
+    // Guardar borrador vuelve a quedar disponible.
+    $('#btn-guardar-borrador')
+        .prop('disabled', false);
+
+    /*
+     * Registrar y aprobar no se habilita directamente.
+     * Su estado depende del resumen real del expediente.
+     */
+    actualizarBotonRegistrarAprobarEquipo();
+}
 // Valida y envía las jornadas editables para guardarlas como borrador.
 function guardarBorradoresEquipo() {
     const resultado = obtenerJornadasEditablesEquipo();
@@ -877,7 +972,10 @@ function guardarBorradoresEquipo() {
         const detalle = resultado.errores
             .map(function (error) {
                 return (
-                    moment(error.fecha, 'YYYY-MM-DD').format('DD/MM/YYYY') +
+                    moment(
+                        error.fecha,
+                        'YYYY-MM-DD'
+                    ).format('DD/MM/YYYY') +
                     ': ' +
                     error.mensaje
                 );
@@ -893,49 +991,134 @@ function guardarBorradoresEquipo() {
         return;
     }
 
-    // Si no hay filas diligenciadas, informa y no realiza petición.
+    // Si no hay filas modificadas o nuevas, no realiza petición.
     if (resultado.jornadas.length === 0) {
         Swal.fire({
             icon: 'info',
             title: 'Sin cambios',
-            text: 'No existen jornadas nuevas o borradores para guardar.'
+            text: 'No existen jornadas nuevas o modificadas para guardar.'
         });
 
         return;
     }
 
+    // Cuenta las jornadas modificadas que ya estaban confirmadas por el empleado.
+    let confirmadasModificadas = 0;
+
+    resultado.jornadas.forEach(function (jornada) {
+        if (!jornada.jornada_id) {
+            return;
+        }
+
+        const filaOriginal = tablaExpediente
+            .rows()
+            .data()
+            .toArray()
+            .find(function (fila) {
+                return (
+                    fila.jornada_id &&
+                    parseInt(
+                        fila.jornada_id,
+                        10
+                    ) ===
+                    parseInt(
+                        jornada.jornada_id,
+                        10
+                    )
+                );
+            });
+
+        if (
+            filaOriginal &&
+            filaOriginal.estado_codigo ===
+                'CONFIRMADO_EMPLEADO'
+        ) {
+            confirmadasModificadas++;
+        }
+    });
+
+    // Construye el mensaje según existan o no confirmaciones a invalidar.
+    let mensajeConfirmacion =
+        'Se guardarán <strong>' +
+        resultado.jornadas.length +
+        '</strong> jornada(s).';
+
+    if (confirmadasModificadas > 0) {
+        mensajeConfirmacion +=
+            '<br><br>' +
+            '<strong class="text-danger">' +
+            confirmadasModificadas +
+            ' jornada(s)</strong> ya fueron confirmadas por el empleado.' +
+            '<br><br>' +
+            'Al guardar los cambios, la confirmación de esas jornadas ' +
+            'será invalidada y el empleado deberá revisarlas y firmarlas nuevamente.';
+    } else {
+        mensajeConfirmacion +=
+            '<br><br>' +
+            'Las jornadas quedarán guardadas como borrador.';
+    }
+
     Swal.fire({
-        icon: 'question',
-        title: 'Guardar borradores',
-        html:
-            'Se guardarán <strong>' +
-            resultado.jornadas.length +
-            '</strong> jornada(s) como borrador.<br><br>' +
-            'Podrá continuar diligenciándolas posteriormente.',
+        icon:
+            confirmadasModificadas > 0
+                ? 'warning'
+                : 'question',
+
+        title:
+            confirmadasModificadas > 0
+                ? 'Invalidar confirmación'
+                : 'Guardar borradores',
+
+        html: mensajeConfirmacion,
+
         showCancelButton: true,
-        confirmButtonText: 'Guardar borrador',
+
+        confirmButtonText:
+            confirmadasModificadas > 0
+                ? 'Sí, guardar cambios'
+                : 'Guardar borrador',
+
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#6c757d'
+
+        confirmButtonColor:
+            confirmadasModificadas > 0
+                ? '#dc3545'
+                : '#6c757d'
+
     }).then(function (respuesta) {
         if (!respuesta.isConfirmed) {
             return;
         }
 
-        mostrarProcesandoEquipo('#btn-guardar-borrador', 'Guardando borradores...');
+        // Bloquea visualmente la interfaz mientras se procesa el lote.
+        mostrarProcesandoEquipo(
+            '#btn-guardar-borrador',
+            confirmadasModificadas > 0
+                ? 'Actualizando jornadas...'
+                : 'Guardando borradores...'
+        );
 
         $.ajax({
             url:
                 '../../controller/jornada.php?' +
                 'op=guardarBorradoresEquipoMasivo',
+
             type: 'POST',
+
             dataType: 'json',
+
             data: {
                 csrf_token: $('#csrf_token').val(),
-                empleado_id: expedienteEquipo.empleadoId,
-                jornadas: JSON.stringify(resultado.jornadas)
+                empleado_id:
+                    expedienteEquipo.empleadoId,
+                jornadas: JSON.stringify(
+                    resultado.jornadas
+                )
             }
+
         }).done(function (respuestaAjax) {
-            const datos = respuestaAjax.data || {};
+            const datos =
+                respuestaAjax.data || {};
 
             let mensaje =
                 'Borradores creados: ' +
@@ -947,16 +1130,23 @@ function guardarBorradoresEquipo() {
                 (datos.actualizadas || 0) +
                 '.';
 
+            // Informa cuando una firma tuvo que ser invalidada.
+            if (confirmadasModificadas > 0) {
+                mensaje +=
+                    ' Las jornadas modificadas requieren nueva confirmación del empleado.';
+            }
+
             Swal.fire({
                 icon: 'success',
-                title: 'Borradores guardados',
+                title: 'Cambios guardados',
                 text: mensaje,
-                timer: 2200,
+                timer: 2500,
                 showConfirmButton: false
             });
 
-            // Recarga el expediente para obtener IDs y estados reales de BD.
+            // Recarga los datos para obtener estados y versiones reales desde BD.
             consultarExpedienteEquipo();
+
         }).fail(function (xhr) {
             Swal.fire({
                 icon: 'error',
@@ -966,48 +1156,90 @@ function guardarBorradoresEquipo() {
                     'No fue posible guardar los borradores.'
                 )
             });
+
         }).always(function () {
             finalizarProcesandoEquipo();
         });
     });
 }
 
-// En el Paso 3 este botón será conectado a la aprobación masiva.
-// Valida y envía las jornadas para registrarlas y aprobarlas masivamente.
+// Aprueba las jornadas confirmadas del empleado dentro del periodo consultado.
 function registrarAprobarJornadasEquipo() {
-    const resultado = obtenerJornadasAprobacionEquipo();
-
-    // No se aprueba el expediente si existen filas parcialmente diligenciadas.
-    if (resultado.errores.length > 0) {
-        const detalle = resultado.errores
-            .map(function (error) {
-                return (
-                    moment(error.fecha, 'YYYY-MM-DD').format('DD/MM/YYYY') +
-                    ': ' +
-                    error.mensaje
-                );
-            })
-            .join('<br>');
-
+    if (!expedienteEquipo.empleadoId) {
         Swal.fire({
             icon: 'warning',
-            title: 'Existen jornadas incompletas',
-            html: detalle
+            title: 'Empleado requerido',
+            text: 'Seleccione y consulte un empleado antes de continuar.'
         });
 
         return;
     }
 
-    // Las filas totalmente vacías se ignoran.
-    if (resultado.jornadas.length === 0) {
+    if (
+        !expedienteEquipo.fechaDesde ||
+        !expedienteEquipo.fechaHasta
+    ) {
         Swal.fire({
-            icon: 'info',
-            title: 'Sin jornadas',
-            text:
-                'No existen jornadas nuevas o borradores ' +
-                'para registrar y aprobar.'
+            icon: 'warning',
+            title: 'Periodo requerido',
+            text: 'Seleccione y consulte un periodo válido.'
         });
 
+        return;
+    }
+
+    // No permite aprobar si existen cambios todavía sin guardar.
+    const cambiosPendientes =
+        $('#tabla-expediente tbody tr[data-modificada="1"]').length > 0;
+
+    if (cambiosPendientes) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Existen cambios pendientes',
+            text: 'Guarde primero las modificaciones realizadas en las jornadas.'
+        });
+
+        actualizarBotonRegistrarAprobarEquipo();
+        return;
+    }
+
+    // Valida nuevamente el resumen recibido desde el servidor.
+    if (
+        resumenConfirmacionEquipo.puede_registrar_aprobar !== true
+    ) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Pendiente de confirmación',
+            text: 'Todas las jornadas del periodo deben estar confirmadas por el empleado antes de aprobar.'
+        });
+
+        actualizarBotonRegistrarAprobarEquipo();
+        return;
+    }
+
+    const totalJornadas =
+        parseInt(
+            resumenConfirmacionEquipo.total_jornadas_rango,
+            10
+        ) || 0;
+
+    const totalConfirmadas =
+        parseInt(
+            resumenConfirmacionEquipo.total_confirmadas,
+            10
+        ) || 0;
+
+    if (
+        totalJornadas === 0 ||
+        totalConfirmadas !== totalJornadas
+    ) {
+        Swal.fire({
+            icon: 'info',
+            title: 'No se puede aprobar',
+            text: 'El periodo todavía no cumple las condiciones para aprobación.'
+        });
+
+        actualizarBotonRegistrarAprobarEquipo();
         return;
     }
 
@@ -1015,11 +1247,20 @@ function registrarAprobarJornadasEquipo() {
         icon: 'question',
         title: 'Registrar y aprobar jornadas',
         html:
-            'Se procesarán <strong>' +
-            resultado.jornadas.length +
-            '</strong> jornada(s).<br><br>' +
-            'Las jornadas quedarán aprobadas automáticamente ' +
-            'a nombre del jefe inmediato.',
+            'Se aprobarán <strong>' +
+            totalJornadas +
+            '</strong> jornada(s) confirmadas por el empleado.<br><br>' +
+            'Periodo: <strong>' +
+            moment(
+                expedienteEquipo.fechaDesde,
+                'YYYY-MM-DD'
+            ).format('DD/MM/YYYY') +
+            '</strong> al <strong>' +
+            moment(
+                expedienteEquipo.fechaHasta,
+                'YYYY-MM-DD'
+            ).format('DD/MM/YYYY') +
+            '</strong>.',
         showCancelButton: true,
         confirmButtonText: 'Registrar y aprobar',
         cancelButtonText: 'Cancelar',
@@ -1029,7 +1270,10 @@ function registrarAprobarJornadasEquipo() {
             return;
         }
 
-        mostrarProcesandoEquipo('#btn-registrar-aprobar', 'Registrando y aprobando jornadas...');
+        mostrarProcesandoEquipo(
+            '#btn-registrar-aprobar',
+            'Registrando y aprobando jornadas...'
+        );
 
         $.ajax({
             url:
@@ -1040,31 +1284,33 @@ function registrarAprobarJornadasEquipo() {
             data: {
                 csrf_token: $('#csrf_token').val(),
                 empleado_id: expedienteEquipo.empleadoId,
-                jornadas: JSON.stringify(resultado.jornadas)
+                fecha_desde: expedienteEquipo.fechaDesde,
+                fecha_hasta: expedienteEquipo.fechaHasta
             }
         }).done(function (respuestaAjax) {
             const datos = respuestaAjax.data || {};
 
-            let mensaje =
-                'Nuevas jornadas aprobadas: ' +
-                (datos.creadas_aprobadas || 0) +
-                '.';
-
-            mensaje +=
-                ' Borradores aprobados: ' +
-                (datos.borradores_aprobados || 0) +
-                '.';
-
             Swal.fire({
                 icon: 'success',
                 title: 'Jornadas aprobadas',
-                text: mensaje,
+                text:
+                    respuestaAjax.message ||
+                    (
+                        (datos.aprobadas || 0) +
+                        ' jornada(s) fueron aprobadas correctamente.'
+                    ),
                 timer: 2500,
                 showConfirmButton: false
             });
 
-            // Al recargar, las jornadas aprobadas quedan bloqueadas.
+            /*
+             * Recarga desde BD para obtener:
+             * - estados reales;
+             * - nuevo resumen;
+             * - estado correcto del botón.
+             */
             consultarExpedienteEquipo();
+
         }).fail(function (xhr) {
             Swal.fire({
                 icon: 'error',
@@ -1074,6 +1320,7 @@ function registrarAprobarJornadasEquipo() {
                     'No fue posible registrar y aprobar las jornadas.'
                 )
             });
+
         }).always(function () {
             finalizarProcesandoEquipo();
         });
@@ -1081,7 +1328,7 @@ function registrarAprobarJornadasEquipo() {
 }
 
 // Obtiene nuevas jornadas y todos los borradores listos para aprobación.
-function obtenerJornadasAprobacionEquipo() {
+/*function obtenerJornadasAprobacionEquipo() {
     const jornadas = [];
     const errores = [];
 
@@ -1095,7 +1342,6 @@ function obtenerJornadasAprobacionEquipo() {
 
         const datos = obtenerDatosFilaEquipo(filaDom);
 
-        // Las filas nuevas totalmente vacías no se incluyen.
         if (
             fila.estado_codigo === 'NUEVA' &&
             filaVaciaEquipo(datos)
@@ -1103,7 +1349,7 @@ function obtenerJornadasAprobacionEquipo() {
             return;
         }
 
-        // Borradores y nuevas diligenciadas deben estar completos.
+
         if (!filaCompletaEquipo(datos)) {
             errores.push({
                 fecha: datos.fecha,
@@ -1121,7 +1367,7 @@ function obtenerJornadasAprobacionEquipo() {
         jornadas: jornadas,
         errores: errores
     };
-}
+}*/
 
 // Inicializa los componentes de la pantalla.
 $(document).ready(function () {
@@ -1144,6 +1390,8 @@ $('#btn-consultar-expediente').on('click', function () {
 $('#empleado_id').on('change', function () {
     $('#contenedor-expediente').hide();
 
+    $('#resumen-confirmacion-empleado').hide();
+
     expedienteEquipo = {
         empleadoId: null,
         empleadoNombre: '',
@@ -1156,6 +1404,7 @@ $('#empleado_id').on('change', function () {
 // Si cambia el periodo, obliga a realizar una nueva consulta.
 $('#filtro_fechas').on('apply.daterangepicker', function () {
     $('#contenedor-expediente').hide();
+    $('#resumen-confirmacion-empleado').hide();
 });
 
 // Calcula las horas cuando cambia la entrada.
@@ -1166,6 +1415,7 @@ $('#tabla-expediente tbody').on('click', '.jornada-agregar-turno', function () {
     nueva.turno_adicional = true;
     const nodo = tablaExpediente.row.add(nueva).draw(false).node();
     $(nodo).find('.jornada-entrada').trigger('focus');
+    actualizarBotonRegistrarAprobarEquipo();
 });
 
 $('#tabla-expediente tbody').on('click', '.jornada-eliminar-turno', function () {
@@ -1211,8 +1461,10 @@ $('#tabla-expediente tbody').on('click', '.jornada-eliminar-turno', function () 
                 tablaExpediente.row(filaDom).data(fila).draw(false);
                 $(filaDom).attr('data-modificada', '0').removeClass('table-warning').addClass('bg-light');
             }).fail(function (xhr) {
-                Swal.fire({ icon: 'error', title: 'No fue posible eliminar',
-                    text: equipoMensajeError(xhr, 'No fue posible anular el turno.') });
+                Swal.fire({
+                    icon: 'error', title: 'No fue posible eliminar',
+                    text: equipoMensajeError(xhr, 'No fue posible anular el turno.')
+                });
             }).always(function () {
                 boton.prop('disabled', false);
             });
@@ -1225,6 +1477,8 @@ $('#tabla-expediente tbody').on('click', '.jornada-eliminar-turno', function () 
     // Ignora cualquier cálculo pendiente de la fila retirada.
     $(filaDom).removeData('solicitud-calculo');
     tablaExpediente.row(filaDom).remove().draw(false);
+    // Recalcula si el botón Registrar y aprobar puede habilitarse.
+    actualizarBotonRegistrarAprobarEquipo();
 });
 
 $('#tabla-expediente tbody').on(
@@ -1250,6 +1504,7 @@ $('#tabla-expediente tbody').on(
 );
 
 // Marca visualmente una fila cuando el jefe modifica información.
+// Marca visualmente una fila cuando el jefe modifica información.
 $('#tabla-expediente tbody').on(
     'change input',
     '.jornada-entrada, ' +
@@ -1258,10 +1513,54 @@ $('#tabla-expediente tbody').on(
     '.jornada-actividad, ' +
     '.jornada-observaciones',
     function () {
-        $(this)
-            .closest('tr')
+        const filaDom = $(this).closest('tr')[0];
+
+        const fila = tablaExpediente
+            .row(filaDom)
+            .data();
+
+        // Marca la fila como modificada.
+        $(filaDom)
             .attr('data-modificada', '1')
             .addClass('table-warning');
+
+        actualizarBotonRegistrarAprobarEquipo();
+
+        /*
+         * Si la jornada ya había sido confirmada por el empleado,
+         * identifica visualmente que la firma deberá invalidarse
+         * al guardar los cambios.
+         */
+        if (
+            fila &&
+            fila.estado_codigo === 'CONFIRMADO_EMPLEADO'
+        ) {
+            $(filaDom)
+                .attr(
+                    'data-confirmacion-sera-invalidada',
+                    '1'
+                )
+                .removeClass('table-warning')
+                .addClass('table-danger');
+
+            const celdaEstado = $(filaDom)
+                .find('td')
+                .last();
+
+            if (
+                celdaEstado.find(
+                    '.aviso-confirmacion-invalidada'
+                ).length === 0
+            ) {
+                celdaEstado.append(
+                    '<br>' +
+                    '<small class="text-danger aviso-confirmacion-invalidada">' +
+                    '<i class="fas fa-exclamation-triangle mr-1"></i>' +
+                    'Requiere nueva confirmación' +
+                    '</small>'
+                );
+            }
+        }
     }
 );
 
@@ -1293,6 +1592,50 @@ $('#btn-guardar-borrador').on('click', function () {
 });
 
 // Registra las nuevas jornadas y aprueba los borradores del expediente.
+// La aprobación final se habilitará cuando el empleado haya
+// confirmado todas las jornadas correspondientes al periodo.
 $('#btn-registrar-aprobar').on('click', function () {
+    if ($(this).prop('disabled')) {
+        return;
+    }
+
     registrarAprobarJornadasEquipo();
 });
+
+// Controla la disponibilidad del botón de aprobación final.
+// Controla la disponibilidad del botón de aprobación final.
+function actualizarBotonRegistrarAprobarEquipo() {
+    const totalJornadas =
+        parseInt(
+            resumenConfirmacionEquipo.total_jornadas_rango,
+            10
+        ) || 0;
+
+    const totalConfirmadas =
+        parseInt(
+            resumenConfirmacionEquipo.total_confirmadas,
+            10
+        ) || 0;
+
+    const puedeAprobar =
+        resumenConfirmacionEquipo.puede_registrar_aprobar === true;
+
+    // Por seguridad, cualquier cambio pendiente en pantalla bloquea aprobar.
+    const existenCambiosPendientes =
+        $('#tabla-expediente tbody tr[data-modificada="1"]').length > 0;
+
+    const habilitar =
+        puedeAprobar &&
+        totalJornadas > 0 &&
+        totalConfirmadas === totalJornadas &&
+        !existenCambiosPendientes;
+
+    $('#btn-registrar-aprobar')
+        .prop('disabled', !habilitar)
+        .attr(
+            'title',
+            habilitar
+                ? 'Todas las jornadas fueron confirmadas por el empleado.'
+                : 'Disponible cuando todas las jornadas estén confirmadas y no existan cambios pendientes.'
+        );
+}

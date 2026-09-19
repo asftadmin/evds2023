@@ -3,8 +3,8 @@
 ob_start();
 ini_set('display_errors', '0');
 
-require_once('../config/conexion.php');
-require_once('../models/Jornada.php');
+require_once ('../config/conexion.php');
+require_once ('../models/Jornada.php');
 
 $jornada = new Jornada();
 
@@ -277,10 +277,10 @@ try {
         'anularBorradorEquipo',
         'listarSubordinadosJefe',
         'calcularHorasEquipo',
-        'guardarJornadaEquipo',
+        // 'guardarJornadaEquipo',
         'listarJornadasEquipo',
         'guardarBorradoresEquipoMasivo',
-        'registrarAprobarEquipoMasivo',
+        // 'registrarAprobarEquipoMasivo',
         'listarUbicacionesJornada'
     ];
     $operaciones_equipo = [
@@ -288,23 +288,68 @@ try {
         'contextoEquipo',
         'listarSubordinadosJefe',
         'calcularHorasEquipo',
-        'guardarJornadaEquipo',
+        // 'guardarJornadaEquipo',
         'listarJornadasEquipo',
         // Nuevas operaciones masivas del expediente.
         'guardarBorradoresEquipoMasivo',
-        'registrarAprobarEquipoMasivo',
+        // 'registrarAprobarEquipoMasivo',
         'listarUbicacionesJornada'
     ];
-    $es_operacion_jefe = in_array($op, $operaciones_jefe, true);
-    $es_operacion_equipo = in_array($op, $operaciones_equipo, true);
+
+    // Operaciones exclusivas del empleado de obra para revisar y firmar jornadas.
+    $operaciones_confirmacion_obra = [
+        'contextoConfirmacionObra',
+        'consultarJornadasConfirmacionObra',
+        'confirmarJornadasObra'
+    ];
+
+    $es_operacion_jefe = in_array(
+        $op,
+        $operaciones_jefe,
+        true
+    );
+
+    $es_operacion_equipo = in_array(
+        $op,
+        $operaciones_equipo,
+        true
+    );
+
+    $es_operacion_confirmacion_obra = in_array(
+        $op,
+        $operaciones_confirmacion_obra,
+        true
+    );
+
+    // Cada flujo valida el permiso de su propio menú.
+    if ($es_operacion_confirmacion_obra) {
+        $menu_ident = 'confirmar_jornadas';
+    } elseif ($es_operacion_equipo) {
+        $menu_ident = 'equipo';
+    } elseif ($es_operacion_jefe) {
+        $menu_ident = 'aprobaciones';
+    } else {
+        $menu_ident = 'mis_jornadas';
+    }
+
     $contexto = jornada_contexto_autorizado(
         $jornada,
-        $es_operacion_equipo
-            ? 'equipo'
-            : ($es_operacion_jefe ? 'aprobaciones' : 'mis_jornadas'),
+        $menu_ident,
         $es_operacion_jefe
     );
+
     $empleado = $contexto['empleado'];
+
+    /*     $es_operacion_jefe = in_array($op, $operaciones_jefe, true);
+        $es_operacion_equipo = in_array($op, $operaciones_equipo, true);
+        $contexto = jornada_contexto_autorizado(
+            $jornada,
+            $es_operacion_equipo
+                ? 'equipo'
+                : ($es_operacion_jefe ? 'aprobaciones' : 'mis_jornadas'),
+            $es_operacion_jefe
+        );
+        $empleado = $contexto['empleado']; */
 
     /**
      * Valida una jornada recibida desde la planilla masiva del jefe.
@@ -361,23 +406,23 @@ try {
         if (!in_array($ubicacion, $ubicaciones_permitidas, true)) {
             throw new InvalidArgumentException(
                 'Seleccione una ubicación válida para la jornada del '
-                    . $fecha . '.'
+                . $fecha . '.'
             );
         }
 
         if ($actividad === '' || mb_strlen($actividad) > 4000) {
             throw new InvalidArgumentException(
                 'La actividad de la jornada del '
-                    . $fecha
-                    . ' es obligatoria y admite máximo 4000 caracteres.'
+                . $fecha
+                . ' es obligatoria y admite máximo 4000 caracteres.'
             );
         }
 
         if (mb_strlen($observaciones) > 4000) {
             throw new InvalidArgumentException(
                 'Las observaciones de la jornada del '
-                    . $fecha
-                    . ' admiten máximo 4000 caracteres.'
+                . $fecha
+                . ' admiten máximo 4000 caracteres.'
             );
         }
 
@@ -509,6 +554,45 @@ try {
         ];
     }
 
+    /**
+     * Valida y normaliza una firma PNG enviada desde el canvas.
+     */
+    function jornada_validar_firma_base64($firma)
+    {
+        $firma = trim((string) $firma);
+
+        if ($firma === '') {
+            throw new InvalidArgumentException(
+                'Debe registrar la firma antes de continuar.'
+            );
+        }
+
+        $prefijo = 'data:image/png;base64,';
+
+        if (strpos($firma, $prefijo) !== 0) {
+            throw new InvalidArgumentException(
+                'El formato de la firma no es válido.'
+            );
+        }
+
+        $contenido = substr($firma, strlen($prefijo));
+
+        if ($contenido === '' || base64_decode($contenido, true) === false) {
+            throw new InvalidArgumentException(
+                'La firma recibida no es válida.'
+            );
+        }
+
+        // Evita recibir imágenes excesivamente grandes.
+        if (strlen($firma) > 1500000) {
+            throw new InvalidArgumentException(
+                'La firma supera el tamaño permitido.'
+            );
+        }
+
+        return $firma;
+    }
+
     switch ($op) {
         case 'contextoUsuario':
             jornada_responder([
@@ -542,6 +626,17 @@ try {
                     'documento' => $empleado['cedu_empl'],
                     'rol' => $empleado['rol_nomb'],
                     'es_jefe' => true
+                ]
+            ]);
+            break;
+
+        case 'contextoConfirmacionObra':
+            jornada_responder([
+                'success' => true,
+                'data' => [
+                    'empleado' => $empleado['nomb_empl'],
+                    'documento' => $empleado['cedu_empl'],
+                    'rol' => $empleado['rol_nomb']
                 ]
             ]);
             break;
@@ -597,12 +692,23 @@ try {
                 );
             }
 
+            // Consulta las jornadas existentes.
+            // Consulta las jornadas existentes del empleado.
             $filas = $jornada->listar_jornadas_equipo_empleado(
                 (int) $empleado['id_empl'],
                 (int) $empleado_objetivo_id,
                 $fecha_desde === '' ? null : $fecha_desde,
                 $fecha_hasta === '' ? null : $fecha_hasta
             );
+
+            // Calcula el resumen del mismo expediente.
+            $resumen = $jornada->obtener_resumen_confirmacion_equipo(
+                (int) $empleado['id_empl'],
+                (int) $empleado_objetivo_id,
+                $fecha_desde,
+                $fecha_hasta
+            );
+
             $dias = [
                 1 => 'Lunes',
                 2 => 'Martes',
@@ -637,11 +743,20 @@ try {
                     'estado_codigo' => $fila['estado_codigo'],
                     'estado_nombre' => $fila['estado_nombre']
                 ];
+
+                // El servidor calcula si el expediente está listo para aprobación.
+                $resumen = $jornada->obtener_resumen_confirmacion_equipo(
+                    (int) $empleado['id_empl'],
+                    $empleado_objetivo_id,
+                    $fecha_desde,
+                    $fecha_hasta
+                );
             }
 
             jornada_responder([
                 'success' => true,
-                'data' => $data
+                'data' => $data,
+                'resumen' => $resumen
             ]);
             break;
 
@@ -718,29 +833,69 @@ try {
             ]);
 
             break;
-
         case 'registrarAprobarEquipoMasivo':
-            // Las operaciones de escritura requieren token CSRF válido.
+            // Toda operación de escritura requiere CSRF válido.
             jornada_validar_csrf();
 
-            // Valida nuevamente todo el lote antes de enviarlo al modelo.
-            $lote = jornada_validar_lote_equipo($jornada);
+            $empleado_id = filter_var(
+                jornada_entrada('empleado_id'),
+                FILTER_VALIDATE_INT
+            );
+
+            $fecha_desde =
+                jornada_entrada('fecha_desde');
+
+            $fecha_hasta =
+                jornada_entrada('fecha_hasta');
+
+            // Valida el empleado seleccionado.
+            if (
+                !$empleado_id ||
+                $empleado_id <= 0
+            ) {
+                throw new InvalidArgumentException(
+                    'Seleccione un empleado válido.'
+                );
+            }
+
+            // Valida ambas fechas.
+            if (
+                $fecha_desde === '' ||
+                $fecha_hasta === '' ||
+                !jornada_fecha_valida($fecha_desde) ||
+                !jornada_fecha_valida($fecha_hasta)
+            ) {
+                throw new InvalidArgumentException(
+                    'El rango de fechas no es válido.'
+                );
+            }
+
+            if ($fecha_hasta < $fecha_desde) {
+                throw new InvalidArgumentException(
+                    'La fecha final no puede ser anterior a la fecha inicial.'
+                );
+            }
 
             /*
-             * El modelo realizará una transacción para registrar o actualizar
-             * borradores y aprobar las jornadas correspondientes.
+             * El servidor selecciona las jornadas reales.
+             * El navegador no envía IDs ni contenido editable.
              */
-            $resultado = $jornada->registrar_aprobar_equipo_masivo(
-                $lote['empleado_id'],
-                (int) $empleado['id_empl'],
-                $contexto['user_id'],
-                $lote['jornadas']
-            );
+            $resultado =
+                $jornada->registrar_aprobar_equipo_masivo(
+                    $empleado_id,
+                    (int) $empleado['id_empl'],
+                    $contexto['user_id'],
+                    $fecha_desde,
+                    $fecha_hasta
+                );
 
             jornada_responder([
                 'success' => true,
                 'data' => $resultado,
-                'message' => 'Las jornadas fueron registradas y aprobadas correctamente.'
+                'message' => sprintf(
+                    '%d jornada(s) fueron aprobadas correctamente.',
+                    $resultado['aprobadas']
+                )
             ]);
 
             break;
@@ -891,6 +1046,152 @@ try {
             ]);
             break;
 
+        case 'consultarJornadasConfirmacionObra':
+            $fecha_desde = jornada_entrada('fecha_desde');
+            $fecha_hasta = jornada_entrada('fecha_hasta');
+
+            // Ambas fechas son obligatorias para construir la confirmación.
+            if (
+                $fecha_desde === '' ||
+                $fecha_hasta === '' ||
+                !jornada_fecha_valida($fecha_desde) ||
+                !jornada_fecha_valida($fecha_hasta)
+            ) {
+                throw new InvalidArgumentException(
+                    'El rango de fechas no es válido.'
+                );
+            }
+
+            if ($fecha_hasta < $fecha_desde) {
+                throw new InvalidArgumentException(
+                    'La fecha final no puede ser anterior a la fecha inicial.'
+                );
+            }
+
+            /*
+             * El empleado se obtiene exclusivamente desde la sesión.
+             * No se recibe empleado_id desde el navegador.
+             */
+            $filas = $jornada->listar_jornadas_obra_para_confirmacion(
+                (int) $empleado['id_empl'],
+                $fecha_desde,
+                $fecha_hasta
+            );
+
+            $dias = [
+                1 => 'Lunes',
+                2 => 'Martes',
+                3 => 'Miércoles',
+                4 => 'Jueves',
+                5 => 'Viernes',
+                6 => 'Sábado',
+                7 => 'Domingo'
+            ];
+
+            $data = [];
+
+            foreach ($filas as $fila) {
+                $inicio = new DateTimeImmutable(
+                    $fila['jornada_inicio']
+                );
+
+                $fin = new DateTimeImmutable(
+                    $fila['jornada_fin']
+                );
+
+                $data[] = [
+                    'jornada_id' =>
+                        (int) $fila['jornada_id'],
+                    'dia' =>
+                        $dias[(int) $inicio->format('N')],
+                    'fecha' =>
+                        $inicio->format('Y-m-d'),
+                    'hora_entrada' =>
+                        $inicio->format('H:i'),
+                    'fecha_salida' =>
+                        $fin->format('Y-m-d'),
+                    'hora_salida' =>
+                        $fin->format('H:i'),
+                    'horas_ordinarias' =>
+                        jornada_minutos_a_horas(
+                            $fila['jornada_minutos_ordinarios']
+                        ),
+                    'ubicacion' =>
+                        $fila['jornada_ubicacion'],
+                    'actividad' =>
+                        $fila['jornada_actividad'],
+                    'observaciones' =>
+                        $fila['jornada_observaciones'],
+                    'estado_codigo' =>
+                        $fila['estado_codigo'],
+                    'estado_nombre' =>
+                        $fila['estado_nombre']
+                ];
+            }
+
+            jornada_responder([
+                'success' => true,
+                'data' => $data,
+                'cantidad' => count($data)
+            ]);
+            break;
+
+        case 'confirmarJornadasObra':
+            jornada_validar_csrf();
+
+            $fecha_desde = jornada_entrada(
+                'fecha_desde'
+            );
+
+            $fecha_hasta = jornada_entrada(
+                'fecha_hasta'
+            );
+
+            // La firma se valida antes de iniciar cualquier operación en el modelo.
+            $firma = jornada_validar_firma_base64(
+                jornada_entrada('firma')
+            );
+
+            // El rango firmado debe ser válido.
+            if (
+                $fecha_desde === '' ||
+                $fecha_hasta === '' ||
+                !jornada_fecha_valida($fecha_desde) ||
+                !jornada_fecha_valida($fecha_hasta)
+            ) {
+                throw new InvalidArgumentException(
+                    'El rango de fechas no es válido.'
+                );
+            }
+
+            if ($fecha_hasta < $fecha_desde) {
+                throw new InvalidArgumentException(
+                    'La fecha final no puede ser anterior a la fecha inicial.'
+                );
+            }
+
+            /*
+             * No se reciben IDs de jornadas ni empleado_id.
+             * El modelo reconstruye el conjunto firmable dentro de la transacción.
+             */
+            $resultado = $jornada->confirmar_jornadas_obra(
+                (int) $empleado['id_empl'],
+                $contexto['user_id'],
+                $fecha_desde,
+                $fecha_hasta,
+                $firma
+            );
+
+            jornada_responder([
+                'success' => true,
+                'data' => $resultado,
+                'message' => sprintf(
+                    '%d jornada(s) fueron confirmadas correctamente.',
+                    $resultado['cantidad_jornadas']
+                )
+            ]);
+            break;
+
         case 'validarFecha':
             $fecha = jornada_entrada('fecha');
             if (!jornada_fecha_valida($fecha)) {
@@ -911,6 +1212,87 @@ try {
             jornada_responder([
                 'success' => true,
                 'data' => ['disponible' => !$existente, 'jornada' => $existente ?: null]
+            ]);
+            break;
+
+        case 'consultarReporteFirma':
+            $fecha_desde = jornada_entrada('fecha_desde');
+            $fecha_hasta = jornada_entrada('fecha_hasta');
+
+            // Validar que ambas fechas existan.
+            if (
+                $fecha_desde === '' ||
+                $fecha_hasta === '' ||
+                !jornada_fecha_valida($fecha_desde) ||
+                !jornada_fecha_valida($fecha_hasta)
+            ) {
+                throw new InvalidArgumentException(
+                    'El rango de fechas no es válido.'
+                );
+            }
+
+            // La fecha final nunca puede ser anterior a la inicial.
+            if ($fecha_hasta < $fecha_desde) {
+                throw new InvalidArgumentException(
+                    'La fecha final no puede ser anterior a la fecha inicial.'
+                );
+            }
+
+            $datos = $jornada->listar_jornadas_para_firma(
+                (int) $empleado['id_empl'],
+                $fecha_desde,
+                $fecha_hasta
+            );
+
+            jornada_responder([
+                'success' => true,
+                'data' => $datos,
+                'cantidad' => count($datos)
+            ]);
+            break;
+
+        case 'firmarReporteJornadas':
+            jornada_validar_csrf();
+
+            $fecha_desde = jornada_entrada('fecha_desde');
+            $fecha_hasta = jornada_entrada('fecha_hasta');
+            $firma = jornada_validar_firma_base64(
+                jornada_entrada('firma')
+            );
+
+            // Validar el rango recibido.
+            if (
+                $fecha_desde === '' ||
+                $fecha_hasta === '' ||
+                !jornada_fecha_valida($fecha_desde) ||
+                !jornada_fecha_valida($fecha_hasta)
+            ) {
+                throw new InvalidArgumentException(
+                    'El rango de fechas no es válido.'
+                );
+            }
+
+            if ($fecha_hasta < $fecha_desde) {
+                throw new InvalidArgumentException(
+                    'La fecha final no puede ser anterior a la fecha inicial.'
+                );
+            }
+
+            $resultado = $jornada->firmar_reporte_jornadas(
+                (int) $empleado['id_empl'],
+                $contexto['user_id'],
+                $fecha_desde,
+                $fecha_hasta,
+                $firma
+            );
+
+            jornada_responder([
+                'success' => true,
+                'data' => $resultado,
+                'message' => sprintf(
+                    'Reporte firmado correctamente. %d jornada(s) quedaron pendientes de liquidación.',
+                    $resultado['cantidad_jornadas']
+                )
             ]);
             break;
 
@@ -1119,7 +1501,6 @@ try {
             break;
 
         case 'listarUbicacionesJornada':
-
             jornada_responder([
                 'success' => true,
                 'data' => $jornada->listar_ubicaciones_jornada()

@@ -137,7 +137,8 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                             Periodo
                                         </label>
 
-                                        <input type="text" class="form-control" id="filtro_fechas" autocomplete="off" readonly>
+                                        <input type="text" class="form-control" id="filtro_fechas" autocomplete="off"
+                                            readonly>
                                         <small class="form-text text-muted">
                                             Disponible desde el primer día del mes anterior hasta hoy.
                                         </small>
@@ -203,7 +204,8 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
                                     <div class="col-md-4 text-md-right mt-3 mt-md-0">
 
-                                        <button type="button" class="btn btn-outline-danger btn-sm mr-2" id="btn-pdf-borrador">
+                                        <button type="button" class="btn btn-outline-danger btn-sm mr-2"
+                                            id="btn-pdf-borrador">
                                             <i class="fas fa-file-pdf mr-1"></i>
                                             PDF borrador
                                         </button>
@@ -212,6 +214,14 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                             <i class="fas fa-folder-open mr-1"></i>
                                             Expediente activo
                                         </span>
+
+                                        <div id="resumen-confirmacion-empleado" class="mt-2 text-md-right"
+                                            style="display: none;">
+                                            <span id="badge-confirmacion-empleado" class="badge badge-secondary p-2">
+                                                <i class="fas fa-user-check mr-1"></i>
+                                                Pendiente de confirmación
+                                            </span>
+                                        </div>
 
                                     </div>
 
@@ -241,11 +251,15 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                 </h3>
 
                                 <div class="d-flex flex-wrap justify-content-start pt-3" style="clear: both;">
-                                    <button type="button" class="btn btn-secondary mr-2 mb-2" id="btn-guardar-borrador" disabled>
+                                    <button type="button" class="btn btn-secondary mr-2 mb-2" id="btn-guardar-borrador"
+                                        disabled>
                                         <i class="fas fa-save mr-1"></i>
                                         Guardar borrador
                                     </button>
-                                    <button type="button" class="btn btn-success mr-2 mb-2" id="btn-registrar-aprobar" disabled>
+
+                                    <button type="button" class="btn btn-success mr-2 mb-2" id="btn-registrar-aprobar"
+                                        disabled
+                                        title="Disponible cuando las jornadas del periodo sean confirmadas por el empleado">
                                         <i class="fas fa-check-circle mr-1"></i>
                                         Registrar y aprobar jornadas
                                     </button>
@@ -261,7 +275,8 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
                                     Diligencie únicamente los días trabajados.
                                     Las filas completamente vacías no serán guardadas.
-                                    Use «Agregar turno» para registrar otra jornada del mismo día sin superponer horarios.
+                                    Use «Agregar turno» para registrar otra jornada del mismo día sin superponer
+                                    horarios.
 
                                 </div>
 

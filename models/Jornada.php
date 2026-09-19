@@ -649,6 +649,427 @@ class Jornada extends Conectar
     }
 
     /**
+     * Lista las jornadas aprobadas del empleado dentro del rango solicitado
+     * que todavía no hacen parte de un reporte firmado.
+     */
+    public function listar_jornadas_para_firma(
+        $empleado_id,
+        $fecha_desde,
+        $fecha_hasta
+    ) {
+        $conectar = parent::Conexion();
+
+        $sql = "SELECT
+                j.jornada_id,
+                j.jornada_inicio,
+                j.jornada_fin,
+                j.jornada_minutos_ordinarios,
+                j.jornada_ubicacion,
+                j.jornada_actividad,
+                j.jornada_observaciones,
+                j.jornada_origen,
+                j.jornada_version,
+                e.je_codigo AS estado_codigo,
+                e.je_nombre AS estado_nombre
+            FROM jornadas_trabajo j
+            INNER JOIN jornada_estados e
+                ON e.je_id = j.jornada_estado_id
+            WHERE j.empleado_id = :empleado_id
+              AND j.jornada_inicio::date >= :fecha_desde::date
+              AND j.jornada_inicio::date <= :fecha_hasta::date
+              AND e.je_codigo = 'APROBADO'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM jornada_reporte_detalle d
+                  WHERE d.jornada_id = j.jornada_id
+              )
+            ORDER BY j.jornada_inicio ASC, j.jornada_id ASC";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(':empleado_id', $empleado_id, PDO::PARAM_INT);
+        $stmt->bindValue(':fecha_desde', $fecha_desde, PDO::PARAM_STR);
+        $stmt->bindValue(':fecha_hasta', $fecha_hasta, PDO::PARAM_STR);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Lista las jornadas registradas por el jefe que el empleado todavía debe
+     * revisar y confirmar dentro del rango solicitado.
+     */
+    public function listar_jornadas_obra_para_confirmacion(
+        $empleado_id,
+        $fecha_desde,
+        $fecha_hasta
+    ) {
+        $conectar = parent::Conexion();
+
+        $sql = "SELECT
+                j.jornada_id,
+                j.jornada_inicio,
+                j.jornada_fin,
+                j.jornada_minutos_ordinarios,
+                j.jornada_ubicacion,
+                j.jornada_actividad,
+                j.jornada_observaciones,
+                j.jornada_origen,
+                j.jornada_version,
+                e.je_codigo AS estado_codigo,
+                e.je_nombre AS estado_nombre
+            FROM jornadas_trabajo j
+            INNER JOIN jornada_estados e
+                ON e.je_id = j.jornada_estado_id
+            WHERE j.empleado_id = :empleado_id
+              AND j.jornada_inicio::date >= :fecha_desde::date
+              AND j.jornada_inicio::date <= :fecha_hasta::date
+              AND j.jornada_origen = 'REGISTRO_JEFE'
+              AND e.je_codigo = 'BORRADOR'
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM jornada_confirmacion_obra_detalle d
+                    INNER JOIN jornada_confirmaciones_obra c
+                        ON c.jco_id = d.jco_id
+                    WHERE d.jornada_id = j.jornada_id
+                      AND c.jco_estado = 'VIGENTE'
+                      AND d.jcod_estado = 'VIGENTE'
+              )
+            ORDER BY
+                j.jornada_inicio ASC,
+                j.jornada_id ASC";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(
+            ':empleado_id',
+            $empleado_id,
+            PDO::PARAM_INT
+        );
+        $stmt->bindValue(
+            ':fecha_desde',
+            $fecha_desde,
+            PDO::PARAM_STR
+        );
+        $stmt->bindValue(
+            ':fecha_hasta',
+            $fecha_hasta,
+            PDO::PARAM_STR
+        );
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Confirma mediante firma las jornadas de obra registradas por el jefe.
+     *
+     * La operación bloquea las jornadas del empleado, conserva un snapshot
+     * exacto de cada registro firmado y cambia BORRADOR a CONFIRMADO_EMPLEADO
+     * dentro de una única transacción.
+     */
+    public function confirmar_jornadas_obra(
+        $empleado_id,
+        $user_id,
+        $fecha_desde,
+        $fecha_hasta,
+        $firma_base64
+    ) {
+        $conectar = parent::Conexion();
+
+        try {
+            $conectar->beginTransaction();
+
+            // Serializa cualquier operación simultánea sobre el empleado.
+            $this->bloquear_empleado(
+                $conectar,
+                $empleado_id
+            );
+
+            // Los estados siempre se resuelven por código y nunca por ID fijo.
+            $estado_borrador = $this->obtener_estado_id(
+                $conectar,
+                'BORRADOR'
+            );
+
+            $estado_confirmado = $this->obtener_estado_id(
+                $conectar,
+                'CONFIRMADO_EMPLEADO'
+            );
+
+            /*
+             * Vuelve a consultar y bloquea exclusivamente las jornadas que
+             * realmente puede confirmar el empleado.
+             */
+            $sql = "SELECT
+                    j.jornada_id,
+                    j.empleado_id,
+                    j.jornada_inicio,
+                    j.jornada_fin,
+                    j.jornada_minutos_ordinarios,
+                    j.jornada_ubicacion,
+                    j.jornada_actividad,
+                    j.jornada_observaciones,
+                    j.jornada_origen,
+                    j.jornada_estado_id,
+                    j.jornada_creado_por,
+                    j.jornada_fecha_creacion,
+                    j.jornada_fecha_actualizacion,
+                    j.jornada_inconsistente,
+                    j.jornada_inconsistencia_detalle,
+                    j.jornada_version
+                FROM jornadas_trabajo j
+                WHERE j.empleado_id = :empleado_id
+                  AND j.jornada_inicio::date >= :fecha_desde::date
+                  AND j.jornada_inicio::date <= :fecha_hasta::date
+                  AND j.jornada_origen = 'REGISTRO_JEFE'
+                  AND j.jornada_estado_id = :estado_borrador
+                  AND NOT EXISTS (
+                        SELECT 1
+                        FROM jornada_confirmacion_obra_detalle d
+                        INNER JOIN jornada_confirmaciones_obra c
+                            ON c.jco_id = d.jco_id
+                        WHERE d.jornada_id = j.jornada_id
+                          AND c.jco_estado = 'VIGENTE'
+                          AND d.jcod_estado = 'VIGENTE'
+                  )
+                ORDER BY
+                    j.jornada_inicio ASC,
+                    j.jornada_id ASC
+                FOR UPDATE OF j";
+
+            $stmt = $conectar->prepare($sql);
+            $stmt->bindValue(
+                ':empleado_id',
+                $empleado_id,
+                PDO::PARAM_INT
+            );
+            $stmt->bindValue(
+                ':fecha_desde',
+                $fecha_desde,
+                PDO::PARAM_STR
+            );
+            $stmt->bindValue(
+                ':fecha_hasta',
+                $fecha_hasta,
+                PDO::PARAM_STR
+            );
+            $stmt->bindValue(
+                ':estado_borrador',
+                $estado_borrador,
+                PDO::PARAM_INT
+            );
+            $stmt->execute();
+
+            $jornadas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($jornadas)) {
+                throw new RuntimeException(
+                    'No existen jornadas de obra pendientes de confirmación en el rango seleccionado.'
+                );
+            }
+
+            // Crea la cabecera que contiene la firma del empleado.
+            $sql = "INSERT INTO jornada_confirmaciones_obra (
+                    empleado_id,
+                    jco_fecha_desde,
+                    jco_fecha_hasta,
+                    jco_firma_base64,
+                    jco_estado,
+                    jco_confirmado_por
+                )
+                VALUES (
+                    ?,
+                    ?::date,
+                    ?::date,
+                    ?,
+                    'VIGENTE',
+                    ?
+                )
+                RETURNING jco_id";
+
+            $stmt = $conectar->prepare($sql);
+            $stmt->bindValue(
+                1,
+                $empleado_id,
+                PDO::PARAM_INT
+            );
+            $stmt->bindValue(
+                2,
+                $fecha_desde,
+                PDO::PARAM_STR
+            );
+            $stmt->bindValue(
+                3,
+                $fecha_hasta,
+                PDO::PARAM_STR
+            );
+            $stmt->bindValue(
+                4,
+                $firma_base64,
+                PDO::PARAM_STR
+            );
+            $stmt->bindValue(
+                5,
+                $user_id,
+                PDO::PARAM_INT
+            );
+            $stmt->execute();
+
+            $confirmacion_id = (int) $stmt->fetchColumn();
+
+            if ($confirmacion_id <= 0) {
+                throw new RuntimeException(
+                    'No fue posible registrar la confirmación del empleado.'
+                );
+            }
+
+            foreach ($jornadas as $jornada) {
+                // Congela exactamente la información que el empleado revisó.
+                $snapshot = [
+                    'jornada_id' =>
+                        (int) $jornada['jornada_id'],
+                    'empleado_id' =>
+                        (int) $jornada['empleado_id'],
+                    'jornada_inicio' =>
+                        $jornada['jornada_inicio'],
+                    'jornada_fin' =>
+                        $jornada['jornada_fin'],
+                    'jornada_minutos_ordinarios' =>
+                        (int) $jornada['jornada_minutos_ordinarios'],
+                    'jornada_ubicacion' =>
+                        $jornada['jornada_ubicacion'],
+                    'jornada_actividad' =>
+                        $jornada['jornada_actividad'],
+                    'jornada_observaciones' =>
+                        $jornada['jornada_observaciones'],
+                    'jornada_origen' =>
+                        $jornada['jornada_origen'],
+                    'jornada_version' =>
+                        (int) $jornada['jornada_version']
+                ];
+
+                $snapshot_json = json_encode(
+                    $snapshot,
+                    JSON_UNESCAPED_UNICODE
+                        | JSON_UNESCAPED_SLASHES
+                );
+
+                if ($snapshot_json === false) {
+                    throw new RuntimeException(
+                        'No fue posible generar la evidencia de una jornada.'
+                    );
+                }
+
+                // Relaciona la jornada exacta con la firma capturada.
+                $sql = 'INSERT INTO jornada_confirmacion_obra_detalle (
+                        jco_id,
+                        jornada_id,
+                        jcod_jornada_version,
+                        jcod_snapshot
+                    )
+                    VALUES (?, ?, ?, ?::jsonb)';
+
+                $stmt = $conectar->prepare($sql);
+                $stmt->bindValue(
+                    1,
+                    $confirmacion_id,
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    2,
+                    $jornada['jornada_id'],
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    3,
+                    $jornada['jornada_version'],
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    4,
+                    $snapshot_json,
+                    PDO::PARAM_STR
+                );
+                $stmt->execute();
+
+                /*
+                 * El cambio de estado solamente ocurre si la jornada todavía
+                 * conserva exactamente el estado BORRADOR esperado.
+                 */
+                $sql = 'UPDATE jornadas_trabajo
+                    SET jornada_estado_id = ?,
+                        jornada_fecha_actualizacion = CURRENT_TIMESTAMP,
+                        jornada_version = jornada_version + 1
+                    WHERE jornada_id = ?
+                      AND empleado_id = ?
+                      AND jornada_estado_id = ?';
+
+                $stmt = $conectar->prepare($sql);
+                $stmt->bindValue(
+                    1,
+                    $estado_confirmado,
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    2,
+                    $jornada['jornada_id'],
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    3,
+                    $empleado_id,
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    4,
+                    $estado_borrador,
+                    PDO::PARAM_INT
+                );
+                $stmt->execute();
+
+                if ($stmt->rowCount() !== 1) {
+                    throw new RuntimeException(
+                        'Una jornada cambió antes de completar la confirmación.'
+                    );
+                }
+
+                // Conserva la trazabilidad individual de cada jornada firmada.
+                $this->registrar_auditoria(
+                    $conectar,
+                    $jornada['jornada_id'],
+                    'CONFIRMAR_EMPLEADO_OBRA',
+                    'BORRADOR',
+                    'CONFIRMADO_EMPLEADO',
+                    $jornada,
+                    [
+                        'jco_id' => $confirmacion_id,
+                        'jco_fecha_desde' => $fecha_desde,
+                        'jco_fecha_hasta' => $fecha_hasta,
+                        'jornada_version_firmada' =>
+                            (int) $jornada['jornada_version']
+                    ],
+                    'Confirmación firmada por el empleado',
+                    $user_id
+                );
+            }
+
+            $conectar->commit();
+
+            return [
+                'confirmacion_id' => $confirmacion_id,
+                'cantidad_jornadas' => count($jornadas),
+                'fecha_desde' => $fecha_desde,
+                'fecha_hasta' => $fecha_hasta
+            ];
+        } catch (Throwable $e) {
+            if ($conectar->inTransaction()) {
+                $conectar->rollBack();
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
      * Obtiene el detalle operativo de una jornada propia, sin clasificación.
      */
     public function obtener_mi_jornada($jornada_id, $empleado_id)
@@ -677,6 +1098,236 @@ class Jornada extends Conectar
         $stmt->bindValue(2, $empleado_id, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Firma un consolidado de jornadas aprobadas del empleado.
+     *
+     * Crea la cabecera del reporte, congela cada jornada mediante snapshot,
+     * relaciona las jornadas con el reporte y las mueve a
+     * PENDIENTE_LIQUIDACION dentro de una única transacción.
+     */
+    public function firmar_reporte_jornadas(
+        $empleado_id,
+        $user_id,
+        $fecha_desde,
+        $fecha_hasta,
+        $firma_base64
+    ) {
+        $conectar = parent::Conexion();
+
+        try {
+            $conectar->beginTransaction();
+
+            // Serializa operaciones simultáneas sobre las jornadas del empleado.
+            $this->bloquear_empleado($conectar, $empleado_id);
+
+            $estado_aprobado = $this->obtener_estado_id(
+                $conectar,
+                'APROBADO'
+            );
+
+            $estado_pendiente_liquidacion = $this->obtener_estado_id(
+                $conectar,
+                'PENDIENTE_LIQUIDACION'
+            );
+
+            // Bloquea únicamente jornadas aprobadas disponibles para este reporte.
+            $sql = 'SELECT
+                    j.jornada_id,
+                    j.empleado_id,
+                    j.jornada_inicio,
+                    j.jornada_fin,
+                    j.jornada_minutos_ordinarios,
+                    j.jornada_ubicacion,
+                    j.jornada_actividad,
+                    j.jornada_observaciones,
+                    j.jornada_origen,
+                    j.jornada_estado_id,
+                    j.jornada_creado_por,
+                    j.jornada_fecha_creacion,
+                    j.jornada_fecha_actualizacion,
+                    j.jornada_inconsistente,
+                    j.jornada_inconsistencia_detalle,
+                    j.jornada_version
+                FROM jornadas_trabajo j
+                WHERE j.empleado_id = :empleado_id
+                  AND j.jornada_inicio::date >= :fecha_desde::date
+                  AND j.jornada_inicio::date <= :fecha_hasta::date
+                  AND j.jornada_estado_id = :estado_aprobado
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM jornada_reporte_detalle d
+                      WHERE d.jornada_id = j.jornada_id
+                  )
+                ORDER BY j.jornada_inicio ASC, j.jornada_id ASC
+                FOR UPDATE OF j';
+
+            $stmt = $conectar->prepare($sql);
+            $stmt->bindValue(':empleado_id', $empleado_id, PDO::PARAM_INT);
+            $stmt->bindValue(':fecha_desde', $fecha_desde, PDO::PARAM_STR);
+            $stmt->bindValue(':fecha_hasta', $fecha_hasta, PDO::PARAM_STR);
+            $stmt->bindValue(':estado_aprobado', $estado_aprobado, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $jornadas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($jornadas)) {
+                throw new RuntimeException(
+                    'No existen jornadas aprobadas disponibles para firmar en el rango seleccionado.'
+                );
+            }
+
+            // Crea la cabecera del reporte firmado.
+            $sql = "INSERT INTO jornada_reportes_firma (
+                    empleado_id,
+                    jrf_fecha_desde,
+                    jrf_fecha_hasta,
+                    jrf_firma_base64,
+                    jrf_estado,
+                    jrf_firmado_por
+                )
+                VALUES (?, ?::date, ?::date, ?, 'FIRMADO', ?)
+                RETURNING jrf_id";
+
+            $stmt = $conectar->prepare($sql);
+            $stmt->bindValue(1, $empleado_id, PDO::PARAM_INT);
+            $stmt->bindValue(2, $fecha_desde, PDO::PARAM_STR);
+            $stmt->bindValue(3, $fecha_hasta, PDO::PARAM_STR);
+            $stmt->bindValue(4, $firma_base64, PDO::PARAM_STR);
+            $stmt->bindValue(5, $user_id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $reporte_id = (int) $stmt->fetchColumn();
+
+            if ($reporte_id <= 0) {
+                throw new RuntimeException(
+                    'No fue posible crear el reporte firmado.'
+                );
+            }
+
+            foreach ($jornadas as $jornada) {
+                // Congela exactamente la información aceptada por el empleado.
+                $snapshot = [
+                    'jornada_id' => (int) $jornada['jornada_id'],
+                    'empleado_id' => (int) $jornada['empleado_id'],
+                    'jornada_inicio' => $jornada['jornada_inicio'],
+                    'jornada_fin' => $jornada['jornada_fin'],
+                    'jornada_minutos_ordinarios' =>
+                        (int) $jornada['jornada_minutos_ordinarios'],
+                    'jornada_ubicacion' => $jornada['jornada_ubicacion'],
+                    'jornada_actividad' => $jornada['jornada_actividad'],
+                    'jornada_observaciones' => $jornada['jornada_observaciones'],
+                    'jornada_origen' => $jornada['jornada_origen'],
+                    'jornada_version' => (int) $jornada['jornada_version']
+                ];
+
+                $snapshot_json = json_encode(
+                    $snapshot,
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                );
+
+                if ($snapshot_json === false) {
+                    throw new RuntimeException(
+                        'No fue posible generar la evidencia del reporte.'
+                    );
+                }
+
+                // Relaciona la jornada con el reporte firmado.
+                $sql = 'INSERT INTO jornada_reporte_detalle (
+                        jrf_id,
+                        jornada_id,
+                        jrd_jornada_version,
+                        jrd_snapshot
+                    )
+                    VALUES (?, ?, ?, ?::jsonb)';
+
+                $stmt = $conectar->prepare($sql);
+                $stmt->bindValue(1, $reporte_id, PDO::PARAM_INT);
+                $stmt->bindValue(
+                    2,
+                    $jornada['jornada_id'],
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    3,
+                    $jornada['jornada_version'],
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(4, $snapshot_json, PDO::PARAM_STR);
+                $stmt->execute();
+
+                // Cambia únicamente la jornada que todavía conserva APROBADO.
+                $sql = 'UPDATE jornadas_trabajo
+                    SET jornada_estado_id = ?,
+                        jornada_fecha_actualizacion = CURRENT_TIMESTAMP,
+                        jornada_version = jornada_version + 1
+                    WHERE jornada_id = ?
+                      AND empleado_id = ?
+                      AND jornada_estado_id = ?';
+
+                $stmt = $conectar->prepare($sql);
+                $stmt->bindValue(
+                    1,
+                    $estado_pendiente_liquidacion,
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    2,
+                    $jornada['jornada_id'],
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    3,
+                    $empleado_id,
+                    PDO::PARAM_INT
+                );
+                $stmt->bindValue(
+                    4,
+                    $estado_aprobado,
+                    PDO::PARAM_INT
+                );
+                $stmt->execute();
+
+                if ($stmt->rowCount() !== 1) {
+                    throw new RuntimeException(
+                        'Una jornada cambió de estado antes de completar la firma.'
+                    );
+                }
+
+                // Registra trazabilidad individual del paso a liquidación.
+                $this->registrar_auditoria(
+                    $conectar,
+                    $jornada['jornada_id'],
+                    'FIRMA_REPORTE_EMPLEADO',
+                    'APROBADO',
+                    'PENDIENTE_LIQUIDACION',
+                    $jornada,
+                    [
+                        'jrf_id' => $reporte_id,
+                        'jrf_fecha_desde' => $fecha_desde,
+                        'jrf_fecha_hasta' => $fecha_hasta
+                    ],
+                    null,
+                    $user_id
+                );
+            }
+
+            $conectar->commit();
+
+            return [
+                'reporte_id' => $reporte_id,
+                'cantidad_jornadas' => count($jornadas),
+                'fecha_desde' => $fecha_desde,
+                'fecha_hasta' => $fecha_hasta
+            ];
+        } catch (Throwable $e) {
+            if ($conectar->inTransaction()) {
+                $conectar->rollBack();
+            }
+
+            throw $e;
+        }
     }
 
     /**
@@ -856,6 +1507,89 @@ class Jornada extends Conectar
         }
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Resume el estado de las jornadas del empleado dentro del rango.
+     *
+     * Solo considera jornadas existentes registradas por el jefe.
+     * Los días sin jornada no afectan la posibilidad de aprobar.
+     */
+    public function obtener_resumen_confirmacion_equipo(
+        $jefe_empleado_id,
+        $empleado_id,
+        $fecha_desde,
+        $fecha_hasta
+    ) {
+        $conectar = parent::Conexion();
+
+        // Valida que el empleado continúe relacionado activamente con el jefe.
+        $this->validar_subordinado_activo(
+            $conectar,
+            $empleado_id,
+            $jefe_empleado_id
+        );
+
+        $sql = "SELECT
+                COUNT(*) AS total_jornadas_rango,
+
+                COUNT(*) FILTER (
+                    WHERE e.je_codigo = 'CONFIRMADO_EMPLEADO'
+                ) AS total_confirmadas
+
+            FROM jornadas_trabajo j
+
+            INNER JOIN jornada_estados e
+                ON e.je_id = j.jornada_estado_id
+
+            WHERE j.empleado_id = ?
+              AND j.jornada_inicio::date >= ?::date
+              AND j.jornada_inicio::date <= ?::date
+              AND j.jornada_origen = 'REGISTRO_JEFE'
+              AND e.je_codigo NOT IN (
+                    'ANULADO',
+                    'RECHAZADO'
+              )";
+
+        $stmt = $conectar->prepare($sql);
+
+        $stmt->bindValue(
+            1,
+            $empleado_id,
+            PDO::PARAM_INT
+        );
+
+        $stmt->bindValue(
+            2,
+            $fecha_desde,
+            PDO::PARAM_STR
+        );
+
+        $stmt->bindValue(
+            3,
+            $fecha_hasta,
+            PDO::PARAM_STR
+        );
+
+        $stmt->execute();
+
+        $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $total_jornadas = (int) (
+            $fila['total_jornadas_rango'] ?? 0
+        );
+
+        $total_confirmadas = (int) (
+            $fila['total_confirmadas'] ?? 0
+        );
+
+        return [
+            'total_jornadas_rango' => $total_jornadas,
+            'total_confirmadas' => $total_confirmadas,
+            'puede_registrar_aprobar' =>
+                $total_jornadas > 0 &&
+                $total_jornadas === $total_confirmadas
+        ];
     }
 
     /**
@@ -1122,7 +1856,24 @@ class Jornada extends Conectar
 
                     if (!$anterior) {
                         throw new RuntimeException(
-                            'Una de las jornadas ya no está disponible como borrador.'
+                            'Una de las jornadas ya no está disponible para edición.'
+                        );
+                    }
+
+                    $estado_anterior_codigo = $anterior['je_codigo'];
+
+                    $estado_esperado_id = (int) $anterior['jornada_estado_id'];
+
+                    /*
+                     * Si el empleado ya había confirmado esta jornada,
+                     * primero se invalida la evidencia firmada.
+                     */
+                    if ($estado_anterior_codigo === 'CONFIRMADO_EMPLEADO') {
+                        $this->invalidar_confirmacion_jornada_obra(
+                            $conectar,
+                            $jornada_id,
+                            $user_id,
+                            'La jornada fue modificada posteriormente por el jefe inmediato.'
                         );
                     }
 
@@ -1136,56 +1887,82 @@ class Jornada extends Conectar
                     );
 
                     $sql = 'UPDATE jornadas_trabajo
-                        SET jornada_inicio = ?,
-                            jornada_fin = ?,
-                            jornada_minutos_ordinarios = ?,
-                            jornada_ubicacion = ?,
-                            jornada_actividad = ?,
-                            jornada_observaciones = ?,
-                            jornada_fecha_actualizacion = CURRENT_TIMESTAMP,
-                            jornada_version = jornada_version + 1
-                        WHERE jornada_id = ?
-                          AND empleado_id = ?
-                          AND jornada_estado_id = ?';
+                            SET jornada_inicio = ?,
+                                jornada_fin = ?,
+                                jornada_minutos_ordinarios = ?,
+                                jornada_ubicacion = ?,
+                                jornada_actividad = ?,
+                                jornada_observaciones = ?,
+                                jornada_estado_id = ?,
+                                jornada_fecha_actualizacion = CURRENT_TIMESTAMP,
+                                jornada_version = jornada_version + 1
+                            WHERE jornada_id = ?
+                            AND empleado_id = ?
+                            AND jornada_estado_id = ?';
 
                     $stmt = $conectar->prepare($sql);
-                    $stmt->bindValue(1, $fila['inicio'], PDO::PARAM_STR);
-                    $stmt->bindValue(2, $fila['fin'], PDO::PARAM_STR);
+
+                    $stmt->bindValue(
+                        1,
+                        $fila['inicio'],
+                        PDO::PARAM_STR
+                    );
+
+                    $stmt->bindValue(
+                        2,
+                        $fila['fin'],
+                        PDO::PARAM_STR
+                    );
+
                     $stmt->bindValue(
                         3,
                         $fila['minutos_ordinarios'],
                         PDO::PARAM_INT
                     );
+
                     $stmt->bindValue(
                         4,
                         $fila['ubicacion'],
                         PDO::PARAM_STR
                     );
+
                     $stmt->bindValue(
                         5,
                         $fila['actividad'],
                         PDO::PARAM_STR
                     );
+
                     $stmt->bindValue(
                         6,
                         $fila['observaciones'],
                         PDO::PARAM_STR
                     );
+
+                    // Toda jornada modificada queda nuevamente en BORRADOR.
                     $stmt->bindValue(
                         7,
-                        $jornada_id,
-                        PDO::PARAM_INT
-                    );
-                    $stmt->bindValue(
-                        8,
-                        $empleado_id,
-                        PDO::PARAM_INT
-                    );
-                    $stmt->bindValue(
-                        9,
                         $estado_borrador,
                         PDO::PARAM_INT
                     );
+
+                    $stmt->bindValue(
+                        8,
+                        $jornada_id,
+                        PDO::PARAM_INT
+                    );
+
+                    $stmt->bindValue(
+                        9,
+                        $empleado_id,
+                        PDO::PARAM_INT
+                    );
+
+                    $stmt->bindValue(
+                        10,
+                        $estado_esperado_id,
+                        PDO::PARAM_INT
+                    );
+
                     $stmt->execute();
 
                     if ($stmt->rowCount() !== 1) {
@@ -1200,22 +1977,60 @@ class Jornada extends Conectar
                         'jornada_fin' => $fila['fin'],
                         'jornada_minutos_ordinarios' =>
                             (int) $fila['minutos_ordinarios'],
-                        'jornada_ubicacion' => $fila['ubicacion'],
-                        'jornada_actividad' => $fila['actividad'],
-                        'jornada_observaciones' => $fila['observaciones']
+                        'jornada_ubicacion' =>
+                            $fila['ubicacion'],
+                        'jornada_actividad' =>
+                            $fila['actividad'],
+                        'jornada_observaciones' =>
+                            $fila['observaciones']
                     ];
+
+                    if ($estado_anterior_codigo === 'CONFIRMADO_EMPLEADO') {
+                        $accion = 'EDITAR_CONFIRMADA_JEFE';
+                        $estado_anterior_auditoria = 'CONFIRMADO_EMPLEADO';
+                        $motivo =
+                            'Modificación del jefe. La confirmación del empleado fue invalidada.';
+                    } else {
+                        $accion = 'ACTUALIZAR_BORRADOR_JEFE';
+                        $estado_anterior_auditoria = 'BORRADOR';
+                        $motivo =
+                            'Actualización masiva desde Jornadas de mi Equipo';
+                    }
 
                     $this->registrar_auditoria(
                         $conectar,
                         $jornada_id,
-                        'ACTUALIZAR_BORRADOR_JEFE',
-                        'BORRADOR',
+                        $accion,
+                        $estado_anterior_auditoria,
                         'BORRADOR',
                         $anterior,
                         $datos_nuevos,
-                        'Actualización masiva desde Jornadas de mi Equipo',
+                        $motivo,
                         $user_id
                     );
+
+                    /*                     $datos_nuevos = [
+                                            'empleado_id' => (int) $empleado_id,
+                                            'jornada_inicio' => $fila['inicio'],
+                                            'jornada_fin' => $fila['fin'],
+                                            'jornada_minutos_ordinarios' =>
+                                                (int) $fila['minutos_ordinarios'],
+                                            'jornada_ubicacion' => $fila['ubicacion'],
+                                            'jornada_actividad' => $fila['actividad'],
+                                            'jornada_observaciones' => $fila['observaciones']
+                                        ];
+
+                                        $this->registrar_auditoria(
+                                            $conectar,
+                                            $jornada_id,
+                                            'ACTUALIZAR_BORRADOR_JEFE',
+                                            'BORRADOR',
+                                            'BORRADOR',
+                                            $anterior,
+                                            $datos_nuevos,
+                                            'Actualización masiva desde Jornadas de mi Equipo',
+                                            $user_id
+                                        ); */
 
                     $resultado['actualizadas'][] = (int) $jornada_id;
                     continue;
@@ -1345,14 +2160,15 @@ class Jornada extends Conectar
         $empleado_id,
         $jefe_empleado_id,
         $user_id,
-        array $jornadas
+        $fecha_desde,
+        $fecha_hasta
     ) {
         $conectar = parent::Conexion();
 
         try {
             $conectar->beginTransaction();
 
-            // Evita operaciones concurrentes del mismo empleado.
+            // Evita operaciones concurrentes sobre el mismo empleado.
             $this->bloquear_empleado(
                 $conectar,
                 $empleado_id
@@ -1365,9 +2181,10 @@ class Jornada extends Conectar
                 $jefe_empleado_id
             );
 
-            $estado_borrador = $this->obtener_estado_id(
+            // Obtiene los IDs de los estados sin hardcodearlos.
+            $estado_confirmado = $this->obtener_estado_id(
                 $conectar,
-                'BORRADOR'
+                'CONFIRMADO_EMPLEADO'
             );
 
             $estado_aprobado = $this->obtener_estado_id(
@@ -1375,254 +2192,168 @@ class Jornada extends Conectar
                 'APROBADO'
             );
 
-            $resultado = [
-                'creadas' => [],
-                'aprobadas' => []
-            ];
+            /*
+             * Bloquea todas las jornadas existentes del rango.
+             * No se reciben IDs desde el navegador.
+             */
+            $sql = "SELECT
+                    j.*
+                FROM jornadas_trabajo j
+                INNER JOIN jornada_estados e
+                    ON e.je_id = j.jornada_estado_id
+                WHERE j.empleado_id = ?
+                  AND j.jornada_inicio::date >= ?::date
+                  AND j.jornada_inicio::date <= ?::date
+                  AND j.jornada_origen = 'REGISTRO_JEFE'
+                  AND e.je_codigo NOT IN (
+                        'ANULADO',
+                        'RECHAZADO'
+                  )
+                ORDER BY
+                    j.jornada_inicio,
+                    j.jornada_id
+                FOR UPDATE OF j";
 
-            foreach ($jornadas as $fila) {
-                $jornada_id = $fila['jornada_id'];
+            $stmt = $conectar->prepare($sql);
 
-                /*
-                 * Jornada previamente guardada como borrador.
-                 */
-                if ($jornada_id !== null) {
-                    $anterior = $this->obtener_jornada_equipo_borrador_bloqueada(
-                        $conectar,
-                        $jornada_id,
-                        $empleado_id,
-                        $jefe_empleado_id
-                    );
+            $stmt->bindValue(
+                1,
+                $empleado_id,
+                PDO::PARAM_INT
+            );
 
-                    if (!$anterior) {
-                        throw new RuntimeException(
-                            'Una de las jornadas ya no está disponible para aprobar.'
-                        );
-                    }
+            $stmt->bindValue(
+                2,
+                $fecha_desde,
+                PDO::PARAM_STR
+            );
 
-                    $this->validar_disponibilidad(
-                        $conectar,
-                        $empleado_id,
-                        $fila['inicio'],
-                        $fila['fin'],
-                        $jornada_id
-                    );
+            $stmt->bindValue(
+                3,
+                $fecha_hasta,
+                PDO::PARAM_STR
+            );
 
-                    $sql = 'UPDATE jornadas_trabajo
-                        SET jornada_inicio = ?,
-                            jornada_fin = ?,
-                            jornada_minutos_ordinarios = ?,
-                            jornada_ubicacion = ?,
-                            jornada_actividad = ?,
-                            jornada_observaciones = ?,
-                            jornada_estado_id = ?,
-                            jornada_fecha_actualizacion = CURRENT_TIMESTAMP,
-                            jornada_version = jornada_version + 1
-                        WHERE jornada_id = ?
-                          AND empleado_id = ?
-                          AND jornada_estado_id = ?';
+            $stmt->execute();
 
-                    $stmt = $conectar->prepare($sql);
-                    $stmt->bindValue(1, $fila['inicio'], PDO::PARAM_STR);
-                    $stmt->bindValue(2, $fila['fin'], PDO::PARAM_STR);
-                    $stmt->bindValue(
-                        3,
-                        $fila['minutos_ordinarios'],
-                        PDO::PARAM_INT
-                    );
-                    $stmt->bindValue(
-                        4,
-                        $fila['ubicacion'],
-                        PDO::PARAM_STR
-                    );
-                    $stmt->bindValue(
-                        5,
-                        $fila['actividad'],
-                        PDO::PARAM_STR
-                    );
-                    $stmt->bindValue(
-                        6,
-                        $fila['observaciones'],
-                        PDO::PARAM_STR
-                    );
-                    $stmt->bindValue(
-                        7,
-                        $estado_aprobado,
-                        PDO::PARAM_INT
-                    );
-                    $stmt->bindValue(
-                        8,
-                        $jornada_id,
-                        PDO::PARAM_INT
-                    );
-                    $stmt->bindValue(
-                        9,
-                        $empleado_id,
-                        PDO::PARAM_INT
-                    );
-                    $stmt->bindValue(
-                        10,
-                        $estado_borrador,
-                        PDO::PARAM_INT
-                    );
-                    $stmt->execute();
+            $jornadas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                    if ($stmt->rowCount() !== 1) {
-                        throw new RuntimeException(
-                            'Una de las jornadas cambió de estado antes de aprobar.'
-                        );
-                    }
-
-                    $this->registrar_aprobacion_jefe_masiva(
-                        $conectar,
-                        $jornada_id,
-                        $user_id,
-                        $jefe_empleado_id
-                    );
-
-                    $datos_nuevos = [
-                        'empleado_id' => (int) $empleado_id,
-                        'jornada_inicio' => $fila['inicio'],
-                        'jornada_fin' => $fila['fin'],
-                        'jornada_minutos_ordinarios' =>
-                            (int) $fila['minutos_ordinarios'],
-                        'jornada_ubicacion' => $fila['ubicacion'],
-                        'jornada_actividad' => $fila['actividad'],
-                        'jornada_observaciones' => $fila['observaciones']
-                    ];
-
-                    $this->registrar_auditoria(
-                        $conectar,
-                        $jornada_id,
-                        'APROBAR_BORRADOR_JEFE_MASIVO',
-                        'BORRADOR',
-                        'APROBADO',
-                        $anterior,
-                        $datos_nuevos,
-                        'Aprobación masiva por registro del jefe',
-                        $user_id
-                    );
-
-                    $resultado['aprobadas'][] = (int) $jornada_id;
-                    continue;
-                }
-
-                /*
-                 * Jornada completamente nueva.
-                 */
-                $this->validar_disponibilidad(
-                    $conectar,
-                    $empleado_id,
-                    $fila['inicio'],
-                    $fila['fin']
+            // Debe existir al menos una jornada en el periodo.
+            if (count($jornadas) === 0) {
+                throw new RuntimeException(
+                    'No existen jornadas registradas para aprobar en el periodo seleccionado.'
                 );
+            }
 
-                $sql = "INSERT INTO jornadas_trabajo (
-                        empleado_id,
-                        jornada_inicio,
-                        jornada_fin,
-                        jornada_minutos_ordinarios,
-                        jornada_ubicacion,
-                        jornada_actividad,
-                        jornada_observaciones,
-                        jornada_origen,
-                        jornada_estado_id,
-                        jornada_creado_por
-                    )
-                    VALUES (
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        ?,
-                        'REGISTRO_JEFE',
-                        ?,
-                        ?
-                    )
-                    RETURNING jornada_id";
+            /*
+             * Todas las jornadas existentes deben continuar confirmadas
+             * por el empleado al momento exacto de aprobar.
+             */
+            foreach ($jornadas as $jornada) {
+                if (
+                    (int) $jornada['jornada_estado_id'] !==
+                    (int) $estado_confirmado
+                ) {
+                    throw new RuntimeException(
+                        'No todas las jornadas del periodo continúan confirmadas por el empleado.'
+                    );
+                }
+            }
+
+            $jornadas_aprobadas = [];
+
+            foreach ($jornadas as $anterior) {
+                $jornada_id =
+                    (int) $anterior['jornada_id'];
+
+                /*
+                 * Cambia exclusivamente:
+                 * CONFIRMADO_EMPLEADO -> APROBADO.
+                 */
+                $sql = 'UPDATE jornadas_trabajo
+                    SET jornada_estado_id = ?,
+                        jornada_fecha_actualizacion = CURRENT_TIMESTAMP,
+                        jornada_version = jornada_version + 1
+                    WHERE jornada_id = ?
+                      AND empleado_id = ?
+                      AND jornada_estado_id = ?';
 
                 $stmt = $conectar->prepare($sql);
-                $stmt->bindValue(1, $empleado_id, PDO::PARAM_INT);
-                $stmt->bindValue(2, $fila['inicio'], PDO::PARAM_STR);
-                $stmt->bindValue(3, $fila['fin'], PDO::PARAM_STR);
+
                 $stmt->bindValue(
-                    4,
-                    $fila['minutos_ordinarios'],
-                    PDO::PARAM_INT
-                );
-                $stmt->bindValue(
-                    5,
-                    $fila['ubicacion'],
-                    PDO::PARAM_STR
-                );
-                $stmt->bindValue(
-                    6,
-                    $fila['actividad'],
-                    PDO::PARAM_STR
-                );
-                $stmt->bindValue(
-                    7,
-                    $fila['observaciones'],
-                    PDO::PARAM_STR
-                );
-                $stmt->bindValue(
-                    8,
+                    1,
                     $estado_aprobado,
                     PDO::PARAM_INT
                 );
+
                 $stmt->bindValue(
-                    9,
-                    $user_id,
+                    2,
+                    $jornada_id,
                     PDO::PARAM_INT
                 );
+
+                $stmt->bindValue(
+                    3,
+                    $empleado_id,
+                    PDO::PARAM_INT
+                );
+
+                $stmt->bindValue(
+                    4,
+                    $estado_confirmado,
+                    PDO::PARAM_INT
+                );
+
                 $stmt->execute();
 
-                $nuevo_id = (int) $stmt->fetchColumn();
+                if ($stmt->rowCount() !== 1) {
+                    throw new RuntimeException(
+                        'Una de las jornadas cambió de estado antes de completar la aprobación.'
+                    );
+                }
 
+                // Registra la decisión del jefe en jornada_aprobaciones.
                 $this->registrar_aprobacion_jefe_masiva(
                     $conectar,
-                    $nuevo_id,
+                    $jornada_id,
                     $user_id,
                     $jefe_empleado_id
                 );
 
-                $datos_nuevos = [
-                    'empleado_id' => (int) $empleado_id,
-                    'jornada_inicio' => $fila['inicio'],
-                    'jornada_fin' => $fila['fin'],
-                    'jornada_minutos_ordinarios' =>
-                        (int) $fila['minutos_ordinarios'],
-                    'jornada_ubicacion' => $fila['ubicacion'],
-                    'jornada_actividad' => $fila['actividad'],
-                    'jornada_observaciones' => $fila['observaciones'],
-                    'jornada_origen' => 'REGISTRO_JEFE'
-                ];
+                $datos_nuevos = $anterior;
+                $datos_nuevos['jornada_estado_id'] =
+                    $estado_aprobado;
 
+                $datos_nuevos['jornada_version'] =
+                    (int) $anterior['jornada_version'] + 1;
+
+                /*
+                 * Registra la transición final después de la
+                 * confirmación firmada del empleado.
+                 */
                 $this->registrar_auditoria(
                     $conectar,
-                    $nuevo_id,
-                    'REGISTRAR_APROBAR_JEFE_MASIVO',
-                    null,
+                    $jornada_id,
+                    'APROBAR_JORNADA_CONFIRMADA_JEFE',
+                    'CONFIRMADO_EMPLEADO',
                     'APROBADO',
-                    null,
+                    $anterior,
                     $datos_nuevos,
-                    'Aprobación masiva por registro del jefe',
+                    'Aprobación final del jefe después de la confirmación del empleado',
                     $user_id
                 );
 
-                $resultado['creadas'][] = $nuevo_id;
+                $jornadas_aprobadas[] =
+                    $jornada_id;
             }
 
             $conectar->commit();
 
             return [
-                'creadas_aprobadas' => count($resultado['creadas']),
-                'borradores_aprobados' => count($resultado['aprobadas']),
-                'total' =>
-                    count($resultado['creadas'])
-                    + count($resultado['aprobadas'])
+                'aprobadas' =>
+                    count($jornadas_aprobadas),
+                'jornadas_aprobadas' =>
+                    $jornadas_aprobadas
             ];
         } catch (Throwable $e) {
             if ($conectar->inTransaction()) {
@@ -1859,7 +2590,10 @@ class Jornada extends Conectar
                 ON e.je_id = j.jornada_estado_id
             WHERE j.jornada_id = ?
               AND j.empleado_id = ?
-              AND e.je_codigo = 'BORRADOR'
+              AND e.je_codigo IN (
+                    'BORRADOR',
+                    'CONFIRMADO_EMPLEADO'
+              )
               AND EXISTS (
                     SELECT 1
                     FROM empleado_jefe ej
@@ -2030,5 +2764,91 @@ class Jornada extends Conectar
                 'El empleado no está relacionado activamente con el jefe.'
             );
         }
+    }
+
+    /**
+     * Invalida la confirmación vigente de una jornada modificada por el jefe.
+     */
+    private function invalidar_confirmacion_jornada_obra(
+        PDO $conectar,
+        $jornada_id,
+        $user_id,
+        $motivo
+    ) {
+        $sql = "SELECT
+                d.jcod_id,
+                d.jco_id,
+                d.jcod_jornada_version,
+                d.jcod_snapshot
+            FROM jornada_confirmacion_obra_detalle d
+            INNER JOIN jornada_confirmaciones_obra c
+                ON c.jco_id = d.jco_id
+            WHERE d.jornada_id = ?
+              AND d.jcod_estado = 'VIGENTE'
+              AND c.jco_estado = 'VIGENTE'
+            ORDER BY d.jcod_fecha_registro DESC, d.jcod_id DESC
+            LIMIT 1
+            FOR UPDATE OF d";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $jornada_id, PDO::PARAM_INT);
+        $stmt->execute();
+
+        $detalle = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$detalle) {
+            throw new RuntimeException(
+                'No se encontró una confirmación vigente para la jornada.'
+            );
+        }
+
+        $sql = "UPDATE jornada_confirmacion_obra_detalle
+            SET jcod_estado = 'INVALIDADA',
+                jcod_fecha_invalidacion = CURRENT_TIMESTAMP,
+                jcod_invalidado_por = ?,
+                jcod_motivo_invalidacion = ?
+            WHERE jcod_id = ?
+              AND jcod_estado = 'VIGENTE'";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(1, $user_id, PDO::PARAM_INT);
+        $stmt->bindValue(2, $motivo, PDO::PARAM_STR);
+        $stmt->bindValue(
+            3,
+            $detalle['jcod_id'],
+            PDO::PARAM_INT
+        );
+        $stmt->execute();
+
+        if ($stmt->rowCount() !== 1) {
+            throw new RuntimeException(
+                'La confirmación cambió antes de completar la modificación.'
+            );
+        }
+
+        /*
+         * Si la cabecera ya no tiene ningún detalle vigente,
+         * también queda marcada como invalidada.
+         */
+        $sql = "UPDATE jornada_confirmaciones_obra c
+            SET jco_estado = 'INVALIDADA'
+            WHERE c.jco_id = ?
+              AND c.jco_estado = 'VIGENTE'
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM jornada_confirmacion_obra_detalle d
+                    WHERE d.jco_id = c.jco_id
+                      AND d.jcod_estado = 'VIGENTE'
+              )";
+
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(
+            1,
+            $detalle['jco_id'],
+            PDO::PARAM_INT
+        );
+        $stmt->execute();
+
+        return $detalle;
     }
 }
