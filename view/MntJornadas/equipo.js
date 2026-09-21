@@ -279,6 +279,7 @@ function renderEstadoExpediente(codigo, nombre) {
         CONFIRMADO_EMPLEADO: 'badge-info',
         PENDIENTE_APROBACION: 'badge-warning',
         APROBADO: 'badge-success',
+        LIQUIDADO: 'badge-success',
         RECHAZADO: 'badge-danger',
         ANULADO: 'badge-dark',
         PENDIENTE_CORRECCION: 'badge-info',

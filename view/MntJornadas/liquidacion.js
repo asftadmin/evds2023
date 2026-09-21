@@ -8,7 +8,7 @@ let lcUltimaBusqueda = '';
 const lcSeleccionadas = new Set();
 
 function lcClaveEstado(tipo) {
-    return 'jornadas-liquidacion-v2:' + location.pathname + ':'
+    return 'jornadas-liquidacion-v3:' + location.pathname + ':'
         + $('#tabla-liquidacion').attr('data-usuario-id') + ':' + tipo;
 }
 
@@ -37,7 +37,7 @@ function lcPeriodoInicial() {
 
 function lcActualizarControles() {
     const bloqueado = lcEnCurso || !lcAutorizado;
-    $('#filtro_fechas, #empleado_id, #estado_liquidacion, #btn-consultar, #btn-restablecer, '
+    $('#filtro_fechas, #empleado_id, #estado_liquidacion, #estado_jornada, #btn-consultar, #btn-restablecer, '
         + '#tabla-liquidacion button, #tabla-liquidacion input[type="checkbox"], '
         + '#tabla-liquidacion_wrapper .dataTables_filter input, #tabla-liquidacion_wrapper .dataTables_length select')
         .prop('disabled', bloqueado);
@@ -45,7 +45,11 @@ function lcActualizarControles() {
 }
 
 function lcFilasFiltradas() {
-    return tablaLiquidacion ? tablaLiquidacion.rows({ search: 'applied' }).data().toArray() : [];
+    return tablaLiquidacion ? tablaLiquidacion.rows({ search: 'applied' }).data().toArray().filter(lcPuedeClasificar) : [];
+}
+
+function lcPuedeClasificar(fila) {
+    return ['APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO'].includes(fila.estado_codigo);
 }
 
 function lcActualizarSeleccion() {
@@ -82,6 +86,7 @@ function lcRango() {
         fecha_hasta: partes[1] || '',
         empleado_id: $('#empleado_id').val() || '',
         estado: $('#estado_liquidacion').val() || '',
+        estado_jornada: $('#estado_jornada').val() || '',
         empleado_nombre: $('#empleado_id option:selected').text()
     };
 }
@@ -103,6 +108,7 @@ function inicializarLiquidacion() {
         if (['', 'PENDIENTE', 'CLASIFICADA'].includes(guardado.estado)) {
             $('#estado_liquidacion').val(guardado.estado);
         }
+        $('#estado_jornada').val(guardado.estado_jornada || '');
     }
     $('#filtro_fechas').daterangepicker({
         startDate: periodo.inicio,
@@ -206,7 +212,8 @@ function cargarLiquidacion() {
             },
             dataSrc: function (respuesta) {
                 return (respuesta.data || []).filter(function (fila) {
-                    return !lcFiltrosAplicados.estado || lcFiltrosAplicados.estado === (fila.clasificacion_completa ? 'CLASIFICADA' : 'PENDIENTE');
+                    return (!lcFiltrosAplicados.estado_jornada || lcFiltrosAplicados.estado_jornada === fila.estado_codigo)
+                        && (!lcFiltrosAplicados.estado || lcFiltrosAplicados.estado === (fila.clasificacion_completa ? 'CLASIFICADA' : 'PENDIENTE'));
                 });
             },
             error: function (xhr) {
@@ -220,7 +227,7 @@ function cargarLiquidacion() {
                 searchable: false,
                 className: 'all text-center',
                 render: function (data, type, fila) {
-                    return type === 'display'
+                    return type === 'display' && lcPuedeClasificar(fila)
                         ? '<input type="checkbox" class="lc-seleccionar" data-id="' + Number(fila.jornada_id)
                             + '" aria-label="Seleccionar jornada #' + Number(fila.jornada_id) + '">'
                         : '';
@@ -265,11 +272,36 @@ function cargarLiquidacion() {
                 }
             },
             {
+                data: 'estado_nombre',
+                render: function (nombre, type, fila) {
+                    const texto = nombre || fila.estado_codigo || '';
+                    if (type !== 'display') {
+                        return texto;
+                    }
+                    const clases = {
+                        BORRADOR: 'badge-secondary',
+                        PENDIENTE_APROBACION: 'badge-warning',
+                        APROBADO: 'badge-success',
+                        PENDIENTE_LIQUIDACION: 'badge-info',
+                        LIQUIDADO: 'badge-success',
+                        RECHAZADO: 'badge-danger',
+                        PENDIENTE_CORRECCION: 'badge-info',
+                        CORREGIDO: 'badge-primary',
+                        ANULADO: 'badge-dark'
+                    };
+                    return '<span class="badge ' + (clases[fila.estado_codigo] || 'badge-secondary')
+                        + '">' + lcEscape(texto) + '</span>';
+                }
+            },
+            {
                 data: null,
                 orderable: false,
                 searchable: false,
                 className: 'all',
                 render: function (data, type, fila) {
+                    if (!lcPuedeClasificar(fila)) {
+                        return '<span class="text-muted">Sin acciones</span>';
+                    }
                     const id = Number(fila.jornada_id);
                     return '<div class="d-flex align-items-center">' +
                         '<button class="btn btn-info btn-sm btn-segmentos mr-2" data-id="' +
@@ -458,6 +490,7 @@ function restablecerLiquidacion() {
     selector.setEndDate(periodo.fin);
     $('#empleado_id').val('').trigger('change.select2');
     $('#estado_liquidacion').val('');
+    $('#estado_jornada').val('');
     $('#resultado-liquidacion').empty().addClass('d-none');
     lcUltimaBusqueda = '';
     lcRestableciendo = false;
@@ -547,7 +580,7 @@ $('#btn-consultar').on('click', function () {
 
 $('#btn-parametrizacion').on('click', mostrarParametrizacion);
 
-$('#estado_liquidacion').on('change', cargarLiquidacion);
+$('#estado_liquidacion, #estado_jornada').on('change', cargarLiquidacion);
 
 $('#btn-restablecer').on('click', restablecerLiquidacion);
 

@@ -253,7 +253,7 @@ function inicializarRangoFechas() {
         startDate: inicio,
         endDate: fin,
         showDropdowns: true,
-        maxDate: moment(),
+        maxDate: fin,
         locale: {
             format: 'YYYY-MM-DD',
             separator: ' - ',
@@ -292,14 +292,14 @@ function inicializarRangoFechas() {
  * el empleado.
  */
 function inicializarRangoReporteFirma() {
-    const inicio = moment().startOf('month');
+    const inicio = moment().subtract(1, 'month').startOf('month');
     const fin = moment();
 
     $('#reporte_fechas').daterangepicker({
         startDate: inicio,
         endDate: fin,
         showDropdowns: true,
-        maxDate: moment(),
+        maxDate: fin,
         locale: {
             format: 'YYYY-MM-DD',
             separator: ' - ',
@@ -391,6 +391,7 @@ function renderEstadoJornada(codigo, nombre) {
         BORRADOR: 'badge-secondary',
         PENDIENTE_APROBACION: 'badge-warning',
         APROBADO: 'badge-success',
+        LIQUIDADO: 'badge-success',
         RECHAZADO: 'badge-danger',
         PENDIENTE_CORRECCION: 'badge-info',
         CORREGIDO: 'badge-primary',
@@ -866,6 +867,17 @@ function guardarBorrador(cruzaMedianoche) {
 
     actualizarControlesJornada();
 
+    Swal.fire({
+        title: 'Guardando borrador…',
+        text: 'Espere mientras se guarda la jornada.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: function () {
+            Swal.showLoading();
+        }
+    });
+
     $.ajax({
         url: '../../controller/jornada.php?op=guardarBorrador',
         type: 'POST',
@@ -1081,6 +1093,17 @@ function enviarJornadas(ids) {
             actualizarControlesJornada();
             return;
         }
+
+        Swal.fire({
+            title: 'Enviando jornadas…',
+            text: 'Espere mientras se envían las jornadas a aprobación.',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function () {
+                Swal.showLoading();
+            }
+        });
 
         $.ajax({
             url: '../../controller/jornada.php?op=enviarAprobacionMasiva',
@@ -2003,6 +2026,17 @@ function confirmarFirmaReporte() {
         }
 
         reporteFirmaEnProceso = true;
+
+        Swal.fire({
+            title: 'Firmando reporte…',
+            text: 'Espere mientras se guarda la firma.',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function () {
+                Swal.showLoading();
+            }
+        });
 
         $('#btn-confirmar-firma-reporte').prop(
             'disabled',

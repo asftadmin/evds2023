@@ -78,14 +78,29 @@ if (empty($_SESSION["csrf_jornadas"])) {
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <label for="estado_liquidacion">Estado liquidación</label>
+                                <label for="estado_liquidacion">Estado de clasificación</label>
                                 <select class="form-control" id="estado_liquidacion">
                                     <option value="">Todos los estados</option>
                                     <option value="PENDIENTE">Pendiente</option>
                                     <option value="CLASIFICADA">Clasificada</option>
                                 </select>
                             </div>
-                            <div class="col-md-3 d-flex align-items-end flex-wrap">
+                            <div class="col-md-3">
+                                <label for="estado_jornada">Estado de jornada</label>
+                                <select class="form-control" id="estado_jornada">
+                                    <option value="">Todos los estados</option>
+                                    <option value="BORRADOR">Borrador</option>
+                                    <option value="PENDIENTE_APROBACION">Pendiente de aprobación</option>
+                                    <option value="APROBADO">Aprobado</option>
+                                    <option value="PENDIENTE_LIQUIDACION">Pendiente de liquidación</option>
+                                    <option value="LIQUIDADO">Liquidada</option>
+                                    <option value="RECHAZADO">Rechazado</option>
+                                    <option value="PENDIENTE_CORRECCION">Pendiente de corrección</option>
+                                    <option value="CORREGIDO">Corregido</option>
+                                    <option value="ANULADO">Anulado</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end flex-wrap mt-2">
                                 <button type="button" class="btn btn-info mr-2" id="btn-consultar">
                                     <i class="fas fa-search mr-1"></i>Consultar
                                 </button>
@@ -130,7 +145,8 @@ if (empty($_SESSION["csrf_jornadas"])) {
                                         <th>Horas ordinarias</th>
                                         <th>Ubicación</th>
                                         <th>Horas extras autorizadas</th>
-                                        <th>Estado liquidación</th>
+                                        <th>Estado de clasificación</th>
+                                        <th>Estado de jornada</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>

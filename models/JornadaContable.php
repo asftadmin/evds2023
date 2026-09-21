@@ -7,7 +7,7 @@
 class JornadaContable extends Conectar {
 
     /**
-     * Lista empleados con jornadas aprobadas dentro del periodo solicitado.
+     * Lista empleados con jornadas dentro del periodo solicitado.
      */
     public function listar_empleados_periodo($fecha_desde, $fecha_hasta) {
         $conectar = parent::Conexion();
@@ -20,8 +20,7 @@ class JornadaContable extends Conectar {
                 INNER JOIN empleados emp ON emp.id_empl = j.empleado_id
                 INNER JOIN jornada_estados e
                     ON e.je_id = j.jornada_estado_id
-                WHERE e.je_codigo = 'APROBADO'
-                  AND j.jornada_inicio::date >= ?::date
+                WHERE j.jornada_inicio::date >= ?::date
                   AND j.jornada_inicio::date <= ?::date
                 ORDER BY emp.nomb_empl, emp.cedu_empl";
 
@@ -33,7 +32,7 @@ class JornadaContable extends Conectar {
     }
 
     /**
-     * Consulta jornadas aprobadas y su avance de clasificación contable.
+     * Consulta jornadas de todos los estados y su avance de clasificación contable.
      */
     public function listar_liquidacion(
         $fecha_desde,
@@ -43,7 +42,6 @@ class JornadaContable extends Conectar {
         $conectar = parent::Conexion();
 
         $where = [
-            "e.je_codigo = 'APROBADO'",
             "j.jornada_inicio::date >= :fecha_desde::date",
             "j.jornada_inicio::date <= :fecha_hasta::date"
         ];
@@ -60,6 +58,8 @@ class JornadaContable extends Conectar {
                     j.jornada_ubicacion,
                     j.jornada_actividad,
                     j.jornada_origen,
+                    e.je_codigo AS estado_codigo,
+                    e.je_nombre AS estado_nombre,
                     emp.id_empl AS empleado_id,
                     emp.cedu_empl AS documento,
                     emp.nomb_empl AS empleado,
@@ -123,7 +123,9 @@ class JornadaContable extends Conectar {
                     emp.id_empl,
                     emp.cedu_empl,
                     emp.nomb_empl,
-                    resumen.resumen_conceptos
+                    resumen.resumen_conceptos,
+                    e.je_codigo,
+                    e.je_nombre
                 ORDER BY j.jornada_inicio DESC, j.jornada_id DESC";
 
         $stmt = $conectar->prepare($sql);
@@ -137,7 +139,7 @@ class JornadaContable extends Conectar {
     }
 
     /**
-     * Clasifica todos los minutos de una jornada aprobada y reemplaza de forma
+     * Clasifica una jornada aprobada o pendiente de liquidación y reemplaza de forma
      * atómica cualquier cálculo anterior.
      */
     public function clasificar_jornada($jornada_id, $user_id) {
@@ -162,9 +164,9 @@ class JornadaContable extends Conectar {
             if (!$jornada) {
                 throw new RuntimeException('No se encontró la jornada.');
             }
-            if ($jornada['je_codigo'] !== 'APROBADO') {
+            if (!in_array($jornada['je_codigo'], ['APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO'], true)) {
                 throw new RuntimeException(
-                    'Solo pueden clasificarse jornadas aprobadas.'
+                    'Solo pueden clasificarse jornadas aprobadas, pendientes de liquidación o liquidadas.'
                 );
             }
             if ((int)$jornada['jornada_inconsistente'] === 1) {
@@ -223,14 +225,16 @@ class JornadaContable extends Conectar {
                         VALUES (
                             ?,
                             'MARCAR_INCONSISTENCIA_CONTABILIDAD',
-                            'APROBADO',
-                            'APROBADO',
+                            ?,
+                            ?,
                             ?,
                             ?
                         )";
                 $stmt = $conectar->prepare($sql);
                 $stmt->execute([
                     $jornada_id,
+                    $jornada['je_codigo'],
+                    $jornada['je_codigo'],
                     'Intervalo superpuesto; clasificación contable bloqueada.',
                     $user_id
                 ]);
@@ -317,6 +321,20 @@ class JornadaContable extends Conectar {
                 ]);
             }
 
+            // Registra el estado de forma idempotente para instalaciones existentes.
+            $conectar->exec("INSERT INTO jornada_estados (je_codigo, je_nombre, je_estado)
+                VALUES ('LIQUIDADO', 'Liquidada', 1)
+                ON CONFLICT (je_codigo) DO NOTHING");
+            $estado_liquidado = $conectar->query("SELECT je_id FROM jornada_estados
+                WHERE je_codigo = 'LIQUIDADO' AND je_estado = 1")->fetchColumn();
+            if ($estado_liquidado === false) {
+                throw new RuntimeException('El estado Liquidada no está habilitado.');
+            }
+            $stmt = $conectar->prepare("UPDATE jornadas_trabajo
+                SET jornada_estado_id = ?, jornada_fecha_actualizacion = CURRENT_TIMESTAMP
+                WHERE jornada_id = ?");
+            $stmt->execute([(int)$estado_liquidado, $jornada_id]);
+
             $sql = "INSERT INTO jornada_auditoria (
                         jornada_id,
                         jaud_accion,
@@ -329,8 +347,8 @@ class JornadaContable extends Conectar {
                     VALUES (
                         ?,
                         'CLASIFICAR_CONTABILIDAD',
-                        'APROBADO',
-                        'APROBADO',
+                        ?,
+                        ?,
                         ?::jsonb,
                         'Clasificación automática de tiempo',
                         ?
@@ -338,6 +356,8 @@ class JornadaContable extends Conectar {
             $stmt = $conectar->prepare($sql);
             $stmt->execute([
                 $jornada_id,
+                $jornada['je_codigo'],
+                'LIQUIDADO',
                 json_encode($segmentos, JSON_UNESCAPED_UNICODE),
                 $user_id
             ]);
@@ -379,7 +399,7 @@ class JornadaContable extends Conectar {
                 INNER JOIN jornada_estados e
                     ON e.je_id = j.jornada_estado_id
                 WHERE c.jornada_id = ?
-                  AND e.je_codigo = 'APROBADO'
+                  AND e.je_codigo IN ('APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO')
                 ORDER BY c.jcla_inicio, c.jcla_id";
 
         $stmt = $conectar->prepare($sql);
@@ -450,7 +470,7 @@ class JornadaContable extends Conectar {
         $conectar = parent::Conexion();
 
         $where = [
-            "e.je_codigo = 'APROBADO'",
+            "e.je_codigo IN ('APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO')",
             "j.jornada_inicio::date >= :fecha_desde::date",
             "j.jornada_inicio::date <= :fecha_hasta::date"
         ];

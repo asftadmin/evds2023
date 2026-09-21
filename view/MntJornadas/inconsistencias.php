@@ -5,6 +5,21 @@ if (!isset($_SESSION["user_id"])) {
     exit;
 }
 ?>
+<?php
+// El nuevo cruce y la vista de inconsistencias son exclusivos de Contabilidad.
+require_once '../../models/Jornada.php';
+$icModeloAcceso = new Jornada();
+$icEmpleadoAcceso = $icModeloAcceso->obtener_empleado_por_usuario((int)$_SESSION['user_id']);
+if (!$icEmpleadoAcceso || (int)$icEmpleadoAcceso['esta_empl'] !== 1
+    || $icEmpleadoAcceso['rol_nomb'] !== 'Contabilidad'
+    || !$icModeloAcceso->tiene_permiso_menu((int)($_SESSION['user_rol'] ?? 0), 'inconsistencias', false)) {
+    http_response_code(403);
+    exit('Acceso exclusivo de Contabilidad con permiso de inconsistencias.');
+}
+if (empty($_SESSION['csrf_jornadas'])) {
+    $_SESSION['csrf_jornadas'] = bin2hex(random_bytes(32));
+}
+?>
 <!DOCTYPE html>
 <html lang="es">
 <?php require_once("../MainHead/head.php"); ?>
@@ -28,6 +43,7 @@ if (!isset($_SESSION["user_id"])) {
                     <span id="texto-contexto">Validando acceso contable...</span>
                 </div>
                 <div class="card">
+                    <?php require_once 'inconsistencias_biotime.php'; ?>
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-5">
@@ -59,5 +75,6 @@ if (!isset($_SESSION["user_id"])) {
 </div>
 <?php require_once("../MainJS/JS.php"); ?>
 <script src="inconsistencias.js"></script>
+<script src="inconsistencias_biotime.js"></script>
 </body>
 </html>

@@ -264,6 +264,8 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                                     Pendiente liquidación
                                                 </option>
 
+                                                <option value="LIQUIDADO">Liquidada</option>
+
                                                 <option value="RECHAZADO">
                                                     Rechazado
                                                 </option>

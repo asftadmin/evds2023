@@ -64,3 +64,36 @@ Estado: registro, aprobacion de jefe, liquidacion y reportes contables implement
 - Pendiente fase 3: Gestion Humana, comparacion BioTime mediante `controller/curl.php`, inconsistencias y correcciones.
 - Pruebas de reportes realizadas: migracion aplicada, lint PHP, validacion JavaScript, creacion y limpieza de lote temporal, cierre con snapshot y verificacion binaria de PDF y Excel.
 - Pendiente fase 4: integrar BioTime para inconsistencias y completar el flujo de correcciones.
+
+## Cruce informativo BioTime para Contabilidad
+
+Estado: implementado; pendiente validación funcional en navegador y servicios reales.
+
+- Consulta independiente de reportes FIRMADO usando jornada_reporte_detalle.jrd_snapshot y las tablas existentes del esquema compartido. No crea tablas, columnas ni migraciones.
+- Vista y endpoints autorizados únicamente para Contabilidad con permiso del menú Inconsistencias.
+- Inconsistencias BioTime es un diagnóstico operativo: no condiciona el menú Liquidaciones, sus acciones ni el acceso a ellas. No persiste resultados ni marca jornada_inconsistente. Las validaciones preexistentes de liquidación permanecen fuera del alcance de este cambio.
+- Mantiene la consulta externa mediante controller/curl.php, incluidos departments=1 y areas=2. Respuestas incompletas generan error, nunca una ausencia.
+- Agrupa por documento y días abarcados por las jornadas; ordena jornadas y marcaciones cronológicamente y consume cada pareja una sola vez. Las jornadas superpuestas o pares ambiguos requieren revisión manual.
+- No se descartan marcaciones por distancia horaria. Una jornada con dos marcas en los días correspondientes utiliza ambas, aunque estén lejos del horario firmado. Los turnos nocturnos incluyen los días de entrada y salida.
+- La tolerancia solo evalúa las diferencias después de asociar las marcaciones. No recalcula horas ordinarias, conceptos, descuentos ni liquidaciones.
+- Estados: Horario correcto, Diferencia de horario, Marcación incompleta, Sin marcaciones, Revisión de marcaciones y Jornada modificada. Conserva JSON y detalle de candidatas, versiones y horario firmado.
+- No diferencia reglas por Planta, Mantenimiento u Obras. Contabilidad decide cómo proceder con las diferencias.
+- Frontend Bootstrap 4 / AdminLTE 3 con jQuery AJAX, JSON limpio, DataTables, Select2, DateRangePicker y SweetAlert2; conserva la bandeja de inconsistencias existente.
+- Pruebas: php tests/jornadas_cruce_biotime.php (28 verificaciones aisladas, sin servicios externos), lint PHP. Pendiente prueba de integración con PostgreSQL/BioTime y navegador.
+- Esta etapa consulta solo jornadas incluidas en reportes firmados. No detecta todavía marcaciones sin reporte ni implementa un flujo de resolución persistente.
+
+### Corrección de asociación cronológica BioTime
+
+- Caso real obligatorio: firmado 2026-08-27 08:00–13:00 frente a 04:17–20:31 produce diferencias -223 y +451 minutos y Diferencia de horario.
+- Una jornada sin marcas produce Sin marcaciones; una sola marca se presenta en el extremo más próximo y produce Marcación incompleta; dos marcas se asignan como entrada/salida cronológicas.
+- Varias jornadas con pares completos, cronológicamente compatibles, se asocian en orden sin reutilizar evidencias. Cantidades impares, sobrantes o asociaciones ambiguas permanecen como Revisión de marcaciones, conservando todas las candidatas.
+- La tolerancia solo clasifica el resultado después de la asociación. No se modifican liquidaciones, jornadas, firmas, snapshots, tablas ni columnas.
+- Archivos ajustados: models/JornadaCruceBiotime.php, view/MntJornadas/inconsistencias_biotime.php, tests/jornadas_cruce_biotime.php, PLAN.md y STRUCTURE.md.
+- Validación: 28 pruebas aisladas y sintaxis PHP correctas; pendiente ejecución en navegador con datos reales.
+
+### Presentación de diferencias BioTime en HH:MM
+
+- inconsistencias_biotime.js muestra diferencia_entrada y diferencia_salida con signo y formato HH:MM, conservando los minutos numéricos del JSON y el ordenamiento por valor.
+- Ejemplos: -223 -> -03:43; 451 -> +07:31; 30 -> +00:30; -5 -> -00:05; 0 -> 00:00. Sin marcación se muestra —.
+- Las fracciones se redondean al minuto exclusivamente para presentación. No se modifica la comparación ni la tolerancia del modelo.
+- inconsistencias_biotime.php usa los encabezados Diferencia entrada y Diferencia salida, sin unidad en minutos.

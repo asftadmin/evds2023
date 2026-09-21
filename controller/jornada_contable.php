@@ -135,6 +135,9 @@ try {
         'obtenerParametrizacion' => 'liquidacion',
         'contextoInconsistencias' => 'inconsistencias',
         'listarInconsistencias' => 'inconsistencias',
+        'cruzarReporteBiotime' => 'inconsistencias',
+        'empleadosCruceBiotime' => 'inconsistencias',
+        'ajustarJornadaBiotime' => 'inconsistencias',
         'contextoReporte' => 'reporte_contable',
         'reporteContable' => 'reporte_contable',
         'listarLotesReporte' => 'reporte_contable',
@@ -160,6 +163,81 @@ try {
     $contexto = jc_contexto($jornada, $menus[$op]);
 
     switch ($op) {
+        case 'ajustarJornadaBiotime':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                jc_responder(['success' => false, 'message' => 'Utilice POST para confirmar el ajuste.'], 405);
+            }
+            jc_validar_csrf();
+            require_once '../models/JornadaCruceBiotime.php';
+            $cruce = new JornadaCruceBiotime();
+            $ajuste = $cruce->ajustar_desde_biotime(jc_entrada('evidencia'), jc_entrada('extremo'),
+                $_SESSION['biotime_evidencia_clave'] ?? '', $contexto['user_id']);
+            jc_responder(['success' => true, 'data' => $ajuste,
+                'message' => !empty($ajuste['sin_cambios']) ? 'La jornada ya tiene ese horario.'
+                    : 'Se ajustó la jornada actual y se registró la auditoría. La copia firmada se conservó.']);
+            break;
+        case 'empleadosCruceBiotime':
+        case 'cruzarReporteBiotime':
+            [$desde, $hasta, $empleado_id] = jc_filtros();
+            if ((new DateTimeImmutable($desde))->diff(new DateTimeImmutable($hasta))->days > 62) {
+                throw new InvalidArgumentException('Consulte un periodo de máximo 63 días para el cruce.');
+            }
+            require_once '../models/JornadaCruceBiotime.php';
+            $cruce = new JornadaCruceBiotime();
+            $filas = $cruce->reportes($desde, $hasta, $empleado_id);
+            if ($op === 'empleadosCruceBiotime') {
+                $empleados_cruce = [];
+                foreach ($filas as $fila) {
+                    $empleados_cruce[$fila['empleado_id']] = [
+                        'id' => (int)$fila['empleado_id'],
+                        'text' => $fila['empleado'] . ' — ' . $fila['documento']
+                    ];
+                }
+                jc_responder(['success' => true, 'data' => array_values($empleados_cruce)]);
+            }
+            $tolerancia = filter_var(jc_entrada('tolerancia', '0'), FILTER_VALIDATE_INT);
+            if ($tolerancia === false || $tolerancia < 0 || $tolerancia > 60) {
+                throw new InvalidArgumentException('La tolerancia debe estar entre 0 y 60 minutos.');
+            }
+            $marcaciones = [];
+            // Clave privada distinta del CSRF; solo el servidor puede autorizar la evidencia mostrada.
+            if (empty($_SESSION['biotime_evidencia_clave'])) {
+                $_SESSION['biotime_evidencia_clave'] = bin2hex(random_bytes(32));
+            }
+            $clave_evidencia = $_SESSION['biotime_evidencia_clave'];
+            if ($filas) {
+                $fin_consulta = $hasta;
+                foreach ($filas as $fila) {
+                    $copia = json_decode($fila['jrd_snapshot'], true);
+                    if (!empty($copia['jornada_fin'])) {
+                        $fin_consulta = max($fin_consulta, (new DateTimeImmutable($copia['jornada_fin']))->format('Y-m-d'));
+                    }
+                }
+                if ((new DateTimeImmutable($desde))->diff(new DateTimeImmutable($fin_consulta))->days > 65) {
+                    throw new InvalidArgumentException('El intervalo firmado es demasiado extenso para este cruce.');
+                }
+                require_once 'curl.php';
+                // Libera la sesión durante la consulta externa de solo lectura.
+                if (session_status() === PHP_SESSION_ACTIVE) {
+                    session_write_close();
+                }
+                // Incluye evidencia próxima a medianoche en los límites del periodo.
+                $inicio_biotime = (new DateTimeImmutable($desde))->modify('-1 day')->format('Y-m-d');
+                $fin_biotime = (new DateTimeImmutable($fin_consulta))->modify('+1 day')->format('Y-m-d');
+                $marcaciones = $cruce->marcaciones($inicio_biotime, $fin_biotime);
+            }
+            $filas_cruce = JornadaCruceBiotime::comparar($filas, $marcaciones, $tolerancia);
+            foreach ($filas_cruce as &$fila_cruce) {
+                $fila_cruce['evidencia_ajuste'] = JornadaCruceBiotime::autorizar_evidencia(
+                    $fila_cruce, $clave_evidencia, $contexto['user_id']);
+            }
+            unset($fila_cruce);
+            jc_responder([
+                'success' => true,
+                'data' => $filas_cruce,
+                'consultado' => date('c'), 'tolerancia' => $tolerancia
+            ]);
+            break;
         case 'contextoLiquidacion':
         case 'contextoInconsistencias':
         case 'contextoReporte':
@@ -302,7 +380,9 @@ try {
                         (int)$fila['cantidad_segmentos'] > 0
                         && (int)$fila['minutos_clasificados']
                             === (int)$fila['minutos_intervalo']
-                    )
+                    ),
+                    'estado_codigo' => $fila['estado_codigo'],
+                    'estado_nombre' => $fila['estado_nombre']
                 ];
             }
             jc_responder(['success' => true, 'data' => $data]);
