@@ -1,31 +1,9 @@
 <?php
 
-// Evita que mensajes inesperados contaminen la respuesta JSON.
-ob_start();
-
-header('Content-Type: application/json; charset=utf-8');
-
-require_once ('../config/conexion.php');
-require_once ('../models/SoporteNomina.php');
+require_once __DIR__ . '/soporte_nomina_http.php';
+require_once __DIR__ . '/../models/SoporteNomina.php';
 
 $soporteNomina = new SoporteNomina();
-
-// Devuelve siempre una respuesta JSON limpia.
-function responderJson($respuesta, $codigo = 200)
-{
-    if (ob_get_length()) {
-        ob_clean();
-    }
-
-    http_response_code($codigo);
-
-    echo json_encode(
-        $respuesta,
-        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-    );
-
-    exit;
-}
 
 // Normaliza el encabezado del Excel.
 function normalizarEncabezado($valor)
@@ -90,22 +68,12 @@ $op = isset($_GET['op']) ? $_GET['op'] : '';
 
 switch ($op) {
     case 'validar_archivo':
+        validarEscrituraSoporte();
         try {
             // Valida el periodo seleccionado.
-            $mes = isset($_POST['periodo_mes'])
-                ? (int) $_POST['periodo_mes']
-                : 0;
-
-            $anio = isset($_POST['periodo_anio'])
-                ? trim($_POST['periodo_anio'])
-                : '';
-
-            if ($mes < 1 || $mes > 12 || $anio === '') {
-                responderJson([
-                    'success' => false,
-                    'mensaje' => 'Debe seleccionar un periodo válido.'
-                ], 400);
-            }
+            $mes = $_POST['periodo_mes'] ?? '';
+            $anio = $_POST['periodo_anio'] ?? '';
+            SoporteNomina::validarPeriodo($anio, $mes);
 
             // Valida que el archivo haya sido enviado correctamente.
             if (
@@ -150,6 +118,14 @@ switch ($op) {
                 responderJson([
                     'success' => false,
                     'mensaje' => 'La librería PhpSpreadsheet no está disponible en el proyecto.'
+                ], 500);
+            }
+
+            // XLSX requiere ZIP; informa el requisito antes de intentar leer el libro.
+            if ($extension === 'xlsx' && !class_exists('ZipArchive')) {
+                responderJson([
+                    'success' => false,
+                    'mensaje' => 'El servidor no tiene habilitada la extensión ZIP de PHP para leer archivos .xlsx. Habilite extension=zip en php.ini y reinicie Apache.'
                 ], 500);
             }
 
@@ -221,6 +197,11 @@ switch ($op) {
                     continue;
                 }
 
+                // Ignora auxilios no positivos antes de validar cédulas o duplicados.
+                if ($valor !== null && $valor <= 0) {
+                    continue;
+                }
+
                 // Una fila sin cédula no puede ser validada.
                 if ($cedula === '') {
                     responderJson([
@@ -230,7 +211,7 @@ switch ($op) {
                 }
 
                 // El valor debe ser numérico y mayor o igual a cero.
-                if ($valor === null || $valor < 0) {
+                if ($valor === null || !is_finite($valor)) {
                     responderJson([
                         'success' => false,
                         'mensaje' => "La fila {$fila} contiene un valor de auxilio inválido."
@@ -269,7 +250,7 @@ switch ($op) {
              * El Controller no realiza consultas SQL.
              * Envía los registros al modelo para validar las cédulas.
              */
-            $resultado = $soporteNomina->validarEmpleadosArchivo($filas);
+            $resultado = $soporteNomina->guardarArchivo($filas, $anio, $mes);
 
             if (
                 empty($resultado['registros']) &&
@@ -283,35 +264,44 @@ switch ($op) {
 
             responderJson([
                 'success' => true,
-                'mensaje' => 'Archivo validado correctamente.',
+                'mensaje' => $resultado['guardados'] . ' borradores guardados. ' . $resultado['omitidos']
+                    . ' registros existentes conservados. ' . count($resultado['inconsistencias']) . ' inconsistencias.',
                 'periodo' => [
                     'mes' => $mes,
                     'anio' => $anio
                 ],
                 'registros' => $resultado['registros'],
-                'inconsistencias' => $resultado['inconsistencias']
+                'inconsistencias' => $resultado['inconsistencias'],
+                'guardados' => $resultado['guardados'],
+                'omitidos' => $resultado['omitidos']
             ]);
+        } catch (DomainException $e) {
+            // Conserva las inconsistencias visibles aunque falte configurar la tarifa.
+            $validacion = $soporteNomina->validarEmpleadosArchivo($filas);
+            responderJson(['success' => false, 'mensaje' => $e->getMessage(),
+                'inconsistencias' => $validacion['inconsistencias']], 400);
         } catch (Throwable $e) {
-            responderJson([
-                'success' => false,
-                'mensaje' => 'Ocurrió un error al procesar el archivo.',
-                'error' => $e->getMessage(),
-                'archivo' => $e->getFile(),
-                'linea' => $e->getLine()
-            ], 500);
+            throw $e;
         }
 
         break;
 
     case 'procesar':
-        /*
-         * Esta operación todavía no se desarrolla.
-         * Falta definir la tabla que almacenará el soporte y su estado.
-         */
+        // El backend vuelve a comprobar periodo y estado de cada selección.
+        validarEscrituraSoporte();
+        $cantidad = $soporteNomina->procesarSeleccionados($_POST['registros'] ?? [],
+            $_POST['periodo_anio'] ?? '', $_POST['periodo_mes'] ?? '');
         responderJson([
-            'success' => false,
-            'mensaje' => 'El procesamiento contable todavía no se encuentra habilitado.'
-        ], 409);
+            'success' => true, 'procesados' => $cantidad,
+            'mensaje' => $cantidad . ' registros contabilizados. Los no disponibles se conservaron sin cambios.'
+        ]);
+
+        break;
+
+    case 'consultar_periodo':
+        // Permite regresar al periodo sin volver a cargar el archivo.
+        responderJson(['success' => true, 'registros' => $soporteNomina->consultarPeriodo(
+            $_GET['periodo_anio'] ?? '', $_GET['periodo_mes'] ?? '')]);
 
         break;
 

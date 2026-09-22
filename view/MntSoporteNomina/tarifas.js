@@ -1,6 +1,11 @@
 var tablaTarifas;
 
 $(document).ready(function () {
+    // Evita envíos nativos del formulario al presionar Enter.
+    $("#form_tarifas").on("submit", function (event) {
+        event.preventDefault();
+        guardarTarifa();
+    });
 
     // Inicializa los Select2 del formulario.
     $(".select2").select2({
@@ -48,6 +53,9 @@ $(document).ready(function () {
             {
                 data: null,
                 render: function (data, type, row) {
+                    if (type === 'sort' || type === 'type') {
+                        return Number(row.tarifa_anio) * 100 + Number(row.tarifa_mes);
+                    }
                     return obtenerNombreMes(row.tarifa_mes) + " " + row.tarifa_anio;
                 }
             },
@@ -137,6 +145,7 @@ $(document).ready(function () {
 
 // Guarda una nueva tarifa o actualiza una existente.
 function guardarTarifa() {
+    if ($("#btn_guardar").prop("disabled")) { return; }
 
     var tarifaId = $("#tarifa_id").val();
     var mes = $("#tarifa_mes").val();
@@ -227,6 +236,7 @@ function guardarTarifa() {
             dataType: "json",
 
             data: {
+                csrf_token: $("#soporte_csrf").val(),
                 tarifa_id: tarifaId,
                 tarifa_mes: mes,
                 tarifa_anio: anio,
@@ -260,12 +270,12 @@ function guardarTarifa() {
                 tablaTarifas.ajax.reload(null, false);
             },
 
-            error: function () {
+            error: function (xhr) {
 
                 Swal.fire({
                     icon: "error",
                     title: "Error",
-                    text: "No fue posible guardar la configuración."
+                    text: xhr.responseJSON ? xhr.responseJSON.mensaje : "No fue posible guardar la configuración."
                 });
             },
 
@@ -410,15 +420,19 @@ function obtenerNombreMes(mes) {
 
 // Formatea visualmente los inputs monetarios.
 function formatearInputMoneda(input) {
+    // Conserva el signo negativo para que la validación lo rechace.
+    if (input.value.indexOf('-') !== -1) { return; }
 
-    var valor = input.value.replace(/\D/g, "");
+    var partes = input.value.replace(/[^\d,]/g, "").split(",");
+    var valor = partes[0];
 
     if (valor === "") {
         input.value = "";
         return;
     }
 
-    input.value = parseInt(valor, 10).toLocaleString("es-CO");
+    input.value = parseInt(valor, 10).toLocaleString("es-CO") +
+        (partes.length > 1 ? "," + partes[1].slice(0, 2) : "");
 }
 
 
@@ -434,7 +448,7 @@ function obtenerValorMoneda(valor) {
             .toString()
             .replace(/\./g, "")
             .replace(/,/g, ".")
-            .replace(/[^\d.]/g, "")
+            .replace(/[^\d.-]/g, "")
     ) || 0;
 }
 
@@ -446,7 +460,7 @@ function formatoNumeroInput(valor) {
 
     return valor.toLocaleString("es-CO", {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0
+        maximumFractionDigits: 2
     });
 }
 
@@ -460,6 +474,6 @@ function formatoMoneda(valor) {
         style: "currency",
         currency: "COP",
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0
+        maximumFractionDigits: 2
     });
 }

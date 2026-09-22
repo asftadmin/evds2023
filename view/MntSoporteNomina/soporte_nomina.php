@@ -3,6 +3,10 @@
 require_once ('../../config/conexion.php');
 
 if (isset($_SESSION['user_id'])) {
+    // Comparte un token de escritura con la configuración de tarifas.
+    if (empty($_SESSION['soporte_nomina_csrf'])) {
+        $_SESSION['soporte_nomina_csrf'] = bin2hex(random_bytes(32));
+    }
 ?>
 
 <!DOCTYPE html>
@@ -16,6 +20,7 @@ if (isset($_SESSION['user_id'])) {
 </head>
 
 <body class="hold-transition sidebar-mini">
+    <input type="hidden" id="soporte_csrf" value="<?php echo htmlspecialchars($_SESSION['soporte_nomina_csrf'], ENT_QUOTES, 'UTF-8'); ?>">
     <div class="wrapper">
 
         <?php require_once ('../MainNav/nav.php'); ?>
@@ -90,11 +95,20 @@ if (isset($_SESSION['user_id'])) {
                                         <select id="periodo_anio" class="form-control select2" style="width: 100%;">
 
                                             <option value="">Seleccione...</option>
-                                            <option value="2026">2026</option>
+                                            <?php // Permite consultar periodos históricos y configurar próximos años. ?>
+                                            <?php for ($anio = 2000; $anio <= (int) date('Y') + 3; $anio++) { ?>
+                                            <option value="<?php echo $anio; ?>"><?php echo $anio; ?></option>
+                                            <?php } ?>
                                         </select>
                                     </div>
                                 </div>
 
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <div class="form-group">
+                                        <button type="button" id="btn_consultar" class="btn btn-primary">Consultar periodo</button>
+                                        <a href="tarifas.php" class="btn btn-outline-secondary">Configurar tarifas</a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -156,8 +170,7 @@ if (isset($_SESSION['user_id'])) {
                                                 </div>
 
                                                 <small class="form-text text-muted">
-                                                    El archivo debe contener Cédula,
-                                                    Empleado y Valor Auxilio.
+                                                    El archivo debe contener las columnas cedu_empl y valor.
                                                 </small>
 
                                             </div>
@@ -171,7 +184,7 @@ if (isset($_SESSION['user_id'])) {
                                                     class="btn btn-primary btn-block">
 
                                                     <i class="fas fa-search mr-1"></i>
-                                                    Validar archivo
+                                                    Validar y guardar borradores
                                                 </button>
 
                                             </div>
@@ -270,7 +283,7 @@ if (isset($_SESSION['user_id'])) {
                                     <thead>
                                         <tr>
                                             <th>Cédula archivo</th>
-                                            <th>Empleado archivo</th>
+                                            <th>Valor Auxilio</th>
                                             <th>Observación</th>
                                         </tr>
                                     </thead>

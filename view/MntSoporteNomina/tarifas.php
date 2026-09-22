@@ -3,6 +3,10 @@
 require_once ('../../config/conexion.php');
 
 if (isset($_SESSION['user_id'])) {
+    // Emite el token requerido por las operaciones de escritura AJAX.
+    if (empty($_SESSION['soporte_nomina_csrf'])) {
+        $_SESSION['soporte_nomina_csrf'] = bin2hex(random_bytes(32));
+    }
     // Año actual para construir el selector.
     $anioActual = (int) date('Y');
     ?>
@@ -20,6 +24,7 @@ if (isset($_SESSION['user_id'])) {
 </head>
 
 <body class="hold-transition sidebar-mini">
+    <input type="hidden" id="soporte_csrf" value="<?php echo htmlspecialchars($_SESSION['soporte_nomina_csrf'], ENT_QUOTES, 'UTF-8'); ?>">
 
     <div class="wrapper">
 
@@ -140,7 +145,7 @@ if (isset($_SESSION['user_id'])) {
 
                                                 <?php
                                                 for (
-                                                    $anio = $anioActual - 1;
+                                                    $anio = 2000;
                                                     $anio <= $anioActual + 3;
                                                     $anio++
                                                 ) {

@@ -97,3 +97,40 @@ Estado: implementado; pendiente validación funcional en navegador y servicios r
 - Ejemplos: -223 -> -03:43; 451 -> +07:31; 30 -> +00:30; -5 -> -00:05; 0 -> 00:00. Sin marcación se muestra —.
 - Las fracciones se redondean al minuto exclusivamente para presentación. No se modifica la comparación ni la tolerancia del modelo.
 - inconsistencias_biotime.php usa los encabezados Diferencia entrada y Diferencia salida, sin unidad en minutos.
+
+## Soporte Nómina: tarifas, borradores y contabilización
+
+Estado: implementado; pendiente validación visual y de uso en navegador.
+
+- Se revisaron PLAN.md, STRUCTURE.md y el respaldo encontrado en C:/Users/Cristian/Downloads/Telegram Desktop/evds2023.sql. El respaldo no contiene las tablas nuevas; sus columnas, escalas y claves únicas se verificaron directamente en PostgreSQL.
+- Tarifas: listado histórico, creación y edición por mes/año; importes positivos con hasta dos decimales, periodo único protegido también por PostgreSQL, sin eliminación física.
+- Se conserva el lector PhpSpreadsheet y la validación por empleados.cedu_empl; el nombre proviene de empleados.nomb_empl. Se ignoran auxilios <= 0 y se muestran las cédulas inexistentes como inconsistencias, sin persistirlas. Cédulas repetidas en el archivo o ambiguas en empleados se rechazan.
+- Clasificación verificada: empleados.carg_empl = cargo.codi_carg, cargo.grem_carg = grupoempleados.codi_grem. Solo los grupos 4 (OBRAS) y 6 (OPERADORES DE MAQUINARIA) dividen los días cuando DíasBase > 15. El grupo 7 (OBRA ADMINISTRACION) sigue la regla general.
+- El motor permanece en backend y aplica la fórmula corregida por el usuario: Otros = TotalAuxilio - ValorAlimentación - ValorHospedaje. No redondea días antes de calcular importes ni expone fórmulas/clasificación en la vista.
+- Límite del esquema existente: los días son NUMERIC(10,2) y los importes NUMERIC(12,2). PostgreSQL aplica esa escala al guardar los resultados ya calculados. No se alteraron tablas ni columnas; conservar más decimales de días persistidos requeriría una decisión posterior sobre el esquema.
+- La tarifa activa del periodo es obligatoria. La carga es transaccional, guarda estado 1 y origen ARCHIVO, y conserva los registros existentes (borradores o contabilizados), informando cuántos omitió. No reemplaza importes ni genera duplicados.
+- La consulta por periodo recupera el histórico sin Excel y sin recalcularlo. Cambiar una tarifa no modifica resultados ya guardados.
+- Procesar seleccionados requiere confirmación SweetAlert2 y actualiza únicamente IDs del periodo que aún están en estado 1 hacia estado 2. La selección se conserva entre páginas del DataTable; contabilizados no se seleccionan ni se reprocesan. Cancelar no escribe. Se recarga el detalle por AJAX.
+- AJAX tarifas: listar, mostrar, guardar, actualizar; AJAX soporte: validar_archivo, consultar_periodo, procesar. JSON limpio, autenticación de sesión y CSRF en escrituras; SQL exclusivamente en modelos.
+- Validación: 69 verificaciones aisladas en tests/soporte_nomina.php; 17 comprobaciones de integración sobre copias temporales de las tablas en PostgreSQL (tarifas, umbral, fracciones, inconsistencias, duplicados, histórico, estados y rollback), sin modificar datos reales; sintaxis PHP/JavaScript y seis comprobaciones de JSON en controladores (lectura, sesión, periodo, CSRF y tarifa inválida).
+- Pendientes de esta entrega: prueba visual del flujo completo con sesión real y Excel del usuario. Liquidación sigue visible y pendiente; Gerencia, consolidado, gráficas y dashboard quedan para otra etapa.
+
+### Corrección de carga XLSX: extensión ZIP
+
+- Causa confirmada en el log de Apache: Class "ZipArchive" not found al validar Excel. La extensión existente estaba comentada en C:/xampp/php/php.ini.
+- Se habilitó extension=zip y se verificó en PHP CLI mediante creación y lectura de un XLSX temporal con PhpSpreadsheet.
+- controller/soporte_nomina.php ahora detecta la ausencia de ZipArchive para XLSX y responde JSON con la acción necesaria, en lugar del mensaje genérico.
+- Apache debe reiniciarse desde el panel XAMPP para cargar la extensión. El reinicio por servicio no está disponible: no existe un servicio instalado llamado Apache2.4.
+
+### Corrección confirmada de Otros
+
+- La confirmación del usuario sustituye la fórmula anterior: Otros = TotalAuxilio - ValorAlimentación - ValorHospedaje.
+- Se calculan los importes con días sin redondear y se llevan a centavos antes de descontarlos, para que el saldo concilie con los valores persistidos y visibles.
+- Caso validado: 1.253.494,50 - 626.747,25 - 522.289,38 = 104.457,87.
+- Se corrigieron cuatro borradores ARCHIVO de mayo de 2026 mediante corregirOtrosBorradores; solo cambió Otros en registros que coincidían con la fórmula anterior. No se modificaron contabilizados, días, tarifas ni otros periodos.
+- Validación: 72 verificaciones aisladas, sintaxis PHP y prueba PostgreSQL temporal de corrección idempotente con protección de contabilizados y otros periodos.
+
+### Indicador al procesar seleccionados
+
+- El botón muestra spinner y Guardando... durante la solicitud de contabilización, después de confirmar. Permanece deshabilitado y recupera su contenido al finalizar, incluso si falla la solicitud.
+- Validación: sintaxis JavaScript correcta.
