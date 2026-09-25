@@ -1,13 +1,11 @@
 <?php
 
-class CurlController {
+class CurlController
+{
+    /* PETICIONES A LA API */
 
-    /*PETICIONES A LA API*/
-
-    public static function requestEstandar($url, $method) {
-
-
-
+    public static function requestEstandar($url, $method)
+    {
         $curl = curl_init();
 
         curl_setopt_array($curl, array(
@@ -33,8 +31,8 @@ class CurlController {
         return $response;
     }
 
-    public static function requestBiotime($url, $method) {
-
+    public static function requestBiotime($url, $method)
+    {
         $curl = curl_init();
 
         curl_setopt_array($curl, array(
@@ -57,6 +55,82 @@ class CurlController {
 
         return json_decode($response);
     }
+
+    public static function requestPreoperacional($url, $method, $data = null)
+    {
+        $token = trim((string) getenv('TICKETS_API_TOKEN'));
+
+        if ($token === '') {
+            throw new RuntimeException(
+                'No está configurado TICKETS_API_TOKEN.'
+            );
+        }
+
+        $curl = curl_init();
+
+        $headers = array(
+            'Accept: application/json',
+            'Authorization: Bearer ' . $token
+        );
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => 'http://localhost/preoperacional/api/tickets.php?' . $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => strtoupper($method)
+        ));
+
+        if (strtoupper($method) === 'POST' && $data !== null) {
+            $json = json_encode(
+                $data,
+                JSON_UNESCAPED_UNICODE
+            );
+
+            if ($json === false) {
+                curl_close($curl);
+
+                throw new RuntimeException(
+                    'No fue posible preparar la información para la API.'
+                );
+            }
+
+            $headers[] = 'Content-Type: application/json';
+
+            curl_setopt(
+                $curl,
+                CURLOPT_POSTFIELDS,
+                $json
+            );
+        }
+
+        curl_setopt(
+            $curl,
+            CURLOPT_HTTPHEADER,
+            $headers
+        );
+
+        $response = curl_exec($curl);
+
+        if ($response === false) {
+            $error = curl_error($curl);
+
+            curl_close($curl);
+
+            throw new RuntimeException(
+                'Error comunicando con Control de Equipos: '
+                . $error
+            );
+        }
+
+        curl_close($curl);
+
+        return $response;
+    }
 }
+
 // Pruebas  CURLOPT_URL => 'https://serviciosqa.siesacloud.com/api/connekta/v3/ejecutarconsulta?'.$url,
 // Real CURLOPT_URL => 'https://servicios.siesacloud.com/api/connekta/v3/ejecutarconsulta?'.$url,
