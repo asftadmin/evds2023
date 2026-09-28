@@ -1,33 +1,55 @@
-// Variable global (para poder hacer reload desde botones)
-let tablaAusentismo = null;
+// Rango inicial: primer día del mes anterior hasta hoy
+let filtroFechaIni = moment()
+    .subtract(1, 'month')
+    .startOf('month')
+    .format('YYYY-MM-DD');
 
-let filtroFechaIni = "";
-let filtroFechaFin = "";
+let filtroFechaFin = moment().format('YYYY-MM-DD');
+
 let filtroEmpleadoId = "";
 
 $('#filtroFecha').daterangepicker({
-    startDate: moment().subtract(8, 'days'),       // fecha inicial hoy
-    endDate: moment().subtract(1, 'days'),         // fecha final hoy
+    startDate: moment().subtract(1, 'month').startOf('month'),
+    endDate: moment(),
     showDropdowns: true,
     autoUpdateInput: true,
-    maxDate: moment(),         // evita seleccionar fechas futuras
+    maxDate: moment(),
+
     locale: {
         format: 'YYYY-MM-DD',
         applyLabel: 'Aplicar',
         cancelLabel: 'Cancelar',
         customRangeLabel: 'Rango personalizado',
         daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
-        monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        monthNames: [
+            'Enero',
+            'Febrero',
+            'Marzo',
+            'Abril',
+            'Mayo',
+            'Junio',
+            'Julio',
+            'Agosto',
+            'Septiembre',
+            'Octubre',
+            'Noviembre',
+            'Diciembre'
+        ]
     }
 }, function (start, end) {
-    $('#filtroFecha').val(start.format('YYYY-MM-DD') + ' - ' + end.format('YYYY-MM-DD'));
+    $('#filtroFecha').val(
+        start.format('YYYY-MM-DD') +
+        ' - ' +
+        end.format('YYYY-MM-DD')
+    );
 });
 
 function initAusentismoTable() {
 
-    // Evita doble inicialización
-    if (tablaAusentismo) return;
+    if ($.fn.DataTable.isDataTable("#tablaAusentismo")) {
+        tablaAusentismo = $("#tablaAusentismo").DataTable();
+        return;
+    }
 
     tablaAusentismo = $("#tablaAusentismo").DataTable({
 
@@ -59,33 +81,33 @@ function initAusentismoTable() {
                         page: 'all'
                     }
                 },
-                customize: function(doc) {
+                customize: function (doc) {
                     // Configuración básica
                     doc.defaultStyle.fontSize = 7;
                     doc.styles.tableHeader.fontSize = 9;
                     doc.styles.title.fontSize = 14;
                     doc.pageMargins = [20, 60, 20, 40];
-                    
+
                     // Ajustar ancho de columnas
                     var colCount = doc.content[1].table.body[0].length;
                     var colWidths = [];
-                    
+
                     for (var i = 0; i < colCount; i++) {
                         colWidths.push('auto');
                     }
-                    
+
                     doc.content[1].table.widths = colWidths;
-                    
+
                     // Estilo para encabezados
-                    doc.content[1].table.body[0].forEach(function(cell) {
+                    doc.content[1].table.body[0].forEach(function (cell) {
                         cell.fillColor = '#2c3e50';
                         cell.color = '#ffffff';
                         cell.bold = true;
                         cell.alignment = 'center';
                     });
-                    
+
                     // Pie de página
-                    doc['footer'] = function(currentPage, pageCount) {
+                    doc['footer'] = function (currentPage, pageCount) {
                         return {
                             text: 'Página ' + currentPage.toString() + ' de ' + pageCount,
                             alignment: 'center',
@@ -94,7 +116,7 @@ function initAusentismoTable() {
                         };
                     };
                 },
-                filename: 'Ausentismo_' + new Date().toISOString().slice(0,10) + '.pdf'
+                filename: 'Ausentismo_' + new Date().toISOString().slice(0, 10) + '.pdf'
             },
             {
                 extend: 'csvHtml5',
@@ -121,34 +143,34 @@ function initAusentismoTable() {
                         page: 'all'
                     }
                 },
-                customize: function(win) {
+                customize: function (win) {
                     $(win.document.body).css('font-size', '9pt');
-                    
+
                     // Crear título personalizado
                     var title = '<div style="text-align:center; margin-bottom:20px;">' +
-                               '<h3>Reporte Completo de Ausentismo</h3>' +
-                               '<p>Generado: ' + new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + '</p>' +
-                               '</div>';
-                    
+                        '<h3>Reporte Completo de Ausentismo</h3>' +
+                        '<p>Generado: ' + new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + '</p>' +
+                        '</div>';
+
                     $(win.document.body).prepend(title);
-                    
+
                     // Asegurar que todas las columnas sean visibles
                     $(win.document.body).find('table thead th').show();
                     $(win.document.body).find('table tbody td').show();
-                    
+
                     // Ajustar ancho de tabla
                     $(win.document.body).find('table').css('width', '100%');
-                    
+
                     // Estilo para mejor visualización
                     $(win.document.body).find('tr:nth-child(odd)').css('background-color', '#f9f9f9');
                     $(win.document.body).find('tr:nth-child(even)').css('background-color', '#ffffff');
-                    
+
                     // Agregar pie de página
                     var pageCount = win.document.querySelectorAll('.dataTables_scrollBody table tr').length > 0 ? '1' : '';
                     var footer = '<div style="text-align:center; margin-top:30px; font-size:8pt; color:#666;">' +
-                                'Página ' + pageCount +
-                                '</div>';
-                    
+                        'Página ' + pageCount +
+                        '</div>';
+
                     $(win.document.body).append(footer);
                 }
             },
@@ -170,21 +192,21 @@ function initAusentismoTable() {
                 text: '<i class="fas fa-columns"></i> Columnas',
                 className: 'btn btn-dark btn-sm',
                 columns: ':gt(0)', // Todas excepto la primera (ITEM)
-                columnText: function(dt, idx, title) {
+                columnText: function (dt, idx, title) {
                     return (idx + 1) + ': ' + title;
                 },
                 // Botones adicionales para colvis
                 postfixButtons: [
                     {
                         text: 'Mostrar todas',
-                        action: function(e, dt, button, config) {
+                        action: function (e, dt, button, config) {
                             dt.columns().visible(true);
                             this.active(false);
                         }
                     },
                     {
                         text: 'Ocultar todas',
-                        action: function(e, dt, button, config) {
+                        action: function (e, dt, button, config) {
                             dt.columns(':gt(0)').visible(false); // Ocultar todas excepto ITEM
                             this.active(false);
                         }
@@ -257,15 +279,13 @@ $(document).ready(function () {
         filtroEmpleadoId = $("#filtroEmpleadoA").val() || "";
 
         let drp = $("#filtroFecha").data("daterangepicker");
+
         if (drp && drp.startDate && drp.endDate) {
             filtroFechaIni = drp.startDate.format("YYYY-MM-DD");
             filtroFechaFin = drp.endDate.format("YYYY-MM-DD");
-        } else {
-            filtroFechaIni = "";
-            filtroFechaFin = "";
         }
 
-        // ✅ Swal Loading
+        // Mostrar alerta mientras se realiza la consulta.
         Swal.fire({
             title: "Filtrando...",
             text: "Cargando resultados, por favor espere",
@@ -274,38 +294,43 @@ $(document).ready(function () {
             didOpen: () => Swal.showLoading()
         });
 
-        // ✅ Cerrar Swal cuando termine el AJAX del DataTable (solo esta vez)
-        tablaAusentismo.one("xhr.dt", function () {
+        // Cerrar alerta cuando termine la petición AJAX.
+        $("#tablaAusentismo").one("xhr.dt", function () {
             Swal.close();
         });
 
-        tablaAusentismo.ajax.reload();
+        // Obtener la instancia real de DataTable y recargar.
+        $("#tablaAusentismo").DataTable().ajax.reload();
     });
 
 
 
-    // ✅ Limpiar filtros
     $("#btnLimpiarAusentismo").off("click").on("click", function () {
 
-        // corregido el ID
         $("#filtroEmpleadoA").val("").trigger("change");
 
-        // reset variables
-        filtroEmpleadoId = "";
-        filtroFechaIni = "";
-        filtroFechaFin = "";
+        // Restablecer rango por defecto
+        let fechaInicio = moment().subtract(1, 'month').startOf('month');
+        let fechaFin = moment();
 
-        // reiniciar el daterangepicker visualmente (opcional)
+        filtroEmpleadoId = "";
+        filtroFechaIni = fechaInicio.format("YYYY-MM-DD");
+        filtroFechaFin = fechaFin.format("YYYY-MM-DD");
+
         let drp = $("#filtroFecha").data("daterangepicker");
+
         if (drp) {
-            drp.setStartDate(moment().subtract(8, "days"));
-            drp.setEndDate(moment().subtract(1, "days"));
-            $("#filtroFecha").val(drp.startDate.format("YYYY-MM-DD") + " - " + drp.endDate.format("YYYY-MM-DD"));
-        } else {
-            $("#filtroFecha").val("");
+            drp.setStartDate(fechaInicio);
+            drp.setEndDate(fechaFin);
+
+            $("#filtroFecha").val(
+                fechaInicio.format("YYYY-MM-DD") +
+                " - " +
+                fechaFin.format("YYYY-MM-DD")
+            );
         }
 
-        tablaAusentismo.ajax.reload();
+        $("#tablaAusentismo").DataTable().ajax.reload();
     });
 
     function cargarEmpleadosActivos() {

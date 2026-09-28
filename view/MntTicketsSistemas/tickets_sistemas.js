@@ -808,6 +808,26 @@ function cargarCategoriasTicketsSistemas() {
     });
 }
 
+$(document).on(
+    'click',
+    '.btn-ver-ticket',
+    function () {
+
+        const ticketId = parseInt(
+            $(this).data('id'),
+            10
+        );
+
+        if (!ticketId) {
+            return;
+        }
+
+        consultarDetalleTicket(
+            ticketId
+        );
+    }
+);
+
 /*
  * =====================================================
  * ENVIAR TICKET
@@ -914,6 +934,215 @@ function crearTicketSistemas() {
                 );
 
         }
+    });
+}
+
+/*
+ * =====================================================
+ * CONSULTAR DETALLE DEL TICKET
+ * =====================================================
+ */
+function consultarDetalleTicket(ticketId) {
+
+    Swal.fire({
+        title: 'Consultando ticket...',
+        allowOutsideClick: false,
+        didOpen: function () {
+            Swal.showLoading();
+        }
+    });
+
+    $.ajax({
+        url: '../../controller/tickets_sistemas.php?op=detalle',
+        type: 'GET',
+        dataType: 'json',
+
+        data: {
+            id: ticketId
+        },
+
+        success: function (respuesta) {
+
+            Swal.close();
+
+            if (
+                !respuesta.success
+                || !respuesta.data
+                || !respuesta.data.ticket
+            ) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No fue posible consultar',
+                    text:
+                        respuesta.message
+                        || 'No fue posible consultar el ticket.'
+                });
+
+                return;
+            }
+
+            mostrarDetalleTicket(
+                respuesta.data
+            );
+        },
+
+        error: function (xhr) {
+
+            Swal.close();
+
+            let mensaje =
+                'No fue posible consultar el ticket.';
+
+            if (
+                xhr.responseJSON
+                && xhr.responseJSON.message
+            ) {
+                mensaje =
+                    xhr.responseJSON.message;
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: mensaje
+            });
+        }
+    });
+}
+
+function mostrarDetalleTicket(data) {
+
+    const ticket = data.ticket;
+    const seguimientos = Array.isArray(data.seguimientos)
+        ? data.seguimientos
+        : [];
+
+    $('#detalle-ticket-numero').text(
+        ticket.ticket_numero || 'Ticket'
+    );
+
+    $('#detalle-ticket-asunto').text(
+        ticket.asunto || '-'
+    );
+
+    $('#detalle-ticket-tipo').text(
+        ticket.tipo || '-'
+    );
+
+    $('#detalle-ticket-categoria').text(
+        ticket.categoria || '-'
+    );
+
+    $('#detalle-ticket-estado').html(
+        badgeEstadoTicket(
+            ticket.estado
+        )
+    );
+
+    $('#detalle-ticket-prioridad').html(
+        badgePrioridadTicket(
+            ticket.prioridad
+        )
+    );
+
+    $('#detalle-ticket-descripcion').text(
+        ticket.descripcion || 'Sin descripción.'
+    );
+
+    $('#detalle-ticket-ubicacion').text(
+        ticket.ubicacion || 'No registrada'
+    );
+
+    $('#detalle-ticket-equipo').text(
+        ticket.equipo || 'No registrado'
+    );
+
+    $('#detalle-ticket-solucion').text(
+        ticket.solucion
+            ? ticket.solucion
+            : 'Aún no se ha registrado una solución.'
+    );
+
+    renderizarSeguimientosTicket(
+        seguimientos
+    );
+
+    $('#modal-detalle-ticket').modal(
+        'show'
+    );
+}
+
+function renderizarSeguimientosTicket(seguimientos) {
+
+    const contenedor =
+        $('#detalle-ticket-seguimientos');
+
+    contenedor.empty();
+
+    if (seguimientos.length === 0) {
+
+        contenedor.html(
+            '<p class="text-muted mb-0">' +
+            'No hay seguimientos registrados.' +
+            '</p>'
+        );
+
+        return;
+    }
+
+    seguimientos.forEach(function (seguimiento) {
+
+        let cambioEstado = '';
+
+        if (
+            seguimiento.estado_nuevo
+        ) {
+            cambioEstado =
+                '<div class="mt-1">' +
+                    '<small class="text-muted">' +
+                        'Estado: ' +
+                        escaparHtml(
+                            seguimiento.estado_nuevo
+                        ) +
+                    '</small>' +
+                '</div>';
+        }
+
+        const html =
+            '<div class="border rounded p-3 mb-2">' +
+
+                '<div class="d-flex justify-content-between">' +
+
+                    '<strong>' +
+                        escaparHtml(
+                            seguimiento.tipo || 'Seguimiento'
+                        ) +
+                    '</strong>' +
+
+                    '<small class="text-muted">' +
+                        escaparHtml(
+                            formatearFechaTicket(
+                                seguimiento.fecha_creacion
+                            )
+                        ) +
+                    '</small>' +
+
+                '</div>' +
+
+                '<div class="mt-2">' +
+                    escaparHtml(
+                        seguimiento.comentario
+                        || 'Sin comentario.'
+                    ) +
+                '</div>' +
+
+                cambioEstado +
+
+            '</div>';
+
+        contenedor.append(
+            html
+        );
     });
 }
 

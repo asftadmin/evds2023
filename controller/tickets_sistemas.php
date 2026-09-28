@@ -370,6 +370,83 @@ try {
 
             break;
 
+        /*
+ * =====================================================
+ * DETALLE DEL TICKET
+ * =====================================================
+ */
+        case "detalle":
+
+            validarMetodoTicketsSistemas("GET");
+
+            $ticketId = isset($_GET["id"])
+                ? filter_var($_GET["id"], FILTER_VALIDATE_INT)
+                : false;
+
+            if (!$ticketId) {
+                responderTicketsSistemas(
+                    false,
+                    "El ticket indicado no es válido.",
+                    null,
+                    422
+                );
+            }
+
+            $empleado = $modelo->obtenerEmpleadoSesion(
+                (int) $_SESSION["user_id"]
+            );
+
+            if ($empleado === null) {
+                responderTicketsSistemas(
+                    false,
+                    "No se encontró un empleado asociado al usuario.",
+                    null,
+                    404
+                );
+            }
+
+            $documento = trim(
+                (string) $empleado["cedu_empl"]
+            );
+
+            if ($documento === "") {
+                responderTicketsSistemas(
+                    false,
+                    "El empleado no tiene documento registrado.",
+                    null,
+                    422
+                );
+            }
+
+            $respuestaApi = CurlController::requestPreoperacional(
+                "op=detalle&id="
+                    . (int) $ticketId
+                    . "&documento="
+                    . rawurlencode($documento),
+                "GET"
+            );
+
+            $resultado = decodificarRespuestaTicketsApi(
+                $respuestaApi
+            );
+
+            if (empty($resultado["success"])) {
+                responderTicketsSistemas(
+                    false,
+                    $resultado["message"] ?? "No fue posible consultar el ticket.",
+                    null,
+                    404
+                );
+            }
+
+            responderTicketsSistemas(
+                true,
+                $resultado["message"] ?? "Detalle consultado correctamente.",
+                $resultado["data"] ?? null
+            );
+
+            break;
+
         default:
             responderTicketsSistemas(
                 false,
@@ -383,7 +460,7 @@ try {
 } catch (Throwable $error) {
     error_log(
         'Tickets Sistemas Control Personal: '
-        . $error->getMessage()
+            . $error->getMessage()
     );
 
     responderTicketsSistemas(

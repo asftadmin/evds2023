@@ -5,147 +5,86 @@ require_once '../../config/conexion.php';
 if (isset($_SESSION['user_id'])) {
 ?>
 
-<!DOCTYPE html>
+    <!DOCTYPE html>
 
-<html lang="en">
+    <html lang="en">
 
-<head>
+    <head>
 
-    <meta charset="utf-8">
+        <meta charset="utf-8">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <?php require_once ('../MainHead/head.php') ?>
+        <?php require_once('../MainHead/head.php') ?>
 
-    <title>MESA DE SERVICIO</title>
+        <title>MESA DE SERVICIO</title>
 
-</head>
-
-
-<body class="hold-transition sidebar-mini">
-
-    <div class="wrapper">
-
-        <!-- Navbar -->
-
-        <?php require_once ('../MainNav/nav.php') ?>
-
-        <!-- /.navbar -->
+    </head>
 
 
-        <!-- Main Sidebar -->
+    <body class="hold-transition sidebar-mini">
 
-        <?php require_once ('../MainMenu/menu.php') ?>
+        <div class="wrapper">
 
+            <!-- Navbar -->
 
-        <!-- Content Wrapper -->
+            <?php require_once('../MainNav/nav.php') ?>
 
-        <div class="content-wrapper">
-
-
-            <!-- ================================================= -->
-            <!-- CABECERA                                          -->
-            <!-- ================================================= -->
-
-            <section class="content-header">
-
-                <div class="container-fluid">
-
-                    <div class="row mb-2">
-
-                        <div class="col-sm-6">
-
-                            <h1>
-
-                                <i class="fas fa-headset"></i>
-
-                                Mesa de Servicio
-
-                            </h1>
-
-                        </div>
+            <!-- /.navbar -->
 
 
-                        <div class="col-sm-6">
+            <!-- Main Sidebar -->
 
-                            <ol class="breadcrumb float-sm-right">
+            <?php require_once('../MainMenu/menu.php') ?>
 
-                                <li class="breadcrumb-item">
 
-                                    <a href="home">
-                                        Inicio
-                                    </a>
+            <!-- Content Wrapper -->
 
-                                </li>
+            <div class="content-wrapper">
 
-                                <li class="breadcrumb-item active">
+
+                <!-- ================================================= -->
+                <!-- CABECERA                                          -->
+                <!-- ================================================= -->
+
+                <section class="content-header">
+
+                    <div class="container-fluid">
+
+                        <div class="row mb-2">
+
+                            <div class="col-sm-6">
+
+                                <h1>
+
+                                    <i class="fas fa-headset"></i>
 
                                     Mesa de Servicio
 
-                                </li>
+                                </h1>
 
-                            </ol>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </section>
+                            </div>
 
 
-            <!-- ================================================= -->
-            <!-- CONTENIDO                                         -->
-            <!-- ================================================= -->
+                            <div class="col-sm-6">
 
-            <section class="content">
+                                <ol class="breadcrumb float-sm-right">
 
-                <div class="container-fluid">
+                                    <li class="breadcrumb-item">
 
+                                        <a href="home">
+                                            Inicio
+                                        </a>
 
-                    <!-- ========================================= -->
-                    <!-- PRESENTACIÓN                              -->
-                    <!-- ========================================= -->
+                                    </li>
 
-                    <div class="card card-primary card-outline">
+                                    <li class="breadcrumb-item active">
 
-                        <div class="card-body">
+                                        Mesa de Servicio
 
-                            <div class="row align-items-center">
+                                    </li>
 
-                                <div class="col-md-8">
-
-                                    <h4 class="mb-1">
-
-                                        <i class="fas fa-laptop-medical text-primary mr-1"></i>
-
-                                        ¿Necesitas ayuda de Sistemas?
-
-                                    </h4>
-
-                                    <p class="text-muted mb-0">
-
-                                        Reporta una solicitud o incidente y consulta
-                                        fácilmente el estado de tus tickets.
-
-                                    </p>
-
-                                </div>
-
-
-                                <div class="col-md-4 text-md-right mt-3 mt-md-0">
-
-                                    <button type="button" id="btn-nuevo-ticket" class="btn btn-primary"
-                                        data-toggle="modal" data-target="#modal-nuevo-ticket">
-
-                                        <i class="fas fa-plus"></i>
-
-                                        Nuevo ticket
-
-                                    </button>
-
-                                </div>
+                                </ol>
 
                             </div>
 
@@ -153,74 +92,60 @@ if (isset($_SESSION['user_id'])) {
 
                     </div>
 
-
-                    <!-- ========================================= -->
-                    <!-- RESUMEN                                   -->
-                    <!-- ========================================= -->
-
-                    <div class="row">
+                </section>
 
 
-                        <!-- ABIERTOS -->
+                <!-- ================================================= -->
+                <!-- CONTENIDO                                         -->
+                <!-- ================================================= -->
 
-                        <div class="col-lg-4 col-md-4 col-sm-12">
+                <section class="content">
 
-                            <div class="info-box">
-
-                                <span class="info-box-icon bg-light">
-
-                                    <i class="far fa-clock text-primary"></i>
-
-                                </span>
+                    <div class="container-fluid">
 
 
-                                <div class="info-box-content">
+                        <!-- ========================================= -->
+                        <!-- PRESENTACIÓN                              -->
+                        <!-- ========================================= -->
 
-                                    <span class="info-box-text">
+                        <div class="card card-primary card-outline">
 
-                                        Tickets abiertos
+                            <div class="card-body">
 
-                                    </span>
+                                <div class="row align-items-center">
 
-                                    <span class="info-box-number" id="total-tickets-abiertos">
+                                    <div class="col-md-8">
 
-                                        0
+                                        <h4 class="mb-1">
 
-                                    </span>
+                                            <i class="fas fa-laptop-medical text-primary mr-1"></i>
 
-                                </div>
+                                            ¿Necesitas ayuda de Sistemas?
 
-                            </div>
+                                        </h4>
 
-                        </div>
+                                        <p class="text-muted mb-0">
 
+                                            Reporta una solicitud o incidente y consulta
+                                            fácilmente el estado de tus tickets.
 
-                        <!-- EN PROCESO -->
+                                        </p>
 
-                        <div class="col-lg-4 col-md-4 col-sm-12">
-
-                            <div class="info-box">
-
-                                <span class="info-box-icon bg-light">
-
-                                    <i class="fas fa-tools text-warning"></i>
-
-                                </span>
+                                    </div>
 
 
-                                <div class="info-box-content">
+                                    <div class="col-md-4 text-md-right mt-3 mt-md-0">
 
-                                    <span class="info-box-text">
+                                        <button type="button" id="btn-nuevo-ticket" class="btn btn-primary"
+                                            data-toggle="modal" data-target="#modal-nuevo-ticket">
 
-                                        En proceso
+                                            <i class="fas fa-plus"></i>
 
-                                    </span>
+                                            Nuevo ticket
 
-                                    <span class="info-box-number" id="total-tickets-proceso">
+                                        </button>
 
-                                        0
-
-                                    </span>
+                                    </div>
 
                                 </div>
 
@@ -229,32 +154,109 @@ if (isset($_SESSION['user_id'])) {
                         </div>
 
 
-                        <!-- FINALIZADOS -->
+                        <!-- ========================================= -->
+                        <!-- RESUMEN                                   -->
+                        <!-- ========================================= -->
 
-                        <div class="col-lg-4 col-md-4 col-sm-12">
-
-                            <div class="info-box">
-
-                                <span class="info-box-icon bg-light">
-
-                                    <i class="fas fa-check text-success"></i>
-
-                                </span>
+                        <div class="row">
 
 
-                                <div class="info-box-content">
+                            <!-- ABIERTOS -->
 
-                                    <span class="info-box-text">
+                            <div class="col-lg-4 col-md-4 col-sm-12">
 
-                                        Finalizados
+                                <div class="info-box">
+
+                                    <span class="info-box-icon bg-light">
+
+                                        <i class="far fa-clock text-primary"></i>
 
                                     </span>
 
-                                    <span class="info-box-number" id="total-tickets-finalizados">
 
-                                        0
+                                    <div class="info-box-content">
+
+                                        <span class="info-box-text">
+
+                                            Tickets abiertos
+
+                                        </span>
+
+                                        <span class="info-box-number" id="total-tickets-abiertos">
+
+                                            0
+
+                                        </span>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- EN PROCESO -->
+
+                            <div class="col-lg-4 col-md-4 col-sm-12">
+
+                                <div class="info-box">
+
+                                    <span class="info-box-icon bg-light">
+
+                                        <i class="fas fa-tools text-warning"></i>
 
                                     </span>
+
+
+                                    <div class="info-box-content">
+
+                                        <span class="info-box-text">
+
+                                            En proceso
+
+                                        </span>
+
+                                        <span class="info-box-number" id="total-tickets-proceso">
+
+                                            0
+
+                                        </span>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- FINALIZADOS -->
+
+                            <div class="col-lg-4 col-md-4 col-sm-12">
+
+                                <div class="info-box">
+
+                                    <span class="info-box-icon bg-light">
+
+                                        <i class="fas fa-check text-success"></i>
+
+                                    </span>
+
+
+                                    <div class="info-box-content">
+
+                                        <span class="info-box-text">
+
+                                            Finalizados
+
+                                        </span>
+
+                                        <span class="info-box-number" id="total-tickets-finalizados">
+
+                                            0
+
+                                        </span>
+
+                                    </div>
 
                                 </div>
 
@@ -262,139 +264,565 @@ if (isset($_SESSION['user_id'])) {
 
                         </div>
 
-                    </div>
+
+                        <!-- ========================================= -->
+                        <!-- MIS TICKETS                               -->
+                        <!-- ========================================= -->
+
+                        <div class="card">
+
+                            <div class="card-header">
+
+                                <h3 class="card-title">
+
+                                    <i class="fas fa-ticket-alt mr-1"></i>
+
+                                    Mis tickets
+
+                                </h3>
+
+                            </div>
 
 
-                    <!-- ========================================= -->
-                    <!-- MIS TICKETS                               -->
-                    <!-- ========================================= -->
-
-                    <div class="card">
-
-                        <div class="card-header">
-
-                            <h3 class="card-title">
-
-                                <i class="fas fa-ticket-alt mr-1"></i>
-
-                                Mis tickets
-
-                            </h3>
-
-                        </div>
+                            <div class="card-body">
 
 
-                        <div class="card-body">
+                                <!-- ================================= -->
+                                <!-- FILTROS                           -->
+                                <!-- ================================= -->
+
+                                <div class="row">
 
 
-                            <!-- ================================= -->
-                            <!-- FILTROS                           -->
-                            <!-- ================================= -->
+                                    <!-- ESTADO -->
 
-                            <div class="row">
+                                    <div class="col-md-4">
 
+                                        <div class="form-group">
 
-                                <!-- ESTADO -->
+                                            <label>
 
-                                <div class="col-md-4">
+                                                Estado
 
-                                    <div class="form-group">
-
-                                        <label>
-
-                                            Estado
-
-                                        </label>
+                                            </label>
 
 
-                                        <select id="filtro-estado" class="form-control select2bs4" style="width:100%;">
+                                            <select id="filtro-estado" class="form-control select2bs4" style="width:100%;">
 
-                                            <option value="">
+                                                <option value="">
 
-                                                Todos
+                                                    Todos
 
-                                            </option>
+                                                </option>
 
-                                            <option value="ABIERTO">
+                                                <option value="ABIERTO">
 
-                                                Abierto
+                                                    Abierto
 
-                                            </option>
+                                                </option>
 
-                                            <option value="EN_PROCESO">
+                                                <option value="EN_PROCESO">
 
-                                                En proceso
+                                                    En proceso
 
-                                            </option>
+                                                </option>
 
-                                            <option value="EN_ESPERA">
+                                                <option value="EN_ESPERA">
 
-                                                En espera
+                                                    En espera
 
-                                            </option>
+                                                </option>
 
-                                            <option value="RESUELTO">
+                                                <option value="RESUELTO">
 
-                                                Resuelto
+                                                    Resuelto
 
-                                            </option>
+                                                </option>
 
-                                            <option value="CERRADO">
+                                                <option value="CERRADO">
 
-                                                Cerrado
+                                                    Cerrado
 
-                                            </option>
+                                                </option>
 
-                                            <option value="CANCELADO">
+                                                <option value="CANCELADO">
 
-                                                Cancelado
+                                                    Cancelado
 
-                                            </option>
+                                                </option>
 
-                                        </select>
+                                            </select>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- BUSCAR -->
+
+                                    <div class="col-md-5">
+
+                                        <div class="form-group">
+
+                                            <label>
+
+                                                Buscar
+
+                                            </label>
+
+                                            <input type="text" id="filtro-buscar" class="form-control" maxlength="100"
+                                                autocomplete="off" placeholder="Número de ticket o asunto">
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- LIMPIAR -->
+
+                                    <div class="col-md-3">
+
+                                        <div class="form-group">
+
+                                            <label>&nbsp;</label>
+
+                                            <div>
+
+                                                <button type="button" id="btn-limpiar-filtros" class="btn btn-secondary">
+
+                                                    <i class="fas fa-eraser"></i>
+
+                                                    Limpiar
+
+                                                </button>
+
+                                            </div>
+
+                                        </div>
 
                                     </div>
 
                                 </div>
 
 
-                                <!-- BUSCAR -->
+                                <!-- ================================= -->
+                                <!-- TABLA                             -->
+                                <!-- ================================= -->
 
-                                <div class="col-md-5">
+                                <div class="table-responsive">
 
-                                    <div class="form-group">
+                                    <table id="tabla-tickets-sistemas"
+                                        class="table table-bordered table-striped table-hover" width="100%">
 
-                                        <label>
+                                        <thead>
 
-                                            Buscar
+                                            <tr>
 
-                                        </label>
+                                                <th>Ticket</th>
 
-                                        <input type="text" id="filtro-buscar" class="form-control" maxlength="100"
-                                            autocomplete="off" placeholder="Número de ticket o asunto">
+                                                <th>Solicitud</th>
+
+                                                <th>Categoría</th>
+
+                                                <th>Prioridad</th>
+
+                                                <th>Estado</th>
+
+                                                <th>Fecha</th>
+
+                                                <th>Acción</th>
+
+                                            </tr>
+
+                                        </thead>
+
+
+                                        <tbody>
+
+                                        </tbody>
+
+                                    </table>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+            </div>
+
+
+            <!-- ===================================================== -->
+            <!-- MODAL NUEVO TICKET                                    -->
+            <!-- ===================================================== -->
+
+            <div class="modal fade" id="modal-nuevo-ticket" tabindex="-1" role="dialog" aria-hidden="true">
+
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+
+                    <div class="modal-content">
+
+                        <form id="form-ticket-sistemas">
+
+
+                            <!-- HEADER -->
+
+                            <div class="modal-header">
+
+                                <div>
+
+                                    <h5 class="modal-title">
+
+                                        <i class="fas fa-ticket-alt text-primary mr-1"></i>
+
+                                        Nuevo ticket de Sistemas
+
+                                    </h5>
+
+                                    <small class="text-muted">
+
+                                        Describe claramente lo que necesitas.
+
+                                    </small>
+
+                                </div>
+
+
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+
+                                    <span aria-hidden="true">
+
+                                        &times;
+
+                                    </span>
+
+                                </button>
+
+                            </div>
+
+
+                            <!-- BODY -->
+
+                            <div class="modal-body">
+
+
+                                <!-- ================================ -->
+                                <!-- EMPLEADO                         -->
+                                <!-- ================================ -->
+
+                                <div class="callout callout-info">
+
+                                    <div class="row">
+
+                                        <div class="col-md-12">
+
+                                            <h6 class="mb-1">
+
+                                                <i class="fas fa-user mr-1"></i>
+
+                                                <span id="empleado-nombre">
+
+                                                    Cargando información...
+
+                                                </span>
+
+                                            </h6>
+
+
+                                            <small class="text-muted">
+
+                                                Documento:
+
+                                                <span id="empleado-documento">
+
+                                                    -
+
+                                                </span>
+
+                                                &nbsp; | &nbsp;
+
+                                                Cargo:
+
+                                                <span id="empleado-cargo">
+
+                                                    -
+
+                                                </span>
+
+
+                                            </small>
+
+
+                                            <br>
+
+
+                                            <small class="text-muted">
+
+                                                Correo:
+
+                                                <span id="empleado-correo">
+
+                                                    -
+
+                                                </span>
+
+                                            </small>
+
+                                        </div>
 
                                     </div>
 
                                 </div>
 
 
-                                <!-- LIMPIAR -->
+                                <!-- ================================ -->
+                                <!-- INFORMACIÓN DEL CASO             -->
+                                <!-- ================================ -->
 
-                                <div class="col-md-3">
+                                <h6 class="mb-3">
 
-                                    <div class="form-group">
+                                    <i class="fas fa-clipboard-list text-primary mr-1"></i>
 
-                                        <label>&nbsp;</label>
+                                    Información del caso
 
-                                        <div>
+                                </h6>
 
-                                            <button type="button" id="btn-limpiar-filtros" class="btn btn-secondary">
 
-                                                <i class="fas fa-eraser"></i>
+                                <div class="row">
 
-                                                Limpiar
 
-                                            </button>
+                                    <!-- TIPO -->
+
+                                    <div class="col-md-4">
+
+                                        <div class="form-group">
+
+                                            <label>
+
+                                                Tipo
+
+                                                <span class="text-danger">*</span>
+
+                                            </label>
+
+                                            <select id="ticket-tipo" name="tipo" class="form-control select2bs4"
+                                                style="width:100%;" required>
+
+                                                <option value="">
+
+                                                    Seleccione
+
+                                                </option>
+
+                                                <option value="SOLICITUD">
+
+                                                    Solicitud
+
+                                                </option>
+
+                                                <option value="INCIDENTE">
+
+                                                    Incidente
+
+                                                </option>
+
+                                                <option value="REQUERIMIENTO">
+
+                                                    Requerimiento
+
+                                                </option>
+
+                                            </select>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- CATEGORÍA -->
+
+                                    <div class="col-md-5">
+
+                                        <div class="form-group">
+
+                                            <label>
+
+                                                Categoría
+
+                                                <span class="text-danger">*</span>
+
+                                            </label>
+
+                                            <select id="ticket-categoria" name="categoria_id"
+                                                class="form-control select2bs4" style="width:100%;" required>
+
+                                                <option value="">
+
+                                                    Seleccione una categoría
+
+                                                </option>
+
+                                            </select>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- PRIORIDAD -->
+
+                                    <div class="col-md-3">
+
+                                        <div class="form-group">
+
+                                            <label>
+
+                                                Prioridad
+
+                                                <span class="text-danger">*</span>
+
+                                            </label>
+
+                                            <select id="ticket-prioridad" name="prioridad" class="form-control select2bs4"
+                                                style="width:100%;" required>
+
+                                                <option value="BAJA">
+
+                                                    Baja
+
+                                                </option>
+
+                                                <option value="MEDIA" selected>
+
+                                                    Media
+
+                                                </option>
+
+                                                <option value="ALTA">
+
+                                                    Alta
+
+                                                </option>
+
+                                                <option value="CRITICA">
+
+                                                    Crítica
+
+                                                </option>
+
+                                            </select>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+
+                                <!-- ASUNTO -->
+
+                                <div class="form-group">
+
+                                    <label>
+
+                                        Asunto
+
+                                        <span class="text-danger">*</span>
+
+                                    </label>
+
+                                    <input type="text" id="ticket-asunto" name="asunto" class="form-control" maxlength="150"
+                                        autocomplete="off" placeholder="Ej. El computador no enciende" required>
+
+                                </div>
+
+
+                                <!-- DESCRIPCIÓN -->
+
+                                <div class="form-group">
+
+                                    <label>
+
+                                        Descripción
+
+                                        <span class="text-danger">*</span>
+
+                                    </label>
+
+                                    <textarea id="ticket-descripcion" name="descripcion" class="form-control" rows="4"
+                                        maxlength="4000"
+                                        placeholder="Describe qué sucede, desde cuándo y qué estabas haciendo cuando ocurrió."
+                                        required></textarea>
+
+                                    <small class="form-text text-muted">
+
+                                        Entre más clara sea la descripción, más fácil será atender tu solicitud.
+
+                                    </small>
+
+                                </div>
+
+
+                                <!-- ================================ -->
+                                <!-- INFORMACIÓN ADICIONAL            -->
+                                <!-- ================================ -->
+
+                                <h6 class="mt-4 mb-3">
+
+                                    <i class="fas fa-info-circle text-primary mr-1"></i>
+
+                                    Información adicional
+
+                                    <small class="text-muted">
+
+                                        (opcional)
+
+                                    </small>
+
+                                </h6>
+
+
+                                <div class="row">
+
+
+                                    <!-- UBICACIÓN -->
+
+                                    <div class="col-md-6">
+
+                                        <div class="form-group">
+
+                                            <label>
+
+                                                Ubicación
+
+                                            </label>
+
+                                            <input type="text" id="ticket-ubicacion" name="ubicacion" class="form-control"
+                                                maxlength="150" autocomplete="off" placeholder="Ej. Oficina administrativa">
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- EQUIPO -->
+
+                                    <div class="col-md-6">
+
+                                        <div class="form-group">
+
+                                            <label>
+
+                                                Equipo relacionado
+
+                                            </label>
+
+                                            <input type="text" id="ticket-equipo" name="equipo" class="form-control"
+                                                maxlength="150" autocomplete="off" placeholder="Ej. PC Contabilidad 01">
 
                                         </div>
 
@@ -405,499 +833,261 @@ if (isset($_SESSION['user_id'])) {
                             </div>
 
 
-                            <!-- ================================= -->
-                            <!-- TABLA                             -->
-                            <!-- ================================= -->
+                            <!-- FOOTER -->
 
-                            <div class="table-responsive">
+                            <div class="modal-footer">
 
-                                <table id="tabla-tickets-sistemas"
-                                    class="table table-bordered table-striped table-hover" width="100%">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">
 
-                                    <thead>
+                                    Cancelar
 
-                                        <tr>
-
-                                            <th>Ticket</th>
-
-                                            <th>Solicitud</th>
-
-                                            <th>Categoría</th>
-
-                                            <th>Prioridad</th>
-
-                                            <th>Estado</th>
-
-                                            <th>Fecha</th>
-
-                                            <th>Acción</th>
-
-                                        </tr>
-
-                                    </thead>
+                                </button>
 
 
-                                    <tbody>
+                                <button type="submit" id="btn-guardar-ticket" class="btn btn-primary">
 
-                                    </tbody>
+                                    <i class="fas fa-paper-plane"></i>
 
-                                </table>
+                                    Enviar ticket
+
+                                </button>
 
                             </div>
+
+                        </form>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ================================================= -->
+            <!-- MODAL DETALLE TICKET -->
+            <!-- ================================================= -->
+
+            <div
+                class="modal fade"
+                id="modal-detalle-ticket"
+                tabindex="-1"
+                role="dialog"
+                aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+
+                    <div class="modal-content">
+
+                        <div class="modal-header">
+
+                            <div>
+                                <h5 class="modal-title mb-0">
+                                    <i class="fas fa-ticket-alt mr-1"></i>
+
+                                    <span id="detalle-ticket-numero">
+                                        Ticket
+                                    </span>
+                                </h5>
+
+                                <small class="text-muted">
+                                    Consulta el estado y seguimiento de tu solicitud.
+                                </small>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="close"
+                                data-dismiss="modal"
+                                aria-label="Cerrar">
+                                <span aria-hidden="true">
+                                    &times;
+                                </span>
+                            </button>
+
+                        </div>
+
+
+                        <div class="modal-body">
+
+                            <div class="row">
+
+                                <div class="col-md-8">
+                                    <strong>Asunto</strong>
+
+                                    <p
+                                        class="text-muted"
+                                        id="detalle-ticket-asunto">
+                                        -
+                                    </p>
+                                </div>
+
+
+                                <div class="col-md-4">
+                                    <strong>Estado</strong>
+
+                                    <div
+                                        class="mt-1"
+                                        id="detalle-ticket-estado">
+                                        -
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="row">
+
+                                <div class="col-md-4">
+                                    <strong>Tipo</strong>
+
+                                    <p
+                                        class="text-muted"
+                                        id="detalle-ticket-tipo">
+                                        -
+                                    </p>
+                                </div>
+
+
+                                <div class="col-md-4">
+                                    <strong>Categoría</strong>
+
+                                    <p
+                                        class="text-muted"
+                                        id="detalle-ticket-categoria">
+                                        -
+                                    </p>
+                                </div>
+
+
+                                <div class="col-md-4">
+                                    <strong>Prioridad</strong>
+
+                                    <div
+                                        class="mt-1"
+                                        id="detalle-ticket-prioridad">
+                                        -
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                            <hr>
+
+
+                            <strong>Descripción</strong>
+
+                            <div
+                                class="callout callout-info mt-2"
+                                id="detalle-ticket-descripcion">
+                                -
+                            </div>
+
+
+                            <div class="row">
+
+                                <div class="col-md-6">
+                                    <strong>Ubicación</strong>
+
+                                    <p
+                                        class="text-muted"
+                                        id="detalle-ticket-ubicacion">
+                                        -
+                                    </p>
+                                </div>
+
+
+                                <div class="col-md-6">
+                                    <strong>Equipo</strong>
+
+                                    <p
+                                        class="text-muted"
+                                        id="detalle-ticket-equipo">
+                                        -
+                                    </p>
+                                </div>
+
+                            </div>
+
+
+                            <strong>Solución</strong>
+
+                            <div
+                                class="callout callout-success mt-2"
+                                id="detalle-ticket-solucion">
+                                Aún no se ha registrado una solución.
+                            </div>
+
+
+                            <hr>
+
+
+                            <h6>
+                                <i class="fas fa-history mr-1"></i>
+                                Seguimiento
+                            </h6>
+
+                            <div id="detalle-ticket-seguimientos">
+
+                                <p class="text-muted mb-0">
+                                    No hay seguimientos registrados.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="modal-footer">
+
+                            <button
+                                type="button"
+                                class="btn btn-secondary"
+                                data-dismiss="modal">
+                                Cerrar
+                            </button>
 
                         </div>
 
                     </div>
 
                 </div>
-
-            </section>
-
-        </div>
-
-
-        <!-- ===================================================== -->
-        <!-- MODAL NUEVO TICKET                                    -->
-        <!-- ===================================================== -->
-
-        <div class="modal fade" id="modal-nuevo-ticket" tabindex="-1" role="dialog" aria-hidden="true">
-
-            <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-
-                <div class="modal-content">
-
-                    <form id="form-ticket-sistemas">
-
-
-                        <!-- HEADER -->
-
-                        <div class="modal-header">
-
-                            <div>
-
-                                <h5 class="modal-title">
-
-                                    <i class="fas fa-ticket-alt text-primary mr-1"></i>
-
-                                    Nuevo ticket de Sistemas
-
-                                </h5>
-
-                                <small class="text-muted">
-
-                                    Describe claramente lo que necesitas.
-
-                                </small>
-
-                            </div>
-
-
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
-
-                                <span aria-hidden="true">
-
-                                    &times;
-
-                                </span>
-
-                            </button>
-
-                        </div>
-
-
-                        <!-- BODY -->
-
-                        <div class="modal-body">
-
-
-                            <!-- ================================ -->
-                            <!-- EMPLEADO                         -->
-                            <!-- ================================ -->
-
-                            <div class="callout callout-info">
-
-                                <div class="row">
-
-                                    <div class="col-md-12">
-
-                                        <h6 class="mb-1">
-
-                                            <i class="fas fa-user mr-1"></i>
-
-                                            <span id="empleado-nombre">
-
-                                                Cargando información...
-
-                                            </span>
-
-                                        </h6>
-
-
-                                        <small class="text-muted">
-
-                                            Documento:
-
-                                            <span id="empleado-documento">
-
-                                                -
-
-                                            </span>
-
-                                            &nbsp; | &nbsp;
-
-                                            Cargo:
-
-                                            <span id="empleado-cargo">
-
-                                                -
-
-                                            </span>
-
-
-                                        </small>
-
-
-                                        <br>
-
-
-                                        <small class="text-muted">
-
-                                            Correo:
-
-                                            <span id="empleado-correo">
-
-                                                -
-
-                                            </span>
-
-                                        </small>
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-
-                            <!-- ================================ -->
-                            <!-- INFORMACIÓN DEL CASO             -->
-                            <!-- ================================ -->
-
-                            <h6 class="mb-3">
-
-                                <i class="fas fa-clipboard-list text-primary mr-1"></i>
-
-                                Información del caso
-
-                            </h6>
-
-
-                            <div class="row">
-
-
-                                <!-- TIPO -->
-
-                                <div class="col-md-4">
-
-                                    <div class="form-group">
-
-                                        <label>
-
-                                            Tipo
-
-                                            <span class="text-danger">*</span>
-
-                                        </label>
-
-                                        <select id="ticket-tipo" name="tipo" class="form-control select2bs4"
-                                            style="width:100%;" required>
-
-                                            <option value="">
-
-                                                Seleccione
-
-                                            </option>
-
-                                            <option value="SOLICITUD">
-
-                                                Solicitud
-
-                                            </option>
-
-                                            <option value="INCIDENTE">
-
-                                                Incidente
-
-                                            </option>
-
-                                            <option value="REQUERIMIENTO">
-
-                                                Requerimiento
-
-                                            </option>
-
-                                        </select>
-
-                                    </div>
-
-                                </div>
-
-
-                                <!-- CATEGORÍA -->
-
-                                <div class="col-md-5">
-
-                                    <div class="form-group">
-
-                                        <label>
-
-                                            Categoría
-
-                                            <span class="text-danger">*</span>
-
-                                        </label>
-
-                                        <select id="ticket-categoria" name="categoria_id"
-                                            class="form-control select2bs4" style="width:100%;" required>
-
-                                            <option value="">
-
-                                                Seleccione una categoría
-
-                                            </option>
-
-                                        </select>
-
-                                    </div>
-
-                                </div>
-
-
-                                <!-- PRIORIDAD -->
-
-                                <div class="col-md-3">
-
-                                    <div class="form-group">
-
-                                        <label>
-
-                                            Prioridad
-
-                                            <span class="text-danger">*</span>
-
-                                        </label>
-
-                                        <select id="ticket-prioridad" name="prioridad" class="form-control select2bs4"
-                                            style="width:100%;" required>
-
-                                            <option value="BAJA">
-
-                                                Baja
-
-                                            </option>
-
-                                            <option value="MEDIA" selected>
-
-                                                Media
-
-                                            </option>
-
-                                            <option value="ALTA">
-
-                                                Alta
-
-                                            </option>
-
-                                            <option value="CRITICA">
-
-                                                Crítica
-
-                                            </option>
-
-                                        </select>
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-
-                            <!-- ASUNTO -->
-
-                            <div class="form-group">
-
-                                <label>
-
-                                    Asunto
-
-                                    <span class="text-danger">*</span>
-
-                                </label>
-
-                                <input type="text" id="ticket-asunto" name="asunto" class="form-control" maxlength="150"
-                                    autocomplete="off" placeholder="Ej. El computador no enciende" required>
-
-                            </div>
-
-
-                            <!-- DESCRIPCIÓN -->
-
-                            <div class="form-group">
-
-                                <label>
-
-                                    Descripción
-
-                                    <span class="text-danger">*</span>
-
-                                </label>
-
-                                <textarea id="ticket-descripcion" name="descripcion" class="form-control" rows="4"
-                                    maxlength="4000"
-                                    placeholder="Describe qué sucede, desde cuándo y qué estabas haciendo cuando ocurrió."
-                                    required></textarea>
-
-                                <small class="form-text text-muted">
-
-                                    Entre más clara sea la descripción, más fácil será atender tu solicitud.
-
-                                </small>
-
-                            </div>
-
-
-                            <!-- ================================ -->
-                            <!-- INFORMACIÓN ADICIONAL            -->
-                            <!-- ================================ -->
-
-                            <h6 class="mt-4 mb-3">
-
-                                <i class="fas fa-info-circle text-primary mr-1"></i>
-
-                                Información adicional
-
-                                <small class="text-muted">
-
-                                    (opcional)
-
-                                </small>
-
-                            </h6>
-
-
-                            <div class="row">
-
-
-                                <!-- UBICACIÓN -->
-
-                                <div class="col-md-6">
-
-                                    <div class="form-group">
-
-                                        <label>
-
-                                            Ubicación
-
-                                        </label>
-
-                                        <input type="text" id="ticket-ubicacion" name="ubicacion" class="form-control"
-                                            maxlength="150" autocomplete="off" placeholder="Ej. Oficina administrativa">
-
-                                    </div>
-
-                                </div>
-
-
-                                <!-- EQUIPO -->
-
-                                <div class="col-md-6">
-
-                                    <div class="form-group">
-
-                                        <label>
-
-                                            Equipo relacionado
-
-                                        </label>
-
-                                        <input type="text" id="ticket-equipo" name="equipo" class="form-control"
-                                            maxlength="150" autocomplete="off" placeholder="Ej. PC Contabilidad 01">
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
-
-                        <!-- FOOTER -->
-
-                        <div class="modal-footer">
-
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
-
-                                Cancelar
-
-                            </button>
-
-
-                            <button type="submit" id="btn-guardar-ticket" class="btn btn-primary">
-
-                                <i class="fas fa-paper-plane"></i>
-
-                                Enviar ticket
-
-                            </button>
-
-                        </div>
-
-                    </form>
-
-                </div>
-
             </div>
 
+
+            <!-- Footer -->
+
+            <?php require_once('../MainFooter/footer.php') ?>
+
+
+            <!-- Control Sidebar -->
+
+            <aside class="control-sidebar control-sidebar-dark">
+
+            </aside>
+
         </div>
 
 
-        <!-- Footer -->
+        <!-- Main JS -->
 
-        <?php require_once ('../MainFooter/footer.php') ?>
-
-
-        <!-- Control Sidebar -->
-
-        <aside class="control-sidebar control-sidebar-dark">
-
-        </aside>
-
-    </div>
+        <?php require_once('../MainJS/JS.php') ?>
 
 
-    <!-- Main JS -->
+        <!-- JS Módulo -->
 
-    <?php require_once ('../MainJS/JS.php') ?>
-
-
-    <!-- JS Módulo -->
-
-    <script type="text/javascript" src="tickets_sistemas.js"></script>
+        <script type="text/javascript" src="tickets_sistemas.js"></script>
 
 
-</body>
+    </body>
 
-</html>
+    </html>
 
 
 <?php
 } else {
     header(
         'location:'
-        . Conectar::ruta()
-        . 'index.php'
+            . Conectar::ruta()
+            . 'index.php'
     );
 }
 

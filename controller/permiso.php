@@ -1,12 +1,12 @@
 <?php
 
-require_once ('../config/conexion.php');
-require_once ('../models/Permiso.php');
-require_once ('../models/Firma.php');
-require_once ('../models/TipoPermiso.php');
-require_once ('../models/Asignacion.php');
-require_once ('../config/MailHelper.php');
-require_once ('curl.php');
+require_once('../config/conexion.php');
+require_once('../models/Permiso.php');
+require_once('../models/Firma.php');
+require_once('../models/TipoPermiso.php');
+require_once('../models/Asignacion.php');
+require_once('../config/MailHelper.php');
+require_once('curl.php');
 
 $permiso = new Permiso();
 $tipo_permiso = new TipoPermiso();
@@ -370,8 +370,8 @@ PERMISOS EMPLEADO
             if (!empty($correos_jefes)) {
                 error_log(
                     'Enviando correo a '
-                    . count($correos_jefes)
-                    . ' jefe(s)'
+                        . count($correos_jefes)
+                        . ' jefe(s)'
                 );
 
                 $correo_enviado = MailHelper::enviar(
@@ -395,7 +395,7 @@ PERMISOS EMPLEADO
         error_log("=== FIN GUARDAR PERMISO ===\n");
         echo json_encode(['success' => true]);
         break;
-        /* ========= FIN GUARDAR PERMISOS================ */
+    /* ========= FIN GUARDAR PERMISOS================ */
 
     /*
      * =============================================
@@ -1387,6 +1387,16 @@ PERMISOS EMPLEADO
         $empleado_id = $_POST['empleado_id'] ?? '';
         $fecha_ini = $_POST['fecha_ini'] ?? $_POST['fecha_desde'] ?? '';
         $fecha_fin = $_POST['fecha_fin'] ?? $_POST['fecha_hasta'] ?? '';
+
+        // Si no se recibe rango, consultar mes anterior + mes actual hasta hoy.
+        if (empty($fecha_ini) || empty($fecha_fin)) {
+            $fecha_ini = date(
+                'Y-m-01',
+                strtotime('first day of previous month')
+            );
+
+            $fecha_fin = date('Y-m-d');
+        }
 
         $datos = $permiso->get_ausentismo($fecha_ini, $fecha_fin, $empleado_id);
 
