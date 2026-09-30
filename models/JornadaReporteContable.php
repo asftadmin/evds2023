@@ -731,51 +731,115 @@ class JornadaReporteContable extends Conectar
         );
         $stmt->execute([$fila_id]);
         $cabecera = $stmt->fetch(PDO::FETCH_ASSOC);
-
         $sql = "SELECT
-                    j.jornada_id,
-                    j.jornada_inicio,
-                    j.jornada_fin,
-                    j.jornada_ubicacion,
-                    j.jornada_actividad,
-                    j.jornada_observaciones,
-                    j.jornada_origen,
-                    aprobador.nomb_empl AS aprobado_por,
-                    COALESCE(
-                        jsonb_agg(
-                            jsonb_build_object(
-                                'codigo', con.jcon_codigo,
-                                'concepto', con.jcon_nombre,
-                                'codigo_contable', con.jcon_codigo_contable,
-                                'inicio', c.jcla_inicio,
-                                'fin', c.jcla_fin,
-                                'minutos', c.jcla_minutos
-                            )
-                            ORDER BY c.jcla_inicio, c.jcla_id
-                        ) FILTER (WHERE c.jcla_id IS NOT NULL),
-                        '[]'::jsonb
-                    )::text AS segmentos
-                FROM jornadas_trabajo j
-                INNER JOIN jornada_estados estado
-                    ON estado.je_id = j.jornada_estado_id
-                LEFT JOIN jornada_clasificaciones c
-                    ON c.jornada_id = j.jornada_id
-                LEFT JOIN jornada_conceptos con ON con.jcon_id = c.jcon_id
-                LEFT JOIN LATERAL (
-                    SELECT emp_apr.nomb_empl
-                    FROM jornada_aprobaciones apr
-                    LEFT JOIN empleados emp_apr
-                        ON emp_apr.id_empl = apr.jap_empleado_id
-                    WHERE apr.jornada_id = j.jornada_id
-                      AND apr.jap_decision = 'APROBADO'
-                    ORDER BY apr.jap_fecha DESC
-                    LIMIT 1
-                ) aprobador ON TRUE
-                WHERE j.empleado_id = ?
-                  AND estado.je_codigo = 'APROBADO'
-                  AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
-                GROUP BY j.jornada_id, aprobador.nomb_empl
-                ORDER BY j.jornada_inicio, j.jornada_id";
+            j.jornada_id,
+            j.jornada_inicio,
+            j.jornada_fin,
+            j.jornada_ubicacion,
+            j.jornada_actividad,
+            j.jornada_observaciones,
+            j.jornada_origen,
+            aprobador.nomb_empl AS aprobado_por,
+            COALESCE(
+                jsonb_agg(
+                    jsonb_build_object(
+                        'codigo', con.jcon_codigo,
+                        'concepto', con.jcon_nombre,
+                        'codigo_contable', con.jcon_codigo_contable,
+                        'inicio', c.jcla_inicio,
+                        'fin', c.jcla_fin,
+                        'minutos', c.jcla_minutos
+                    )
+                    ORDER BY c.jcla_inicio, c.jcla_id
+                ) FILTER (
+                    WHERE c.jcla_id IS NOT NULL
+                ),
+                '[]'::jsonb
+            )::text AS segmentos
+        FROM jornadas_trabajo j
+
+        INNER JOIN jornada_estados estado
+            ON estado.je_id = j.jornada_estado_id
+
+        LEFT JOIN jornada_clasificaciones c
+            ON c.jornada_id = j.jornada_id
+
+        LEFT JOIN jornada_conceptos con
+            ON con.jcon_id = c.jcon_id
+
+        LEFT JOIN LATERAL (
+            SELECT emp_apr.nomb_empl
+            FROM jornada_aprobaciones apr
+
+            LEFT JOIN empleados emp_apr
+                ON emp_apr.id_empl = apr.jap_empleado_id
+
+            WHERE apr.jornada_id = j.jornada_id
+              AND apr.jap_decision = 'APROBADO'
+
+            ORDER BY apr.jap_fecha DESC
+            LIMIT 1
+        ) aprobador ON TRUE
+
+        WHERE j.empleado_id = ?
+          AND estado.je_codigo IN (
+              'APROBADO',
+              'LIQUIDADO'
+          )
+          AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
+
+        GROUP BY
+            j.jornada_id,
+            aprobador.nomb_empl
+
+        ORDER BY
+            j.jornada_inicio,
+            j.jornada_id";
+
+        /*         $sql = "SELECT
+                            j.jornada_id,
+                            j.jornada_inicio,
+                            j.jornada_fin,
+                            j.jornada_ubicacion,
+                            j.jornada_actividad,
+                            j.jornada_observaciones,
+                            j.jornada_origen,
+                            aprobador.nomb_empl AS aprobado_por,
+                            COALESCE(
+                                jsonb_agg(
+                                    jsonb_build_object(
+                                        'codigo', con.jcon_codigo,
+                                        'concepto', con.jcon_nombre,
+                                        'codigo_contable', con.jcon_codigo_contable,
+                                        'inicio', c.jcla_inicio,
+                                        'fin', c.jcla_fin,
+                                        'minutos', c.jcla_minutos
+                                    )
+                                    ORDER BY c.jcla_inicio, c.jcla_id
+                                ) FILTER (WHERE c.jcla_id IS NOT NULL),
+                                '[]'::jsonb
+                            )::text AS segmentos
+                        FROM jornadas_trabajo j
+                        INNER JOIN jornada_estados estado
+                            ON estado.je_id = j.jornada_estado_id
+                        LEFT JOIN jornada_clasificaciones c
+                            ON c.jornada_id = j.jornada_id
+                        LEFT JOIN jornada_conceptos con ON con.jcon_id = c.jcon_id
+                        LEFT JOIN LATERAL (
+                            SELECT emp_apr.nomb_empl
+                            FROM jornada_aprobaciones apr
+                            LEFT JOIN empleados emp_apr
+                                ON emp_apr.id_empl = apr.jap_empleado_id
+                            WHERE apr.jornada_id = j.jornada_id
+                              AND apr.jap_decision = 'APROBADO'
+                            ORDER BY apr.jap_fecha DESC
+                            LIMIT 1
+                        ) aprobador ON TRUE
+                        WHERE j.empleado_id = ?
+                          AND estado.je_codigo = 'APROBADO'
+                          AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
+                        GROUP BY j.jornada_id, aprobador.nomb_empl
+                        ORDER BY j.jornada_inicio, j.jornada_id"; */
         $stmt = $db->prepare($sql);
         $stmt->execute([
             $cabecera['empleado_id'],
