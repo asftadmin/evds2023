@@ -4,9 +4,10 @@
  * Lotes documentales de jornadas. Los periodos pueden variar por empleado y,
  * al cerrar, se conserva un snapshot inmutable para reproducir los archivos.
  */
-class JornadaReporteContable extends Conectar {
-
-    public function listar_lotes() {
+class JornadaReporteContable extends Conectar
+{
+    public function listar_lotes()
+    {
         $db = parent::Conexion();
         $sql = "SELECT
                     l.*,
@@ -23,18 +24,19 @@ class JornadaReporteContable extends Conectar {
         return $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function crear_lote($nombre, $fecha_corte, $usuario_id) {
+    public function crear_lote($nombre, $fecha_corte, $usuario_id)
+    {
         $db = parent::Conexion();
         try {
             $db->beginTransaction();
             $stmt = $db->prepare(
-                "INSERT INTO jornada_lotes_reporte (
+                'INSERT INTO jornada_lotes_reporte (
                     jlot_nombre, jlot_fecha_corte, jlot_creado_por
                  ) VALUES (?, ?::date, ?)
-                 RETURNING jlot_id"
+                 RETURNING jlot_id'
             );
             $stmt->execute([$nombre, $fecha_corte, $usuario_id]);
-            $lote_id = (int)$stmt->fetchColumn();
+            $lote_id = (int) $stmt->fetchColumn();
 
             /*
              * Incluye empleados con jornadas hasta el corte y quienes ya
@@ -67,7 +69,7 @@ class JornadaReporteContable extends Conectar {
             foreach ($empleados as $empleado_id) {
                 $desde = $this->calcular_inicio_sugerido(
                     $db,
-                    (int)$empleado_id,
+                    (int) $empleado_id,
                     $fecha_corte
                 );
                 if ($desde === null || $desde > $fecha_corte) {
@@ -82,14 +84,14 @@ class JornadaReporteContable extends Conectar {
                 );
                 $stmtInsertar->execute([
                     $lote_id,
-                    (int)$empleado_id,
+                    (int) $empleado_id,
                     $desde,
                     $fecha_corte,
                     $usuario_id
                 ]);
                 $this->recalcular_fila(
                     $db,
-                    (int)$stmtInsertar->fetchColumn(),
+                    (int) $stmtInsertar->fetchColumn(),
                     $usuario_id
                 );
             }
@@ -118,7 +120,8 @@ class JornadaReporteContable extends Conectar {
      * Crea una nueva versión completa de un lote cerrado. El original sigue
      * vigente hasta que la corrección consiga cerrarse correctamente.
      */
-    public function crear_correccion($lote_origen_id, $usuario_id) {
+    public function crear_correccion($lote_origen_id, $usuario_id)
+    {
         $db = parent::Conexion();
         try {
             $db->beginTransaction();
@@ -144,7 +147,7 @@ class JornadaReporteContable extends Conectar {
                 );
             }
 
-            $version = (int)$origen['jlot_version'] + 1;
+            $version = (int) $origen['jlot_version'] + 1;
             $nombre = 'Corrección v' . $version . ' - '
                 . $origen['jlot_nombre'];
             $stmt = $db->prepare(
@@ -168,7 +171,7 @@ class JornadaReporteContable extends Conectar {
                 $version,
                 $usuario_id
             ]);
-            $nuevo_id = (int)$stmt->fetchColumn();
+            $nuevo_id = (int) $stmt->fetchColumn();
 
             $stmt = $db->prepare(
                 "INSERT INTO jornada_lote_empleados (
@@ -201,7 +204,7 @@ class JornadaReporteContable extends Conectar {
                 );
             }
             foreach ($filas as $fila_id) {
-                $this->recalcular_fila($db, (int)$fila_id, $usuario_id);
+                $this->recalcular_fila($db, (int) $fila_id, $usuario_id);
             }
 
             $this->auditar(
@@ -210,8 +213,8 @@ class JornadaReporteContable extends Conectar {
                 null,
                 'CREAR_CORRECCION',
                 [
-                    'lote_origen_id' => (int)$lote_origen_id,
-                    'version' => (int)$origen['jlot_version']
+                    'lote_origen_id' => (int) $lote_origen_id,
+                    'version' => (int) $origen['jlot_version']
                 ],
                 [
                     'lote_correccion_id' => $nuevo_id,
@@ -230,19 +233,21 @@ class JornadaReporteContable extends Conectar {
         }
     }
 
-    public function obtener_lote($lote_id) {
+    public function obtener_lote($lote_id)
+    {
         $db = parent::Conexion();
         $stmt = $db->prepare(
-            "SELECT * FROM jornada_lotes_reporte WHERE jlot_id = ?"
+            'SELECT * FROM jornada_lotes_reporte WHERE jlot_id = ?'
         );
         $stmt->execute([$lote_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function listar_empleados_lote($lote_id) {
+    public function listar_empleados_lote($lote_id)
+    {
         $db = parent::Conexion();
         $stmt = $db->prepare(
-            "SELECT
+            'SELECT
                 le.*,
                 emp.nomb_empl AS empleado,
                 emp.cedu_empl AS documento,
@@ -251,7 +256,7 @@ class JornadaReporteContable extends Conectar {
              INNER JOIN empleados emp ON emp.id_empl = le.empleado_id
              LEFT JOIN cargo ON cargo.codi_carg = emp.carg_empl
              WHERE le.jlot_id = ?
-             ORDER BY emp.nomb_empl, emp.cedu_empl"
+             ORDER BY emp.nomb_empl, emp.cedu_empl'
         );
         $stmt->execute([$lote_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -268,7 +273,7 @@ class JornadaReporteContable extends Conectar {
         try {
             $db->beginTransaction();
             $stmt = $db->prepare(
-                "SELECT
+                'SELECT
                     le.*,
                     l.jlot_estado,
                     l.jlot_fecha_corte,
@@ -276,7 +281,7 @@ class JornadaReporteContable extends Conectar {
                  FROM jornada_lote_empleados le
                  INNER JOIN jornada_lotes_reporte l ON l.jlot_id = le.jlot_id
                  WHERE le.jle_id = ?
-                 FOR UPDATE OF le, l"
+                 FOR UPDATE OF le, l'
             );
             $stmt->execute([$fila_id]);
             $anterior = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -311,7 +316,7 @@ class JornadaReporteContable extends Conectar {
                 $hasta,
                 $desde
             ]);
-            if ((bool)$stmt->fetchColumn()) {
+            if ((bool) $stmt->fetchColumn()) {
                 throw new RuntimeException(
                     'El periodo se superpone con otro lote ya cerrado.'
                 );
@@ -332,7 +337,7 @@ class JornadaReporteContable extends Conectar {
             $nueva = $this->recalcular_fila($db, $fila_id, $usuario_id);
             $this->auditar(
                 $db,
-                (int)$anterior['jlot_id'],
+                (int) $anterior['jlot_id'],
                 $fila_id,
                 'AJUSTAR_PERIODO',
                 [
@@ -353,7 +358,8 @@ class JornadaReporteContable extends Conectar {
         }
     }
 
-    public function refrescar_lote($lote_id, $usuario_id) {
+    public function refrescar_lote($lote_id, $usuario_id)
+    {
         $db = parent::Conexion();
         try {
             $db->beginTransaction();
@@ -362,11 +368,11 @@ class JornadaReporteContable extends Conectar {
                 throw new RuntimeException('El lote ya está cerrado.');
             }
             $stmt = $db->prepare(
-                "SELECT jle_id FROM jornada_lote_empleados WHERE jlot_id = ?"
+                'SELECT jle_id FROM jornada_lote_empleados WHERE jlot_id = ?'
             );
             $stmt->execute([$lote_id]);
             foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $fila_id) {
-                $this->recalcular_fila($db, (int)$fila_id, $usuario_id);
+                $this->recalcular_fila($db, (int) $fila_id, $usuario_id);
             }
             $db->commit();
         } catch (Throwable $e) {
@@ -377,7 +383,8 @@ class JornadaReporteContable extends Conectar {
         }
     }
 
-    public function cerrar_lote($lote_id, $usuario_id) {
+    public function cerrar_lote($lote_id, $usuario_id)
+    {
         $db = parent::Conexion();
         try {
             $db->beginTransaction();
@@ -386,8 +393,8 @@ class JornadaReporteContable extends Conectar {
                 throw new RuntimeException('El lote ya fue cerrado.');
             }
             $stmt = $db->prepare(
-                "SELECT jle_id FROM jornada_lote_empleados
-                 WHERE jlot_id = ? ORDER BY jle_id FOR UPDATE"
+                'SELECT jle_id FROM jornada_lote_empleados
+                 WHERE jlot_id = ? ORDER BY jle_id FOR UPDATE'
             );
             $stmt->execute([$lote_id]);
             $filas = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -401,7 +408,7 @@ class JornadaReporteContable extends Conectar {
             foreach ($filas as $fila_id) {
                 $fila = $this->recalcular_fila(
                     $db,
-                    (int)$fila_id,
+                    (int) $fila_id,
                     $usuario_id
                 );
                 if (!in_array(
@@ -419,16 +426,16 @@ class JornadaReporteContable extends Conectar {
             }
 
             foreach ($filas as $fila_id) {
-                $snapshot = $this->construir_snapshot($db, (int)$fila_id);
+                $snapshot = $this->construir_snapshot($db, (int) $fila_id);
                 $stmt = $db->prepare(
-                    "UPDATE jornada_lote_empleados
+                    'UPDATE jornada_lote_empleados
                      SET jle_snapshot = ?::jsonb,
                          jle_fecha_actualizacion = CURRENT_TIMESTAMP
-                     WHERE jle_id = ?"
+                     WHERE jle_id = ?'
                 );
                 $stmt->execute([
                     json_encode($snapshot, JSON_UNESCAPED_UNICODE),
-                    (int)$fila_id
+                    (int) $fila_id
                 ]);
             }
             $stmt = $db->prepare(
@@ -441,8 +448,8 @@ class JornadaReporteContable extends Conectar {
             $stmt->execute([$usuario_id, $lote_id]);
 
             if (
-                $lote['jlot_tipo'] === 'CORRECCION'
-                && !empty($lote['jlot_lote_origen_id'])
+                $lote['jlot_tipo'] === 'CORRECCION' &&
+                !empty($lote['jlot_lote_origen_id'])
             ) {
                 $stmt = $db->prepare(
                     "UPDATE jornada_lotes_reporte
@@ -476,7 +483,8 @@ class JornadaReporteContable extends Conectar {
         }
     }
 
-    public function obtener_snapshot_empleado($fila_id) {
+    public function obtener_snapshot_empleado($fila_id)
+    {
         $db = parent::Conexion();
         $stmt = $db->prepare(
             "SELECT le.jle_snapshot::text AS snapshot, l.*
@@ -498,12 +506,13 @@ class JornadaReporteContable extends Conectar {
         ];
     }
 
-    public function obtener_snapshots_lote($lote_id) {
+    public function obtener_snapshots_lote($lote_id)
+    {
         $db = parent::Conexion();
         $lote = $this->obtener_lote($lote_id);
         if (
-            !$lote
-            || !in_array(
+            !$lote ||
+            !in_array(
                 $lote['jlot_estado'],
                 ['CERRADO', 'REEMPLAZADO'],
                 true
@@ -512,10 +521,10 @@ class JornadaReporteContable extends Conectar {
             throw new RuntimeException('El lote debe estar cerrado para exportarlo.');
         }
         $stmt = $db->prepare(
-            "SELECT jle_snapshot::text
+            'SELECT jle_snapshot::text
              FROM jornada_lote_empleados
              WHERE jlot_id = ? AND jle_snapshot IS NOT NULL
-             ORDER BY jle_id"
+             ORDER BY jle_id'
         );
         $stmt->execute([$lote_id]);
         $snapshots = [];
@@ -529,7 +538,8 @@ class JornadaReporteContable extends Conectar {
         return ['lote' => $lote, 'snapshots' => $snapshots];
     }
 
-    private function calcular_inicio_sugerido(PDO $db, $empleado_id, $corte) {
+    private function calcular_inicio_sugerido(PDO $db, $empleado_id, $corte)
+    {
         $stmt = $db->prepare(
             "SELECT (MAX(le.jle_hasta) + 1)
              FROM jornada_lote_empleados le
@@ -552,9 +562,10 @@ class JornadaReporteContable extends Conectar {
         return $stmt->fetchColumn() ?: null;
     }
 
-    private function recalcular_fila(PDO $db, $fila_id, $usuario_id) {
+    private function recalcular_fila(PDO $db, $fila_id, $usuario_id)
+    {
         $stmt = $db->prepare(
-            "SELECT
+            'SELECT
                 le.*,
                 lote_actual.jlot_lote_origen_id,
                 lote_actual.jlot_tipo
@@ -562,7 +573,7 @@ class JornadaReporteContable extends Conectar {
              INNER JOIN jornada_lotes_reporte lote_actual
                 ON lote_actual.jlot_id = le.jlot_id
              WHERE le.jle_id = ?
-             FOR UPDATE"
+             FOR UPDATE'
         );
         $stmt->execute([$fila_id]);
         $fila = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -578,10 +589,13 @@ class JornadaReporteContable extends Conectar {
                         WHERE estado.je_codigo = 'APROBADO'
                     )::integer AS aprobadas,
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo NOT IN ('APROBADO', 'RECHAZADO', 'ANULADO')
+                        WHERE estado.je_codigo NOT IN ('APROBADO','LIQUIDADO', 'RECHAZADO', 'ANULADO')
                     )::integer AS sin_aprobar,
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo = 'APROBADO'
+                        WHERE estado.je_codigo IN (
+                        'APROBADO',
+                            'LIQUIDADO'
+                        ) 
                           AND (
                             j.jornada_inconsistente = 1
                             OR COALESCE(c.minutos, 0) <> (
@@ -592,11 +606,11 @@ class JornadaReporteContable extends Conectar {
                           )
                     )::integer AS sin_clasificar,
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo = 'APROBADO'
+                        WHERE estado.je_codigo IN ('APROBADO', 'LIQUIDADO')
                           AND j.jornada_inconsistente = 1
                     )::integer AS inconsistentes,
                     COALESCE(SUM(c.reportables) FILTER (
-                        WHERE estado.je_codigo = 'APROBADO'
+                        WHERE estado.je_codigo IN ('APROBADO', 'LIQUIDADO')
                     ), 0)::integer AS minutos_reportables
                 FROM jornadas_trabajo j
                 INNER JOIN jornada_estados estado
@@ -644,7 +658,7 @@ class JornadaReporteContable extends Conectar {
             $fila['jle_hasta'],
             $fila['jle_desde']
         ]);
-        $superpone_cierre = (bool)$stmt->fetchColumn();
+        $superpone_cierre = (bool) $stmt->fetchColumn();
 
         if (!$fila['jle_desde']) {
             $estado = 'SIN_BASE';
@@ -652,20 +666,20 @@ class JornadaReporteContable extends Conectar {
         } elseif ($superpone_cierre) {
             $estado = 'BLOQUEADO';
             $diagnostico = 'El periodo se superpone con otro lote ya cerrado.';
-        } elseif ((int)$conteo['inconsistentes'] > 0) {
+        } elseif ((int) $conteo['inconsistentes'] > 0) {
             $estado = 'BLOQUEADO';
             $diagnostico = 'Existen jornadas inconsistentes.';
         } elseif (
-            (int)$conteo['sin_aprobar'] > 0
-            || (int)$conteo['sin_clasificar'] > 0
+            (int) $conteo['sin_aprobar'] > 0 ||
+            (int) $conteo['sin_clasificar'] > 0
         ) {
             $estado = 'PENDIENTE';
             $diagnostico = sprintf(
                 '%d sin aprobar y %d sin clasificación completa.',
-                (int)$conteo['sin_aprobar'],
-                (int)$conteo['sin_clasificar']
+                (int) $conteo['sin_aprobar'],
+                (int) $conteo['sin_clasificar']
             );
-        } elseif ((int)$conteo['aprobadas'] === 0) {
+        } elseif ((int) $conteo['aprobadas'] === 0) {
             $estado = 'SIN_NOVEDAD';
             $diagnostico = 'No hay jornadas aprobadas en el periodo.';
         } else {
@@ -674,7 +688,7 @@ class JornadaReporteContable extends Conectar {
         }
 
         $stmt = $db->prepare(
-            "UPDATE jornada_lote_empleados
+            'UPDATE jornada_lote_empleados
              SET jle_estado = ?,
                  jle_cantidad_jornadas = ?,
                  jle_cantidad_pendientes = ?,
@@ -683,15 +697,15 @@ class JornadaReporteContable extends Conectar {
                  jle_actualizado_por = ?,
                  jle_fecha_actualizacion = CURRENT_TIMESTAMP
              WHERE jle_id = ?
-             RETURNING *"
+             RETURNING *'
         );
-        $pendientes = (int)$conteo['sin_aprobar']
-            + (int)$conteo['sin_clasificar'];
+        $pendientes = (int) $conteo['sin_aprobar']
+            + (int) $conteo['sin_clasificar'];
         $stmt->execute([
             $estado,
-            (int)$conteo['aprobadas'],
+            (int) $conteo['aprobadas'],
             $pendientes,
-            (int)$conteo['minutos_reportables'],
+            (int) $conteo['minutos_reportables'],
             $diagnostico,
             $usuario_id,
             $fila_id
@@ -699,9 +713,10 @@ class JornadaReporteContable extends Conectar {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    private function construir_snapshot(PDO $db, $fila_id) {
+    private function construir_snapshot(PDO $db, $fila_id)
+    {
         $stmt = $db->prepare(
-            "SELECT
+            'SELECT
                 le.*,
                 emp.nomb_empl AS empleado,
                 emp.cedu_empl AS documento,
@@ -712,7 +727,7 @@ class JornadaReporteContable extends Conectar {
              INNER JOIN empleados emp ON emp.id_empl = le.empleado_id
              LEFT JOIN cargo ON cargo.codi_carg = emp.carg_empl
              LEFT JOIN genero ON genero.id_gene = emp.gene_empl
-             WHERE le.jle_id = ?"
+             WHERE le.jle_id = ?'
         );
         $stmt->execute([$fila_id]);
         $cabecera = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -775,15 +790,15 @@ class JornadaReporteContable extends Conectar {
                 $codigo = $segmento['codigo'];
                 if ($codigo !== 'NO_LIQ') {
                     $totales[$codigo] = ($totales[$codigo] ?? 0)
-                        + (int)$segmento['minutos'];
+                        + (int) $segmento['minutos'];
                 }
             }
             $jornadas[] = $jornada;
         }
         ksort($totales);
         return [
-            'fila_id' => (int)$cabecera['jle_id'],
-            'empleado_id' => (int)$cabecera['empleado_id'],
+            'fila_id' => (int) $cabecera['jle_id'],
+            'empleado_id' => (int) $cabecera['empleado_id'],
             'empleado' => $cabecera['empleado'],
             'documento' => $cabecera['documento'],
             'cargo' => $cabecera['cargo'],
@@ -799,10 +814,11 @@ class JornadaReporteContable extends Conectar {
         ];
     }
 
-    private function bloquear_lote(PDO $db, $lote_id) {
+    private function bloquear_lote(PDO $db, $lote_id)
+    {
         $stmt = $db->prepare(
-            "SELECT * FROM jornada_lotes_reporte
-             WHERE jlot_id = ? FOR UPDATE"
+            'SELECT * FROM jornada_lotes_reporte
+             WHERE jlot_id = ? FOR UPDATE'
         );
         $stmt->execute([$lote_id]);
         $lote = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -816,22 +832,23 @@ class JornadaReporteContable extends Conectar {
      * Completa datos de encabezado para snapshots antiguos que fueron cerrados
      * antes de incorporar edad y sexo al formato PDF.
      */
-    private function completar_datos_empleado(PDO $db, array $snapshot) {
+    private function completar_datos_empleado(PDO $db, array $snapshot)
+    {
         if (
-            array_key_exists('fecha_nacimiento', $snapshot)
-            && array_key_exists('sexo', $snapshot)
+            array_key_exists('fecha_nacimiento', $snapshot) &&
+            array_key_exists('sexo', $snapshot)
         ) {
             return $snapshot;
         }
         $stmt = $db->prepare(
-            "SELECT
+            'SELECT
                 emp.fecha_naci_empl AS fecha_nacimiento,
                 genero.desc_gene AS sexo
              FROM empleados emp
              LEFT JOIN genero ON genero.id_gene = emp.gene_empl
-             WHERE emp.id_empl = ?"
+             WHERE emp.id_empl = ?'
         );
-        $stmt->execute([(int)($snapshot['empleado_id'] ?? 0)]);
+        $stmt->execute([(int) ($snapshot['empleado_id'] ?? 0)]);
         $datos = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
         $snapshot['fecha_nacimiento'] =
             $datos['fecha_nacimiento'] ?? null;
@@ -850,10 +867,10 @@ class JornadaReporteContable extends Conectar {
         $usuario_id
     ) {
         $stmt = $db->prepare(
-            "INSERT INTO jornada_lote_auditoria (
+            'INSERT INTO jornada_lote_auditoria (
                 jlot_id, jle_id, jla_accion, jla_datos_anteriores,
                 jla_datos_nuevos, jla_motivo, jla_usuario_id
-             ) VALUES (?, ?, ?, ?::jsonb, ?::jsonb, ?, ?)"
+             ) VALUES (?, ?, ?, ?::jsonb, ?::jsonb, ?, ?)'
         );
         $stmt->execute([
             $lote_id,
