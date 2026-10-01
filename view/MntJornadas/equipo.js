@@ -50,7 +50,7 @@ function inicializarSelectEmpleadoEquipo() {
 // Inicializa el rango de fechas utilizado para consultar el expediente.
 function inicializarRangoEquipo() {
     const fin = moment();
-    const inicio = fin.clone().subtract(1, 'month').startOf('month');
+    const inicio = fin.clone().subtract(2, 'month').startOf('month');
 
     $('#filtro_fechas').daterangepicker({
         startDate: inicio,
