@@ -36,14 +36,58 @@ function cargarAsistencia() {
         "aProcessing": true,
         "aServerSide": true,
         "searching": true,
-        lengthChange: false,
-        colReorder: true,
-        buttons: [		          
-            'copyHtml5',
-            'excelHtml5',
-            'csvHtml5',
-            'pdfHtml5'
+        lengthChange: true,
+        lengthMenu: [
+            [5, 10, 25, 50, 100, -1],
+            [5, 10, 25, 50, 100, 'Todos']
         ],
+        dom:
+            "<'row mb-2'<'col-12'B>>" +
+            "<'row'<'col-md-6'l><'col-md-6'f>>" +
+            "<'row'<'col-12'tr>>" +
+            "<'row mt-2'<'col-md-5'i><'col-md-7'p>>",
+        colReorder: true,
+        buttons: {
+            dom: { container: { className: 'dt-buttons btn-group flex-wrap' } },
+            buttons: [
+                {
+                    extend: 'copyHtml5',
+                    text: 'Copiar',
+                    title: 'Asistencia Biotime',
+                    exportOptions: { columns: ':visible' }
+                },
+                {
+                    extend: 'excelHtml5',
+                    text: 'Excel',
+                    title: 'Asistencia Biotime',
+                    exportOptions: { columns: ':visible' }
+                },
+                {
+                    extend: 'csvHtml5',
+                    text: 'CSV',
+                    title: 'Asistencia Biotime',
+                    exportOptions: { columns: ':visible' }
+                },
+                {
+                    extend: 'pdfHtml5',
+                    text: 'PDF',
+                    title: 'Asistencia Biotime',
+                    orientation: 'landscape',
+                    pageSize: 'A4',
+                    exportOptions: { columns: ':visible' }
+                },
+                {
+                    extend: 'print',
+                    text: 'Imprimir',
+                    title: 'Asistencia Biotime',
+                    exportOptions: { columns: ':visible' }
+                },
+                {
+                    extend: 'colvis',
+                    text: 'Columnas'
+                }
+            ]
+        },
         "ajax":{
             url: '../../controller/asistencia.php?op=listarAsistencia',
             type : "get",
