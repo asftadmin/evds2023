@@ -134,3 +134,25 @@ Estado: implementado; pendiente validación visual y de uso en navegador.
 
 - El botón muestra spinner y Guardando... durante la solicitud de contabilización, después de confirmar. Permanece deshabilitado y recupera su contenido al finalizar, incluso si falla la solicitud.
 - Validación: sintaxis JavaScript correcta.
+
+## Marcaciones personales BioTime al ingresar
+
+Estado: implementado; validación del backend en PostgreSQL aislado y de la interfaz con API simulada.
+
+- Mostrar automáticamente las marcaciones del empleado autenticado en view/home/home2.php.
+- Resolver la identidad mediante empleados.user_empl = user_id de la sesión; no aceptar empleados/documentos enviados por el navegador.
+- Conservar el transporte BioTime existente con departments=1 y areas=2. La API consultada ignora emp_code; filtrar por documento en el servidor antes de construir la respuesta.
+- Resumen diario: primera y última marcación y tiempo bruto. Todas las entradas y salidas: una fila por marcación con Fecha, Hora, Empleado, Cargo y Grupo; sin documento, orden descendente y formato DD-MM-YYYY / hh:mm:ss AM-PM. Cargo/grupo desde las relaciones reales empleados.carg_empl, cargo.grem_carg y grupoempleados.codi_grem. No usar punch_state ni descontar almuerzo.
+- Selector de marcaciones con opciones tradicionales: Hoy, Ayer, Esta semana, Últimos 7 días, Últimos 30 días, Este mes, Mes anterior y Rango personalizado. Semana actual (lunes hasta hoy) por defecto para reducir la consulta al iniciar sesión, sin normalizar al ciclo 16 al 15. Advertir sobre días con marcaciones impares.
+- AJAX jQuery, Select2, DataTables, daterangepicker y SweetAlert2; JavaScript externo y SQL exclusivamente en el modelo.
+- Conservar el dashboard existente por rol y los demás flujos de jornadas, firmas, BioTime del jefe y liquidación.
+- Verificar las columnas reales en PostgreSQL mientras no se disponga de la ruta de evds2023.sql; no modificar el esquema.
+- Actualizar STRUCTURE.md y PLAN.md junto con los cambios.
+
+- Revisión de integración real: consulta BioTime satisfactoria para un empleado autenticable, con resumen y detalle coherentes; sin modificar datos reales.
+
+- Dashboard: ubicar las tarjetas de Evaluación Mensual, Evaluación Anual, Aprobaciones y Solicitudes debajo del título Panel General del Sistema, antes de Mis marcaciones BioTime.
+
+- Marcaciones personales: botones Copiar, CSV, Excel, PDF, Imprimir y Columnas en los dos DataTables, exportando resultados filtrados de todas las páginas y columnas visibles. Validación en Chrome con descarga CSV correcta y sin documento.
+
+- Dashboard: padding inferior pb-4 (1.5rem) entre la tarjeta de marcaciones y el footer; validación de sintaxis PHP satisfactoria.

@@ -51,7 +51,7 @@ if (isset($_SESSION["user_id"])) {
                 </section>
 
                 <!-- Main content -->
-                <section class="content">
+                <section class="content pb-4">
 
                     <div class="container-fluid">
 
@@ -136,6 +136,7 @@ if (isset($_SESSION["user_id"])) {
 
                         </div>
 
+                        <?php require_once __DIR__ . '/marcaciones_empleado.php'; ?>
                     </div>
                 </section>
                 <!-- /.content -->
@@ -158,26 +159,7 @@ if (isset($_SESSION["user_id"])) {
         <script src="../../public/plugins/select2/js/select2.full.min.js"></script>
 
 
-        <script>
-            document.addEventListener("DOMContentLoaded", function() {
-
-                let rol = document.getElementById("rol_idx").value;
-
-                if (rol == 4) {
-                    // Ocultar los que NO debe ver
-                    document.getElementById("card_mensual").style.display = "none";
-                    document.getElementById("card_aprobaciones").style.display = "none";
-
-                    // Opcional: centrar los que quedan
-                    document.getElementById("card_anual").classList.remove("col-lg-3");
-                    document.getElementById("card_solicitudes").classList.remove("col-lg-3");
-
-                    document.getElementById("card_anual").classList.add("col-lg-4", "offset-lg-2");
-                    document.getElementById("card_solicitudes").classList.add("col-lg-4");
-                }
-
-            });
-        </script>
+        <script src="home2.js"></script>
 
 
 

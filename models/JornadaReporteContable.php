@@ -586,14 +586,15 @@ class JornadaReporteContable extends Conectar
                         WHERE estado.je_codigo NOT IN ('RECHAZADO', 'ANULADO')
                     )::integer AS registradas,
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo = 'APROBADO'
+                        WHERE estado.je_codigo IN ('APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO')
                     )::integer AS aprobadas,
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo NOT IN ('APROBADO','LIQUIDADO', 'RECHAZADO', 'ANULADO')
+                        WHERE estado.je_codigo NOT IN ('APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO', 'RECHAZADO', 'ANULADO')
                     )::integer AS sin_aprobar,
                     COUNT(*) FILTER (
                         WHERE estado.je_codigo IN (
                         'APROBADO',
+                            'PENDIENTE_LIQUIDACION',
                             'LIQUIDADO'
                         ) 
                           AND (
@@ -606,11 +607,11 @@ class JornadaReporteContable extends Conectar
                           )
                     )::integer AS sin_clasificar,
                     COUNT(*) FILTER (
-                        WHERE estado.je_codigo IN ('APROBADO', 'LIQUIDADO')
+                        WHERE estado.je_codigo IN ('APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO')
                           AND j.jornada_inconsistente = 1
                     )::integer AS inconsistentes,
                     COALESCE(SUM(c.reportables) FILTER (
-                        WHERE estado.je_codigo IN ('APROBADO', 'LIQUIDADO')
+                        WHERE estado.je_codigo IN ('APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO')
                     ), 0)::integer AS minutos_reportables
                 FROM jornadas_trabajo j
                 INNER JOIN jornada_estados estado
@@ -784,6 +785,7 @@ class JornadaReporteContable extends Conectar
         WHERE j.empleado_id = ?
           AND estado.je_codigo IN (
               'APROBADO',
+              'PENDIENTE_LIQUIDACION',
               'LIQUIDADO'
           )
           AND j.jornada_inicio::date BETWEEN ?::date AND ?::date

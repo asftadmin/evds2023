@@ -274,16 +274,20 @@ try {
         'decidirJornadaJefe',
         // Operaciones del expediente de jornadas del equipo.
         'contextoEquipo',
+        'registrarAprobarEquipoIndividual',
+        'guardarJornadaEquipoVarios',
         'anularBorradorEquipo',
         'listarSubordinadosJefe',
         'calcularHorasEquipo',
         // 'guardarJornadaEquipo',
         'listarJornadasEquipo',
         'guardarBorradoresEquipoMasivo',
-        // 'registrarAprobarEquipoMasivo',
+        'registrarAprobarEquipoMasivo',
         'listarUbicacionesJornada'
     ];
     $operaciones_equipo = [
+        'registrarAprobarEquipoIndividual',
+        'guardarJornadaEquipoVarios',
         'anularBorradorEquipo',
         'contextoEquipo',
         'listarSubordinadosJefe',
@@ -292,7 +296,7 @@ try {
         'listarJornadasEquipo',
         // Nuevas operaciones masivas del expediente.
         'guardarBorradoresEquipoMasivo',
-        // 'registrarAprobarEquipoMasivo',
+        'registrarAprobarEquipoMasivo',
         'listarUbicacionesJornada'
     ];
 
@@ -808,6 +812,24 @@ try {
             ]);
             break;
 
+        case 'guardarJornadaEquipoVarios':
+            jornada_validar_csrf();
+            $empleados_ids = json_decode(jornada_entrada('empleados_ids'), true);
+            $fila = json_decode(jornada_entrada('jornada'), true);
+            if (!is_array($empleados_ids) || !is_array($fila)) {
+                throw new InvalidArgumentException('La selección de empleados o la jornada no es válida.');
+            }
+            $datos = jornada_validar_fila_equipo($jornada, $fila);
+            $resultado = $jornada->guardar_jornada_equipo_varios(
+                $empleados_ids, (int) $empleado['id_empl'], $contexto['user_id'], $datos
+            );
+            jornada_responder([
+                'success' => true,
+                'data' => $resultado,
+                'message' => sprintf('%d jornadas guardadas. Quedan pendientes de confirmación por cada empleado.', $resultado['creadas'])
+            ]);
+            break;
+
         case 'guardarBorradoresEquipoMasivo':
             // Las operaciones de escritura requieren token CSRF válido.
             jornada_validar_csrf();
@@ -833,6 +855,7 @@ try {
             ]);
 
             break;
+        case 'registrarAprobarEquipoIndividual':
         case 'registrarAprobarEquipoMasivo':
             // Toda operación de escritura requiere CSRF válido.
             jornada_validar_csrf();
@@ -893,7 +916,7 @@ try {
                 'success' => true,
                 'data' => $resultado,
                 'message' => sprintf(
-                    '%d jornada(s) fueron aprobadas correctamente.',
+                    '%d jornada(s) aprobadas y pendientes de liquidación. Se conservó la firma del empleado; no requiere firmar nuevamente.',
                     $resultado['aprobadas']
                 )
             ]);
@@ -1186,7 +1209,7 @@ try {
                 'success' => true,
                 'data' => $resultado,
                 'message' => sprintf(
-                    '%d jornada(s) fueron confirmadas correctamente.',
+                    '%d jornada(s) confirmadas y firmadas. Quedan pendientes de aprobación del jefe; no necesitará firmarlas nuevamente si los datos no cambian.',
                     $resultado['cantidad_jornadas']
                 )
             ]);

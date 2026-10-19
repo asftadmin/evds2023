@@ -243,17 +243,8 @@ function calcularHorasJornada() {
  * Configura el rango inicial usado para consultar el historial.
  */
 function inicializarRangoFechas() {
-    const inicio = moment()
-        .subtract(1, 'month')
-        .startOf('month');
-
-    const fin = moment();
-
-    $('#filtro_fechas').daterangepicker({
-        startDate: inicio,
-        endDate: fin,
+    JornadasPeriodo.inicializar('#filtro_fechas', {
         showDropdowns: true,
-        maxDate: fin,
         locale: {
             format: 'YYYY-MM-DD',
             separator: ' - ',
@@ -1488,37 +1479,13 @@ $('#filtro_estado').on(
 
 
 /**
- * Restablece el periodo al mes anterior hasta hoy
+ * Restablece el periodo anterior del 16 al 15
  * y muestra todos los estados.
  */
 $('#btn-limpiar-filtro').on(
     'click',
     function () {
-        const inicio = moment()
-            .subtract(1, 'month')
-            .startOf('month');
-
-        const fin = moment();
-
-        const selector = $(
-            '#filtro_fechas'
-        ).data(
-            'daterangepicker'
-        );
-
-        selector.setStartDate(
-            inicio
-        );
-
-        selector.setEndDate(
-            fin
-        );
-
-        $('#filtro_fechas').val(
-            inicio.format('YYYY-MM-DD') +
-            ' - ' +
-            fin.format('YYYY-MM-DD')
-        );
+        JornadasPeriodo.seleccionar('#filtro_fechas');
 
         $('#filtro_estado').val('');
 

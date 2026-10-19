@@ -20,6 +20,8 @@
                     <i class="fas fa-info-circle mr-1"></i>
                     He revisado las jornadas indicadas y confirmo que
                     corresponden al tiempo laborado.
+                    Esta firma se conservará en el reporte cuando el jefe apruebe las jornadas;
+                    no necesitará firmarlas nuevamente si los datos no cambian.
                 </div>
 
                 <div class="row mb-3">
@@ -72,7 +74,7 @@
 
                 <button type="button" class="btn btn-success" id="btn-confirmar-firma-jornadas" disabled>
                     <i class="fas fa-check-circle mr-1"></i>
-                    Confirmar jornadas
+                    Confirmar y firmar jornadas
                 </button>
 
             </div>

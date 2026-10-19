@@ -10,7 +10,7 @@ class Conectar
         try {
             // Cambiar los valores según tu configuración de PostgreSQL   192.168.0.200  masterd_asft
             $host = '172.16.5.2';
-            $dbname = 'evds2023';
+            $dbname = 'evds_prueba';
             $usuario = 'postgres';
             $contrasena = 'masterd_asft';
 

@@ -444,6 +444,7 @@ if (empty($_SESSION['csrf_jornadas'])) {
     <?php require_once ('modal_firma.php'); ?>
 
     <?php require_once ('../MainJS/JS.php'); ?>
+    <script src="periodo_jornadas.js"></script>
     <script src="mis_jornadas.js"></script>
 </body>
 

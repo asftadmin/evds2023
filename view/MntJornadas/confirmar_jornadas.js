@@ -39,12 +39,7 @@ function obtenerRangoConfirmacion() {
  * Inicializa el selector de periodo.
  */
 function inicializarRangoConfirmacion() {
-    const inicio = moment().startOf('month');
-    const fin = moment();
-
-    $('#filtro_fechas_confirmacion').daterangepicker({
-        startDate: inicio,
-        endDate: fin,
+    JornadasPeriodo.inicializar('#filtro_fechas_confirmacion', {
         autoUpdateInput: true,
         locale: {
             format: 'DD/MM/YYYY',
@@ -658,10 +653,10 @@ function confirmarFirmaJornadasObra() {
                 rango.fecha_hasta
             ).format('DD/MM/YYYY') +
             '</strong>.<br><br>' +
-            'Al continuar confirma que las jornadas corresponden al tiempo laborado.',
+            'Al continuar confirma y firma las jornadas. Cuando el jefe las apruebe quedarán pendientes de liquidación con esta firma, sin solicitar otra.',
         showCancelButton: true,
         confirmButtonText:
-            'Sí, confirmar jornadas',
+            'Sí, confirmar y firmar',
         cancelButtonText: 'Cancelar',
         confirmButtonColor: '#28a745'
     }).then(function (resultado) {

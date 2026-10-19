@@ -49,14 +49,7 @@ function inicializarSelectEmpleadoEquipo() {
 
 // Inicializa el rango de fechas utilizado para consultar el expediente.
 function inicializarRangoEquipo() {
-    const fin = moment();
-    const inicio = fin.clone().subtract(2, 'month').startOf('month');
-
-    $('#filtro_fechas').daterangepicker({
-        startDate: inicio,
-        endDate: fin,
-        minDate: inicio,
-        maxDate: fin,
+    JornadasPeriodo.inicializar('#filtro_fechas', {
         showDropdowns: true,
         autoApply: false,
         locale: {
@@ -279,6 +272,7 @@ function renderEstadoExpediente(codigo, nombre) {
         CONFIRMADO_EMPLEADO: 'badge-info',
         PENDIENTE_APROBACION: 'badge-warning',
         APROBADO: 'badge-success',
+        PENDIENTE_LIQUIDACION: 'badge-info',
         LIQUIDADO: 'badge-success',
         RECHAZADO: 'badge-danger',
         ANULADO: 'badge-dark',
@@ -309,8 +303,7 @@ function actualizarResumenConfirmacionEquipo(filas) {
     const jornadas = (filas || []).filter(function (fila) {
         return (
             fila.jornada_id &&
-            fila.estado_codigo !== 'ANULADO' &&
-            fila.estado_codigo !== 'RECHAZADO'
+            !['ANULADO', 'RECHAZADO', 'APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO'].includes(fila.estado_codigo)
         );
     });
 
@@ -330,7 +323,9 @@ function actualizarResumenConfirmacionEquipo(filas) {
             .addClass('badge-secondary')
             .html(
                 '<i class="fas fa-user-check mr-1"></i>' +
-                'Sin jornadas registradas'
+                ((filas || []).some(function (fila) {
+                    return ['APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO'].includes(fila.estado_codigo);
+                }) ? 'Sin jornadas pendientes de aprobación' : 'Sin jornadas registradas')
             );
 
         return;
@@ -1261,7 +1256,7 @@ function registrarAprobarJornadasEquipo() {
                 expedienteEquipo.fechaHasta,
                 'YYYY-MM-DD'
             ).format('DD/MM/YYYY') +
-            '</strong>.',
+            '</strong>. Quedarán pendientes de liquidación con la firma ya registrada por el empleado.',
         showCancelButton: true,
         confirmButtonText: 'Registrar y aprobar',
         cancelButtonText: 'Cancelar',

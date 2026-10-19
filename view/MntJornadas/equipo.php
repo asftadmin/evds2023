@@ -140,7 +140,7 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                         <input type="text" class="form-control" id="filtro_fechas" autocomplete="off"
                                             readonly>
                                         <small class="form-text text-muted">
-                                            Disponible desde el primer día del mes anterior hasta hoy.
+                                            Periodos mensuales del día 16 al día 15 del mes siguiente.
                                         </small>
 
                                     </div>
@@ -354,6 +354,7 @@ if (empty($_SESSION['csrf_jornadas'])) {
 
     <?php require_once ('../MainJS/JS.php'); ?>
 
+    <script src="periodo_jornadas.js"></script>
     <script src="equipo.js"></script>
 
 </body>

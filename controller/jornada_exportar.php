@@ -651,18 +651,21 @@ class JornadaReportePDF extends TCPDF
             // El VoBo se deja disponible para la siguiente etapa.
             $valores[15] = '';
             if ($borrador) {
-                for ($i = 5; $i < 16; $i++) {
+                // Solo se omiten conceptos pendientes de liquidación.
+                for ($i = 5; $i <= 10; $i++) {
                     $valores[$i] = '';
                 }
+                $valores[14] = $this->datosEncabezado['jefe_nombre'] ?? '';
+                $valores[15] = $this->datosEncabezado['jefe_nombre'] ?? '';
             }
         }
 
         foreach ($valores as $indice => $valor) {
-            $alineacion = in_array($indice, [11, 12, 14], true)
+            $alineacion = in_array($indice, [11, 12, 14, 15], true)
                 ? 'L'
                 : 'C';
 
-            $tamano = in_array($indice, [11, 12, 14], true)
+            $tamano = in_array($indice, [11, 12, 14, 15], true)
                 ? 3.7
                 : 4.0;
 
@@ -774,6 +777,55 @@ class JornadaReportePDF extends TCPDF
         );
 
         return $y + $alto;
+    }
+
+    /** Dibuja una única firma de cada persona al pie de la segunda hoja del borrador. */
+    public function dibujarFirmasBorrador($y)
+    {
+        $ancho = array_sum($this->anchos) / 2;
+        $bloques = [
+            ['firma_empleado', 'TRABAJADOR', $this->datosEncabezado['empleado'] ?? ''],
+            ['firma_jefe', 'JEFE INMEDIATO', $this->datosEncabezado['jefe_nombre'] ?? '']
+        ];
+        foreach ($bloques as $indice => $bloque) {
+            $x = $this->xTabla + $indice * $ancho;
+            $firma = $this->datosEncabezado[$bloque[0]] ?? '';
+            $imagen = $this->imagenFirma($firma);
+            if ($imagen !== null) {
+                [$contenido, $dimensiones] = $imagen;
+                $alto = min(11, 65 * $dimensiones[1] / $dimensiones[0]);
+                $w = $alto * $dimensiones[0] / $dimensiones[1];
+                $this->Image('@' . $contenido, $x + ($ancho - $w) / 2, $y + (11 - $alto) / 2,
+                    $w, $alto, $dimensiones[2] === IMAGETYPE_JPEG ? 'JPEG' : 'PNG');
+            } else {
+                $this->celda($x, $y + 4, $ancho, 4, $indice === 0 ? 'Pendiente de firma' : 'Firma no configurada', 'C', false, 5, 0);
+            }
+            $this->Line($x + 18, $y + 12, $x + $ancho - 18, $y + 12);
+            $this->celda($x, $y + 12.5, $ancho, 3, $bloque[1], 'C', true, 6, 0);
+            $this->celda($x, $y + 15.5, $ancho, 3, $bloque[2], 'C', false, 6, 0);
+        }
+        $total = count($this->datosEncabezado['jornadas'] ?? []);
+        $firmadas = (int) ($this->datosEncabezado['jornadas_firmadas'] ?? 0);
+        if ($firmadas > 0 && $firmadas < $total) {
+            $this->celda($this->xTabla, $y + 19, $ancho * 2, 2.5,
+                'Firma del trabajador: ' . $firmadas . ' de ' . $total . ' jornadas con confirmación vigente.', 'C', false, 4.5, 0);
+        }
+        return $y + 22;
+    }
+
+    /** Acepta imágenes almacenadas, nunca rutas ni URLs recibidas como firma. */
+    private function imagenFirma($firma)
+    {
+        if (!is_string($firma) || $firma === '') {
+            return null;
+        }
+        $base64 = preg_replace('#^data:image/(?:png|jpe?g);base64,#i', '', trim($firma));
+        $contenido = base64_decode(str_replace(' ', '+', $base64), true);
+        $dimensiones = $contenido === false ? false : @getimagesizefromstring($contenido);
+        if (!$dimensiones || !in_array($dimensiones[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG], true)) {
+            return null;
+        }
+        return [$contenido, $dimensiones];
     }
 
     /**
@@ -951,6 +1003,10 @@ function je_pdf_empleado(
                 $y,
                 $snapshot['totales'] ?? []
             );
+        }
+
+        if (!empty($snapshot['borrador']) && $numeroPagina === 1) {
+            $y = $pdf->dibujarFirmasBorrador($pdf->getPageHeight() - 28.5);
         }
 
         $pdf->dibujarLema(
@@ -1144,7 +1200,7 @@ function je_excel($snapshots, $lote)
 }
 
 try {
-    if (($_GET['tipo'] ?? '') === 'pdf_borrador_equipo') {
+    if (in_array($_GET['tipo'] ?? '', ['pdf_borrador_equipo', 'pdf_borrador_equipo_lote'], true)) {
         $userId = (int) ($_SESSION['user_id'] ?? 0);
         $rolId = (int) ($_SESSION['user_rol'] ?? 0);
         if ($userId <= 0 || $rolId <= 0) {
@@ -1157,8 +1213,9 @@ try {
             || !$jornada->tiene_permiso_menu($rolId, 'equipo', true)) {
             je_fallar('No tiene permiso para exportar jornadas del equipo.', 403);
         }
-        $empleadoId = je_entero('empleado_id');
-        if (!$empleadoId) {
+        $esLote = ($_GET['tipo'] ?? '') === 'pdf_borrador_equipo_lote';
+        $empleadoId = $esLote ? null : je_entero('empleado_id');
+        if (!$esLote && !$empleadoId) {
             throw new InvalidArgumentException('Seleccione un empleado válido.');
         }
         $fechas = [];
@@ -1173,6 +1230,18 @@ try {
         }
         if ($fechas['fecha_desde'] > $fechas['fecha_hasta']) {
             throw new InvalidArgumentException('La fecha inicial no puede superar la fecha final.');
+        }
+        if ($esLote) {
+            $todos = ($_GET['todos'] ?? '') === '1';
+            $ids = $todos ? [] : json_decode(is_string($_GET['empleados_ids'] ?? null) ? $_GET['empleados_ids'] : '', true);
+            if (!is_array($ids)) {
+                throw new InvalidArgumentException('Seleccione empleados válidos para el PDF lote.');
+            }
+            $snapshots = $jornada->obtener_borradores_equipo_lote(
+                (int) $jefe['id_empl'], $ids, $fechas['fecha_desde'], $fechas['fecha_hasta'], $todos
+            );
+            je_pdf($snapshots, ['jlot_nombre' => 'Borrador de jornadas del equipo'],
+                je_nombre_archivo('GH-F-19_BORRADOR_LOTE_' . $fechas['fecha_desde'] . '_' . $fechas['fecha_hasta']));
         }
         $snapshot = $jornada->obtener_borrador_equipo(
             (int) $jefe['id_empl'], $empleadoId,
