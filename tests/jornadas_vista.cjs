@@ -23,6 +23,8 @@ const root = path.resolve(__dirname, '..');
         rows.push({ ...rows[0], jornada_id: 14, estado_codigo: 'APROBADO', estado_nombre: 'Aprobado' });
         let lastBatch = [];
         let lastSave;
+        let consultaPdf;
+        let falloPdf = false;
         const scripts = [
             'jquery/jquery.min.js', 'bootstrap/js/bootstrap.bundle.min.js',
             'datatables/jquery.dataTables.min.js', 'datatables-bs4/js/dataTables.bootstrap4.min.js',
@@ -36,13 +38,19 @@ const root = path.resolve(__dirname, '..');
             'datatables-responsive/css/responsive.bootstrap4.min.css', 'sweetalert2/sweetalert2.min.css'
         ].map(file => '<link rel="stylesheet" href="/public/plugins/' + file + '">').join('\n');
         let html = fs.readFileSync(path.join(root, 'view/MntJornadas/mis_jornadas.php'), 'utf8');
-        html = html.replace(/<\?php require_once\("\.\.\/MainJS\/JS.php"\); \?>/, scripts)
+        html = html.replace(/<\?php\s+require_once\s*\(['"]\.\.\/MainJS\/JS.php['"]\);\s*\?>/, scripts)
             .replace(/<\?php[\s\S]*?\?>/g, '')
             .replace('<html lang="es">', '<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + styles);
 
         await page.route('http://jornadas.test/**', async route => {
             const url = new URL(route.request().url());
             const json = data => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
+            if (url.pathname === '/controller/jornada.php' && url.searchParams.get('op') === 'exportarMisJornadasPdf') {
+                consultaPdf = url;
+                if (falloPdf) return route.fulfill({ status: 422, contentType: 'application/json',
+                    body: JSON.stringify({ success: false, message: 'Sin jornadas para el periodo.' }) });
+                return json({ archivo: 'GH-F-19_Mis_jornadas_prueba.pdf', pdf_base64: Buffer.from('%PDF-1.4\nPrueba').toString('base64') });
+            }
             if (url.pathname === '/controller/jornada.php') {
                 const op = url.searchParams.get('op');
                 const body = new URLSearchParams(route.request().postData() || '');
@@ -84,9 +92,38 @@ const root = path.resolve(__dirname, '..');
             return route.fulfill({ path: file, contentType: ext === '.js' ? 'application/javascript' : ext === '.css' ? 'text/css' : 'application/octet-stream' });
         });
         await page.goto('http://jornadas.test/view/MntJornadas/mis_jornadas.php');
-        await page.waitForFunction(() => document.querySelector('#texto-contexto').textContent.includes('Empleado de prueba')
+        await page.waitForFunction(() => typeof usuarioAutorizado !== 'undefined' && usuarioAutorizado
             && document.querySelectorAll('.seleccionar-jornada').length > 0);
-        assert.deepEqual(await page.locator('#ubicacion option').allTextContents(), ['Seleccione una ubicación', 'Sede principal', 'Obras varias']);
+        assert.equal(await page.locator('#contenido-reporte-firma #btn-pdf-jornadas-historial').count(), 0);
+        await page.evaluate(() => {
+            const rango = $('#filtro_fechas').data('daterangepicker');
+            rango.setStartDate('2026-09-16');
+            rango.setEndDate('2026-10-15');
+        });
+        await page.locator('#filtro_estado').selectOption('APROBADO');
+        const descargaPdf = page.waitForEvent('download');
+        await page.locator('#btn-pdf-jornadas-historial').click();
+        const archivoPdf = await descargaPdf;
+        assert.equal(archivoPdf.suggestedFilename(), 'GH-F-19_Mis_jornadas_prueba.pdf');
+        assert.equal(fs.readFileSync(await archivoPdf.path(), 'utf8').slice(0, 5), '%PDF-');
+        assert.deepEqual(Object.fromEntries(consultaPdf.searchParams), {
+            op: 'exportarMisJornadasPdf', fecha_desde: '2026-09-16', fecha_hasta: '2026-10-15', estado: 'APROBADO'
+        });
+        await page.waitForFunction(() => !document.querySelector('#btn-pdf-jornadas-historial').disabled);
+        falloPdf = true;
+        await page.locator('#btn-pdf-jornadas-historial').click();
+        await page.locator('.swal2-confirm').waitFor();
+        assert.match(await page.locator('.swal2-html-container').textContent(), /Sin jornadas/);
+        assert.equal(await page.locator('#btn-pdf-jornadas-historial').isEnabled(), true);
+        await page.locator('.swal2-confirm').click();
+        await page.locator('#tab-historial').click();
+        console.log('OK: PDF de jornadas desde Historial usa periodo y estado, sin conexión con BioTime');
+        if (process.argv.includes('--pdf-jornadas')) {
+            assert.deepEqual(errors, []);
+            return;
+        }
+        await page.locator('#filtro_estado').selectOption('');
+        assert.deepEqual((await page.locator('#ubicacion option').allTextContents()).map(text => text.trim()), ['Seleccione una ubicación', 'Sede principal', 'Obras varias']);
         await page.locator('#seleccionar-jornadas').check();
         assert.equal(await page.locator('#conteo-seleccionadas').textContent(), '12 seleccionadas');
         await page.locator('#tabla-jornadas_next').click();

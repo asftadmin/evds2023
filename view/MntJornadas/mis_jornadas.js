@@ -15,6 +15,7 @@ let tablaReporteFirma = null;
 let jornadasReporteFirma = [];
 let firmaReporteDibujada = false;
 let reporteFirmaEnProceso = false;
+let exportandoPdfJornadas = false;
 
 
 /* =========================================================
@@ -1513,6 +1514,52 @@ function obtenerRangoReporteFirma() {
     };
 }
 
+// Exporta las jornadas de horas extras guardadas con los filtros del historial.
+function exportarPdfJornadasHistorial() {
+    if (!usuarioAutorizado || exportandoPdfJornadas) return;
+    const rango = $('#filtro_fechas').val().split(' - ');
+    const desde = rango.length === 2 && moment(rango[0], 'YYYY-MM-DD', true);
+    const hasta = rango.length === 2 && moment(rango[1], 'YYYY-MM-DD', true);
+    if (!desde || !hasta || !desde.isValid() || !hasta.isValid() || hasta.isBefore(desde, 'day')) {
+        Swal.fire({ icon: 'warning', title: 'Periodo inválido', text: 'Seleccione el periodo que desea exportar.' });
+        return;
+    }
+    exportandoPdfJornadas = true;
+    const boton = $('#btn-pdf-jornadas-historial');
+    boton.prop('disabled', true).attr('aria-busy', 'true')
+        .html('<i class="fas fa-spinner fa-spin mr-1"></i>Generando PDF...');
+    $.ajax({
+        url: '../../controller/jornada.php', type: 'GET', dataType: 'json', timeout: 95000,
+        data: { op: 'exportarMisJornadasPdf', fecha_desde: desde.format('YYYY-MM-DD'),
+            fecha_hasta: hasta.format('YYYY-MM-DD'), estado: $('#filtro_estado').val() || '' }
+    }).done(function (respuesta) {
+        try {
+            if (!respuesta.success || !respuesta.data || !respuesta.data.pdf_base64) throw new Error('No se recibió un PDF válido.');
+            const contenido = atob(respuesta.data.pdf_base64);
+            if (contenido.slice(0, 5) !== '%PDF-') throw new Error('El archivo recibido no es un PDF válido.');
+            const bytes = new Uint8Array(contenido.length);
+            for (let i = 0; i < contenido.length; i++) bytes[i] = contenido.charCodeAt(i);
+            const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = respuesta.data.archivo;
+            document.body.appendChild(enlace);
+            enlace.click();
+            enlace.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: 'No fue posible exportar', text: error.message });
+        }
+    }).fail(function (xhr) {
+        Swal.fire({ icon: 'error', title: 'No fue posible exportar',
+            text: (xhr.responseJSON && xhr.responseJSON.message) || 'No fue posible generar el PDF. Intente nuevamente.' });
+    }).always(function () {
+        exportandoPdfJornadas = false;
+        boton.prop('disabled', false).attr('aria-busy', 'false')
+            .html('<i class="fas fa-file-pdf mr-1"></i>Exportar PDF GH-F-19');
+    });
+}
+
 
 /**
  * Convierte una cantidad de minutos al formato HH:mm.
@@ -2226,6 +2273,7 @@ $('#btn-consultar-reporte').on(
     consultarReporteFirma
 );
 
+$('#btn-pdf-jornadas-historial').on('click', exportarPdfJornadasHistorial);
 
 /**
  * Abre el modal para registrar la firma.

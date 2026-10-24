@@ -1,13 +1,6 @@
 <?php
 /** Genera PDFs sintéticos para revisión. No carga conexion.php ni consulta datos reales. */
-require_once __DIR__ . '/../public/assets/tcpdf/tcpdf.php';
-$codigo = file_get_contents(__DIR__ . '/../controller/jornada_exportar.php');
-$inicio = strpos($codigo, 'class JornadaReportePDF');
-$fin = strpos($codigo, 'function je_fallar');
-eval(substr($codigo, $inicio, $fin - $inicio));
-$inicio = strpos($codigo, 'function je_horas');
-$fin = strpos($codigo, 'function je_pdf($snapshots');
-eval(substr($codigo, $inicio, $fin - $inicio));
+require_once __DIR__ . '/../view/PDF/jornadas_formato.php';
 class PdfBorradorPrueba extends JornadaReportePDF {
     public $imagenesFirmas = [];
     public function Image($file, ...$args) {
@@ -83,3 +76,19 @@ if ($pdf->getNumPages() !== 4 || array_column($pdf->imagenesFirmas, 'pagina') !=
 }
 $pdf->Output($destino . '/borrador_lote.pdf', 'F');
 echo "OK: lote con dos empleados, cuatro hojas y firmas separadas.\n";
+$biotime = $snapshot;
+$biotime['biotime'] = true;
+$biotime['firma_empleado'] = null;
+$biotime['firma_jefe'] = null;
+$biotime['jefe_nombre'] = '';
+$biotime['jornadas_firmadas'] = 0;
+$biotime['jornadas'] = array(
+    array_merge($jornada, array('tiempo_bruto_biotime' => '09:00:00', 'jornada_ubicacion' => '', 'jornada_actividad' => '')),
+    array_merge($jornada, array('jornada_inicio' => '2026-10-20 08:00:00', 'jornada_fin' => null,
+        'tiempo_bruto_biotime' => null, 'jornada_ubicacion' => '', 'jornada_actividad' => 'Sin marcación de salida.'))
+);
+$biotime['totales'] = array('BRUTO_SEGUNDOS' => 32400);
+$pdf = je_crear_pdf(array($biotime), array('jlot_nombre' => 'Marcaciones BioTime'));
+if ($pdf->getNumPages() !== 2) throw new RuntimeException('El formato BioTime debe conservar las dos hojas.');
+$pdf->Output($destino . '/marcaciones_biotime.pdf', 'F');
+echo "OK: consulta BioTime con tiempo bruto, día incompleto y formato de dos hojas.\n";

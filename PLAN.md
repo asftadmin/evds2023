@@ -156,3 +156,25 @@ Estado: implementado; validación del backend en PostgreSQL aislado y de la inte
 - Marcaciones personales: botones Copiar, CSV, Excel, PDF, Imprimir y Columnas en los dos DataTables, exportando resultados filtrados de todas las páginas y columnas visibles. Validación en Chrome con descarga CSV correcta y sin documento.
 
 - Dashboard: padding inferior pb-4 (1.5rem) entre la tarjeta de marcaciones y el footer; validación de sintaxis PHP satisfactoria.
+
+## Exportación PDF de marcaciones personales BioTime
+
+Estado: implementado y validado.
+
+- Habilitar Exportar PDF GH-F-19 solo tras consultar un periodo con datos; deshabilitar durante consultas, errores o periodos vacíos.
+- Generar mediante AJAX un JSON limpio con el PDF en base64, sin recibir empleado/documento desde el navegador.
+- Reutilizar el formato institucional de horas extras mediante view/PDF/jornadas_formato.php, conservando las exportaciones previas individuales y por lote.
+- Mostrar resumen diario con tiempo bruto real de BioTime, sin liquidación, descuentos ni generación de estados/aprobaciones. No inventar salidas faltantes, obra, actividades o firmas.
+- Mantener el SQL y preparación de datos en models/MarcacionesEmpleado.php; controlador valida sesión, operación y periodo.
+- Pruebas satisfactorias: PostgreSQL aislado, JSON con PDF real, descarga y habilitación en Chrome, formato GH-F-19 de dos hojas y regresiones de firmas/lotes. Revisión visual del PDF generada con datos sintéticos.
+- STRUCTURE.md y PLAN.md actualizados con archivos, bloques y alcance.
+
+- [x] Reubicar Exportar PDF GH-F-19 junto a las exportaciones del DataTable de Mis marcaciones BioTime, conservando su habilitación por periodo y su acción al cambiar de vista.
+
+- [x] Trasladar el botón independiente Exportar PDF GH-F-19 a Mis jornadas > Reporte para firma, después de Consultar reporte, utilizando el periodo seleccionado y conservando la consulta y firma existentes. Retirar botón y leyenda de Mis marcaciones BioTime. Verificar descarga, parámetros sin identidad, manejo de errores y exportaciones del DataTable.
+
+  Validación: jornadas_vista.cjs --pdf-biotime y marcaciones_empleado_vista.cjs verifican descarga, rango, errores y exportaciones. La ejecución general de jornadas_vista.cjs se detiene en una expectativa antigua de validación de fecha duplicada (línea 138); no se modifica ese flujo en este ajuste.
+
+- [x] Corrección de ubicación: Exportar PDF GH-F-19 en Historial después de Restablecer, usando el periodo filtro_fechas. Retirado de Reporte para firma. Prueba específica ajustada al periodo del historial.
+
+- [x] Sustituir la conexión equivocada del botón del Historial: exportar exclusivamente las jornadas de horas extras del trabajador autenticado mediante jornada.php / exportarMisJornadasPdf y Jornada::obtener_reporte_propio_pdf, con periodo y estado del historial. SQL en modelo, permiso mis_jornadas, identidad de sesión, JSON limpio y descarga AJAX. No modifica estados ni firmas. Sin llamadas a BioTime en este botón. Verificación: jornadas_vista.cjs --pdf-jornadas y jornadas_firma_unica.php (PostgreSQL aislado, jornadas propias, firmas, filtros y generación real del PDF).

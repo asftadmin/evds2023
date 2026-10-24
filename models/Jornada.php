@@ -648,6 +648,80 @@ class Jornada extends Conectar
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // Construye el GH-F-19 personal exclusivamente con jornadas guardadas.
+    public function obtener_reporte_propio_pdf($empleado_id, $desde, $hasta, $estado = '')
+    {
+        $db = parent::Conexion();
+        $stmt = $db->prepare('SELECT emp.nomb_empl AS empleado, emp.cedu_empl AS documento,
+                cargo.nomb_carg AS cargo, emp.fecha_naci_empl AS fecha_nacimiento,
+                genero.desc_gene AS sexo, jefe.nomb_empl AS jefe_nombre, firma.firma_base64 AS firma_jefe
+            FROM empleados emp
+            LEFT JOIN cargo ON cargo.codi_carg = emp.carg_empl
+            LEFT JOIN genero ON genero.id_gene = emp.gene_empl
+            LEFT JOIN LATERAL (
+                SELECT ej.jefe_id FROM empleado_jefe ej
+                INNER JOIN empleados j ON j.id_empl = ej.jefe_id AND j.esta_empl = 1
+                WHERE ej.empleado_id = emp.id_empl AND ej.ej_estado = 1
+                ORDER BY ej.jefe_id LIMIT 1
+            ) relacion ON true
+            LEFT JOIN empleados jefe ON jefe.id_empl = relacion.jefe_id
+            LEFT JOIN firma_usuario firma ON firma.user_id = jefe.id_empl
+            WHERE emp.id_empl = ? AND emp.esta_empl = 1');
+        $stmt->execute([(int) $empleado_id]);
+        $datos = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$datos) throw new RuntimeException('El empleado no está activo.');
+        $datos['desde'] = $desde;
+        $datos['hasta'] = $hasta;
+        $datos['borrador'] = true;
+        $datos['jornadas'] = array_values(array_filter(
+            $this->listar_mis_jornadas($empleado_id, $desde, $hasta),
+            static function ($fila) use ($estado) {
+                return !in_array($fila['estado_codigo'], ['ANULADO', 'RECHAZADO'], true)
+                    && ($estado === '' || $fila['estado_codigo'] === $estado);
+            }
+        ));
+        if (!$datos['jornadas']) throw new RuntimeException('No existen jornadas reportables para el periodo y estado seleccionados.');
+        $datos['totales'] = ['ORD' => array_sum(array_column($datos['jornadas'], 'jornada_minutos_ordinarios'))];
+
+        // Conserva una sola firma y verifica que su evidencia corresponda al registro actual.
+        $stmt = $db->prepare("SELECT d.jornada_id, d.jrd_snapshot AS snapshot,
+                r.jrf_firma_base64 AS firma, r.jrf_fecha_firma AS fecha
+            FROM jornada_reportes_firma r
+            INNER JOIN jornada_reporte_detalle d ON d.jrf_id = r.jrf_id
+            INNER JOIN jornadas_trabajo j ON j.jornada_id = d.jornada_id
+            WHERE r.empleado_id = ? AND j.empleado_id = ? AND r.jrf_estado = 'FIRMADO'
+              AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
+            UNION ALL
+            SELECT d.jornada_id, d.jcod_snapshot, c.jco_firma_base64, c.jco_fecha_confirmacion
+            FROM jornada_confirmaciones_obra c
+            INNER JOIN jornada_confirmacion_obra_detalle d ON d.jco_id = c.jco_id
+            INNER JOIN jornadas_trabajo j ON j.jornada_id = d.jornada_id
+            WHERE c.empleado_id = ? AND j.empleado_id = ?
+              AND c.jco_estado = 'VIGENTE' AND d.jcod_estado = 'VIGENTE'
+              AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
+            ORDER BY fecha DESC, jornada_id DESC");
+        $stmt->execute([$empleado_id, $empleado_id, $desde, $hasta, $empleado_id, $empleado_id, $desde, $hasta]);
+        $por_id = array_column($datos['jornadas'], null, 'jornada_id');
+        $firmadas = [];
+        $datos['firma_empleado'] = null;
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $evidencia) {
+            $id = (int) $evidencia['jornada_id'];
+            $snapshot = json_decode($evidencia['snapshot'], true);
+            if (!isset($por_id[$id]) || !is_array($snapshot) || empty($evidencia['firma'])) continue;
+            foreach (['jornada_inicio', 'jornada_fin', 'jornada_minutos_ordinarios',
+                'jornada_ubicacion', 'jornada_actividad', 'jornada_observaciones'] as $campo) {
+                if (!array_key_exists($campo, $snapshot) || (string) $snapshot[$campo] !== (string) $por_id[$id][$campo]) continue 2;
+            }
+            $firmadas[$id] = true;
+            if ($datos['firma_empleado'] === null) {
+                $datos['firma_empleado'] = $evidencia['firma'];
+                $datos['fecha_firma_empleado'] = $evidencia['fecha'];
+            }
+        }
+        $datos['jornadas_firmadas'] = count($firmadas);
+        return $datos;
+    }
+
     /**
      * Lista las jornadas aprobadas del empleado dentro del rango solicitado
      * que todavía no hacen parte de un reporte firmado.

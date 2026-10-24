@@ -12,6 +12,7 @@ const root = path.resolve(__dirname, '..');
         page.on('pageerror', error => errors.push(error.message));
         let modo = 'datos';
         const consultas = [];
+        const consultasPdf = [];
         const datos = {
             empleado: { nombre: 'Empleado de prueba', cargo: 'Auxiliar', grupo: 'Produccion' },
             resumen: [
@@ -48,6 +49,11 @@ const root = path.resolve(__dirname, '..');
         await page.route('http://marcaciones.test/**', async route => {
             const url = new URL(route.request().url());
             if (url.pathname === '/controller/marcaciones_empleado.php') {
+                if (url.searchParams.get('op') === 'pdf') {
+                    consultasPdf.push(url);
+                    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true,
+                        data: { archivo: 'GH-F-19_BioTime_prueba.pdf', pdf_base64: Buffer.from('%PDF-1.4\nPrueba').toString('base64') } }) });
+                }
                 consultas.push(url);
                 if (modo === 'error') return route.fulfill({ status: 503, contentType: 'application/json',
                     body: JSON.stringify({ success: false, message: 'BioTime no respondió. Intente nuevamente.' }) });
@@ -77,6 +83,17 @@ const root = path.resolve(__dirname, '..');
         assert.equal(await page.locator('#card_mensual').isVisible(), false);
         assert.equal(await page.locator('#tabla-marcaciones-resumen tbody tr').count(), 2);
         assert.equal(await page.locator('#marcaciones-estado.alert-warning').count(), 1);
+        assert.equal(await page.locator('#btn-pdf-marcaciones').count(), 0);
+        assert.equal(await page.locator('#tabla-marcaciones-resumen_wrapper .buttons-pdf').isEnabled(), true);
+        const descargaInstitucional = page.waitForEvent('download');
+        await page.locator('#tabla-marcaciones-resumen_wrapper .buttons-pdf').click();
+        const archivoInstitucional = await descargaInstitucional;
+        assert.equal(archivoInstitucional.suggestedFilename(), 'GH-F-19_BioTime_prueba.pdf');
+        assert.equal(fs.readFileSync(await archivoInstitucional.path(), 'utf8').slice(0, 5), '%PDF-');
+        assert.equal(consultasPdf[0].searchParams.get('desde'), esperado[0]);
+        assert.equal(consultasPdf[0].searchParams.get('hasta'), esperado[1]);
+        assert.deepEqual([...consultasPdf[0].searchParams.keys()].sort(), ['desde', 'hasta', 'op']);
+        console.log('OK: botón institucional habilitado tras consultar, descarga PDF y periodo exacto sin identidad enviada');
         assert.deepEqual(await page.locator('#tabla-marcaciones-resumen_wrapper .dt-buttons .btn').allTextContents(),
             ['Copiar', 'CSV', 'Excel', 'PDF', 'Imprimir', 'Columnas']);
         console.log('OK: consulta automática personal, sin parámetros de identidad y con resumen diario');
@@ -103,11 +120,13 @@ const root = path.resolve(__dirname, '..');
         await page.locator('.swal2-confirm').waitFor();
         assert.match(await page.locator('#marcaciones-estado.alert-danger').innerText(), /BioTime no respondió/);
         assert.equal(await page.locator('#btn-consultar-marcaciones').isEnabled(), true);
+        assert.equal(await page.locator('#tabla-marcaciones-detalle_wrapper .buttons-pdf').isDisabled(), true);
         assert.equal(await page.locator('#tabla-marcaciones-detalle tbody .dataTables_empty').count(), 1);
         await page.locator('.swal2-confirm').click();
         modo = 'vacio';
         await page.locator('#btn-consultar-marcaciones').click();
         await page.waitForFunction(() => document.querySelector('#marcaciones-estado').textContent.includes('0 marcaciones'));
+        assert.equal(await page.locator('#tabla-marcaciones-detalle_wrapper .buttons-pdf').isDisabled(), true);
         await page.setViewportSize({ width: 390, height: 844 });
         await page.evaluate(() => $('#marcaciones-vista').val('resumen').trigger('change'));
         assert.deepEqual(errors, []);

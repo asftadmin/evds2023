@@ -28,8 +28,7 @@ $(function () {
             { extend: 'copyHtml5', text: 'Copiar', title: titulo, exportOptions: opciones },
             { extend: 'csvHtml5', text: 'CSV', filename: archivo, bom: true, exportOptions: opciones },
             { extend: 'excelHtml5', text: 'Excel', title: titulo, filename: archivo, exportOptions: opciones },
-            { extend: 'pdfHtml5', text: 'PDF', title: titulo, filename: archivo, messageTop: contexto,
-                orientation: 'landscape', pageSize: 'A4', exportOptions: opciones },
+            { text: 'PDF', className: 'buttons-pdf', enabled: false, action: function () { exportarPdf(); } },
             { extend: 'print', text: 'Imprimir', title: titulo,
                 messageTop: () => $('<div>').text(contexto()).html(), exportOptions: opciones },
             { extend: 'colvis', text: 'Columnas' }
@@ -53,6 +52,54 @@ $(function () {
     });
     let solicitud = null;
     let secuencia = 0;
+    let periodoPdf = null;
+    let exportando = false;
+
+    function actualizarPdf() {
+        const rango = $('#marcaciones-periodo').data('daterangepicker');
+        const habilitado = !solicitud && !exportando && periodoPdf && rango &&
+            periodoPdf.desde === rango.startDate.format('YYYY-MM-DD') && periodoPdf.hasta === rango.endDate.format('YYYY-MM-DD');
+        resumen.button('.buttons-pdf').enable(!!habilitado);
+        detalle.button('.buttons-pdf').enable(!!habilitado);
+        return !!habilitado;
+    }
+
+    function exportarPdf() {
+        if (!actualizarPdf()) return;
+        const periodo = Object.assign({}, periodoPdf);
+        exportando = true;
+        actualizarPdf();
+        $('#marcaciones-periodo, #btn-consultar-marcaciones').prop('disabled', true);
+        $.ajax({
+            url: '../../controller/marcaciones_empleado.php', type: 'GET', dataType: 'json', timeout: 95000,
+            data: Object.assign({ op: 'pdf' }, periodo)
+        }).done(function (respuesta) {
+            try {
+                if (!respuesta.success || !respuesta.data || !respuesta.data.pdf_base64) throw new Error('No se recibió un PDF válido.');
+                const contenido = atob(respuesta.data.pdf_base64);
+                if (contenido.slice(0, 5) !== '%PDF-') throw new Error('El archivo recibido no es un PDF válido.');
+                const bytes = new Uint8Array(contenido.length);
+                for (let i = 0; i < contenido.length; i++) bytes[i] = contenido.charCodeAt(i);
+                const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+                const enlace = document.createElement('a');
+                enlace.href = url;
+                enlace.download = respuesta.data.archivo;
+                document.body.appendChild(enlace);
+                enlace.click();
+                enlace.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'No fue posible exportar', text: error.message });
+            }
+        }).fail(function (xhr) {
+            Swal.fire({ icon: 'error', title: 'No fue posible exportar',
+                text: (xhr.responseJSON && xhr.responseJSON.message) || 'No fue posible generar el PDF. Intente nuevamente.' });
+        }).always(function () {
+            exportando = false;
+            $('#marcaciones-periodo, #btn-consultar-marcaciones').prop('disabled', false);
+            actualizarPdf();
+        });
+    }
 
     function mostrarVista() {
         const verDetalle = $('#marcaciones-vista').val() === 'detalle';
@@ -62,9 +109,13 @@ $(function () {
     }
 
     function consultar() {
+        if (exportando) return;
         const numero = ++secuencia;
         if (solicitud) solicitud.abort();
         const rango = $('#marcaciones-periodo').data('daterangepicker');
+        const periodo = { desde: rango.startDate.format('YYYY-MM-DD'), hasta: rango.endDate.format('YYYY-MM-DD') };
+        periodoPdf = null;
+        actualizarPdf();
         resumen.clear().draw();
         detalle.clear().draw();
         $('#marcaciones-empleado').text('Consultando sus marcaciones...');
@@ -73,7 +124,7 @@ $(function () {
             .html('<i class="fas fa-spinner fa-spin mr-1"></i>Consultando...');
         solicitud = $.ajax({
             url: '../../controller/marcaciones_empleado.php', type: 'GET', dataType: 'json', timeout: 95000,
-            data: { desde: rango.startDate.format('YYYY-MM-DD'), hasta: rango.endDate.format('YYYY-MM-DD') }
+            data: periodo
         }).done(function (respuesta) {
             if (numero !== secuencia) return;
             if (!respuesta.success || !respuesta.data) {
@@ -85,6 +136,7 @@ $(function () {
             resumen.rows.add(datos.resumen || []).draw();
             detalle.rows.add(datos.detalle || []).draw();
             const totales = datos.totales || {};
+            periodoPdf = totales.marcaciones > 0 ? periodo : null;
             $('#marcaciones-estado').text((totales.marcaciones || 0) + ' marcaciones en ' + (totales.dias || 0) +
                 ' días. ' + (totales.incompletos || 0) + ' días con cantidad impar de marcaciones.');
             if (totales.incompletos) $('#marcaciones-estado').removeClass('alert-light').addClass('alert-warning');
@@ -96,6 +148,7 @@ $(function () {
         }).always(function () {
             if (numero !== secuencia) return;
             solicitud = null;
+            actualizarPdf();
             $('#btn-consultar-marcaciones').prop('disabled', false).attr('aria-busy', 'false')
                 .html('<i class="fas fa-search mr-1"></i>Consultar');
         });
@@ -129,5 +182,6 @@ $(function () {
     });
     $('#form-marcaciones-empleado').on('submit', function (evento) { evento.preventDefault(); consultar(); });
     $('#marcaciones-periodo').on('apply.daterangepicker', consultar);
+    mostrarVista();
     consultar();
 });

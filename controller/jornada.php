@@ -1409,6 +1409,29 @@ try {
             jornada_responder(['success' => true, 'message' => 'Borrador anulado. La fecha queda disponible.']);
             break;
 
+        case 'exportarMisJornadasPdf':
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+                jornada_responder(['success' => false, 'message' => 'Utilice GET para exportar.'], 405);
+            }
+            foreach (['empleado_id', 'user_id', 'usuario_id', 'documento'] as $campo) {
+                if (isset($_GET[$campo])) throw new InvalidArgumentException('La exportación utiliza únicamente el empleado de la sesión.');
+            }
+            $desde = jornada_entrada('fecha_desde');
+            $hasta = jornada_entrada('fecha_hasta');
+            if (!jornada_fecha_valida($desde) || !jornada_fecha_valida($hasta) || $desde > $hasta) {
+                throw new InvalidArgumentException('Seleccione un periodo válido para exportar.');
+            }
+            $snapshot = $jornada->obtener_reporte_propio_pdf(
+                (int) $empleado['id_empl'], $desde, $hasta, jornada_entrada('estado')
+            );
+            require_once __DIR__ . '/../view/PDF/jornadas_formato.php';
+            $pdf = je_crear_pdf([$snapshot], ['jlot_nombre' => 'Reporte personal de jornadas']);
+            jornada_responder(['success' => true, 'data' => [
+                'archivo' => 'GH-F-19_Mis_jornadas_' . $desde . '_' . $hasta . '.pdf',
+                'pdf_base64' => base64_encode($pdf->Output('', 'S'))
+            ]]);
+            break;
+
         case 'listarMisJornadas':
             $fecha_desde = jornada_entrada('fecha_desde');
             $fecha_hasta = jornada_entrada('fecha_hasta');

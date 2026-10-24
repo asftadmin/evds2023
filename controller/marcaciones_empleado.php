@@ -38,7 +38,19 @@ try {
     if ($fechas['desde'] > $fechas['hasta'] || (int) $fechas['desde']->diff($fechas['hasta'])->days > 61) {
         throw new InvalidArgumentException('El periodo debe estar ordenado y no superar 62 días.');
     }
+    $operacion = isset($_GET['op']) && is_string($_GET['op']) ? $_GET['op'] : 'consultar';
+    if (!in_array($operacion, array('consultar', 'pdf'), true)) throw new InvalidArgumentException('Operación no válida.');
     $modelo = new MarcacionesEmpleado();
+    if ($operacion === 'pdf') {
+        $snapshot = $modelo->preparar_pdf($usuario_id, $fechas['desde']->format('Y-m-d'), $fechas['hasta']->format('Y-m-d'));
+        require_once __DIR__ . '/../view/PDF/jornadas_formato.php';
+        $pdf = je_crear_pdf(array($snapshot), array('jlot_nombre' => 'Mis marcaciones BioTime'));
+        $contenido = $pdf->Output('', 'S');
+        marcaciones_responder(array('success' => true, 'data' => array(
+            'archivo' => 'GH-F-19_BioTime_' . $fechas['desde']->format('Ymd') . '_' . $fechas['hasta']->format('Ymd') . '.pdf',
+            'pdf_base64' => base64_encode($contenido)
+        )));
+    }
     $datos = $modelo->consultar_propias($usuario_id, $fechas['desde']->format('Y-m-d'), $fechas['hasta']->format('Y-m-d'));
     marcaciones_responder(array('success' => true, 'data' => $datos));
 } catch (InvalidArgumentException $e) {

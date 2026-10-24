@@ -36,7 +36,9 @@ try {
         INSERT INTO empleados VALUES (1,11,'111','Empleado propio',1,1),(2,22,'222','Empleado ajeno',1,NULL),(3,33,'333','Inactivo',0,NULL);
         CREATE TABLE cargo (codi_carg integer, nomb_carg text, grem_carg integer);
         CREATE TABLE grupoempleados (codi_grem integer, nomb_grem text);
-        INSERT INTO cargo VALUES (1,'Auxiliar',1); INSERT INTO grupoempleados VALUES (1,'Produccion')");
+        INSERT INTO cargo VALUES (1,'Auxiliar',1); INSERT INTO grupoempleados VALUES (1,'Produccion');
+        ALTER TABLE empleados ADD COLUMN fecha_naci_empl date, ADD COLUMN gene_empl integer;
+        CREATE TABLE genero (id_gene integer, desc_gene text)");
     $filas = array(marcaEmpleado('17:30'), marcaEmpleado('08:00'), marcaEmpleado('13:00'), marcaEmpleado('12:00'),
         marcaEmpleado('hora ajena no válida', '222'));
     $datos = modeloMarcaciones($filas)->consultar_propias(11, '2026-10-19', '2026-10-19');
@@ -73,11 +75,24 @@ try {
     verificarMarcacion(true, 'Rechaza API fallida, horas inválidas y usuarios sin un empleado activo');
     $vacio = modeloMarcaciones(array())->consultar_propias(11, '2026-10-19', '2026-10-19');
     verificarMarcacion($vacio['detalle'] === array() && $vacio['resumen'] === array(), 'Una consulta válida sin marcaciones devuelve listas vacías');
+    $snapshot = modeloMarcaciones($filas)->preparar_pdf(11, '2026-10-19', '2026-10-19');
+    verificarMarcacion($snapshot['empleado'] === 'Empleado propio' && $snapshot['biotime'] === true &&
+        $snapshot['jornadas'][0]['tiempo_bruto_biotime'] === '09:30:00' && $snapshot['totales']['BRUTO_SEGUNDOS'] === 34200,
+        'PDF institucional usa el resumen propio y conserva el tiempo bruto sin liquidarlo');
+    $sinSalida = modeloMarcaciones(array(marcaEmpleado('08:00')))->preparar_pdf(11, '2026-10-19', '2026-10-19');
+    verificarMarcacion($sinSalida['jornadas'][0]['jornada_fin'] === null && $sinSalida['totales']['BRUTO_SEGUNDOS'] === 0,
+        'El PDF no inventa salida ni tiempo bruto en días incompletos');
+    rechazarMarcacion(function () { modeloMarcaciones(array())->preparar_pdf(11, '2026-10-19', '2026-10-19'); });
+    require_once __DIR__ . '/../view/PDF/jornadas_formato.php';
+    $pdf = je_crear_pdf(array($snapshot), array('jlot_nombre' => 'Prueba PDF BioTime'));
+    verificarMarcacion($pdf->getNumPages() === 2 && substr($pdf->Output('', 'S'), 0, 5) === '%PDF-',
+        'El formato compartido genera un PDF real de dos hojas');
 
     // Ejecuta el controlador real en procesos aislados con sesión y transporte simulados.
     $ruta = tempnam(sys_get_temp_dir(), 'marcaciones_control_');
     $fuente = file_get_contents(__DIR__ . '/../controller/marcaciones_empleado.php');
     $fuente = preg_replace('/^require_once .*;\R/m', '', $fuente);
+    $fuente = str_replace('__DIR__', var_export(realpath(__DIR__ . '/../controller'), true), $fuente);
     $modeloRuta = var_export(realpath(__DIR__ . '/../models/MarcacionesEmpleado.php'), true);
     $dsn = var_export(getenv('JORNADAS_TEST_DSN'), true);
     $esquema = var_export($schema, true);
@@ -89,6 +104,8 @@ try {
     try {
         $base = array('sesion' => array('user_id' => 11), 'get' => array('desde' => '2026-10-19', 'hasta' => '2026-10-19'), 'metodo' => 'GET');
         $casos = array(array($base, 200));
+        $caso = $base; $caso['get']['op'] = 'pdf'; $casos[] = array($caso, 200);
+        $caso = $base; $caso['get']['op'] = 'pdf'; $caso['get']['empleado_id'] = '2'; $casos[] = array($caso, 422);
         $caso = $base; $caso['sesion'] = array(); $casos[] = array($caso, 401);
         $caso = $base; $caso['get']['empleado_id'] = '2'; $casos[] = array($caso, 422);
         $caso = $base; $caso['get']['desde'] = '2026-02-30'; $casos[] = array($caso, 422);
@@ -102,6 +119,11 @@ try {
             fclose($pipes[1]); fclose($pipes[2]); $salida = proc_close($proceso);
             verificarMarcacion($salida === 0 && is_array(json_decode($json, true)) && $estado === 'HTTP_STATUS=' . $prueba[1],
                 'Controlador retorna JSON limpio con HTTP ' . $prueba[1]);
+            if (($prueba[0]['get']['op'] ?? '') === 'pdf' && $prueba[1] === 200) {
+                $respuesta = json_decode($json, true);
+                verificarMarcacion(substr(base64_decode($respuesta['data']['pdf_base64']), 0, 5) === '%PDF-',
+                    'La exportación AJAX devuelve un PDF real dentro de JSON limpio');
+            }
         }
     } finally { unlink($ruta); }
 } finally { $db->exec('DROP SCHEMA ' . $schema . ' CASCADE'); }

@@ -85,6 +85,43 @@ class MarcacionesEmpleado extends Conectar
         return $datos;
     }
 
+    public function preparar_pdf($usuario_id, $desde, $hasta)
+    {
+        $datos = $this->consultar_propias($usuario_id, $desde, $hasta);
+        if (empty($datos['resumen'])) throw new DomainException('No existen marcaciones para exportar en el periodo seleccionado.');
+        $db = parent::Conexion();
+        $stmt = $db->prepare('SELECT e.nomb_empl AS empleado, e.cedu_empl AS documento,
+                c.nomb_carg AS cargo, e.fecha_naci_empl AS fecha_nacimiento, g.desc_gene AS sexo
+            FROM empleados e
+            LEFT JOIN cargo c ON c.codi_carg = e.carg_empl
+            LEFT JOIN genero g ON g.id_gene = e.gene_empl
+            WHERE e.user_empl = ? AND e.esta_empl = 1');
+        $stmt->execute(array($usuario_id));
+        $snapshot = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$snapshot) throw new DomainException('El empleado ya no está disponible para exportar.');
+        $snapshot['desde'] = $desde;
+        $snapshot['hasta'] = $hasta;
+        $snapshot['borrador'] = true;
+        $snapshot['biotime'] = true;
+        $snapshot['jornadas'] = array();
+        $segundos = 0;
+        foreach ($datos['resumen'] as $dia) {
+            $bruto = $dia['tiempo_bruto'];
+            if ($bruto !== null) {
+                $partes = array_map('intval', explode(':', $bruto));
+                $segundos += $partes[0] * 3600 + $partes[1] * 60 + $partes[2];
+            }
+            $snapshot['jornadas'][] = array(
+                'jornada_inicio' => $dia['fecha'] . ' ' . $dia['entrada'],
+                'jornada_fin' => $dia['salida'] !== null ? $dia['fecha'] . ' ' . $dia['salida'] : null,
+                'jornada_minutos_ordinarios' => 0, 'tiempo_bruto_biotime' => $bruto,
+                'jornada_ubicacion' => '', 'jornada_actividad' => $dia['observacion']
+            );
+        }
+        $snapshot['totales'] = array('BRUTO_SEGUNDOS' => $segundos);
+        return $snapshot;
+    }
+
     private static function documento($valor)
     {
         return preg_replace('/\D+/', '', trim((string) $valor));

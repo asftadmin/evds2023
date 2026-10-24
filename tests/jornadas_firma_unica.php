@@ -86,7 +86,13 @@ CREATE TABLE jornada_reporte_detalle (
 SQL
     );
     $modelo = new Jornada();
-    $firma = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ1sAAAAASUVORK5CYII=';
+    $imagenFirma = imagecreatetruecolor(100, 30);
+    imagefill($imagenFirma, 0, 0, imagecolorallocate($imagenFirma, 255, 255, 255));
+    imageline($imagenFirma, 5, 20, 95, 5, imagecolorallocate($imagenFirma, 0, 0, 0));
+    ob_start();
+    imagepng($imagenFirma);
+    $firma = 'data:image/png;base64,' . base64_encode(ob_get_clean());
+    imagedestroy($imagenFirma);
     $stmt = $db->prepare('INSERT INTO firma_usuario VALUES (3, ?)');
     $stmt->execute([$firma]);
     $uno = nuevaFirma($modelo, '2026-10-19');
@@ -191,6 +197,26 @@ SQL
     rechazarFirma(fn() => $modelo->obtener_borradores_equipo_lote(3, [1, 3], '2026-10-19', '2026-10-20'));
     rechazarFirma(fn() => $modelo->obtener_borradores_equipo_lote(3, [1], '2025-01-01', '2025-01-15'));
     comprobarFirma(true, 'Rechaza selecciones ajenas y periodos sin jornadas');
+    $db->exec('ALTER TABLE jornada_auditoria ADD COLUMN jaud_fecha timestamp DEFAULT CURRENT_TIMESTAMP');
+    $personal = $modelo->obtener_reporte_propio_pdf(1, '2026-10-19', '2026-10-20', 'LIQUIDADO');
+    comprobarFirma(count($personal['jornadas']) === 2 && $personal['empleado'] === 'Uno',
+        'El PDF personal obtiene solo las jornadas propias del periodo y estado indicados');
+    comprobarFirma($personal['jefe_nombre'] === 'Jefe' && $personal['firma_jefe'] === $firma
+        && $personal['firma_empleado'] === $firma && $personal['jornadas_firmadas'] === 2,
+        'El PDF personal conserva el jefe y una sola firma del trabajador desde las evidencias de jornadas');
+    comprobarFirma(!isset($personal['biotime']) && $personal['totales']['ORD'] > 0,
+        'El formato personal utiliza horas guardadas, sin marcaciones ni indicadores BioTime');
+    require_once __DIR__ . '/../view/PDF/jornadas_formato.php';
+    $pdfPersonal = je_crear_pdf([$personal], ['jlot_nombre' => 'Reporte personal de jornadas']);
+    comprobarFirma($pdfPersonal->getNumPages() === 2 && substr($pdfPersonal->Output('', 'S'), 0, 5) === '%PDF-',
+        'Las jornadas propias generan el PDF institucional completo de dos páginas');
+    $otro = $modelo->obtener_reporte_propio_pdf(2, '2026-10-19', '2026-10-20');
+    comprobarFirma($otro['empleado'] === 'Dos' && !array_intersect(
+        array_column($personal['jornadas'], 'jornada_id'), array_column($otro['jornadas'], 'jornada_id')
+    ), 'La exportación personal mantiene separados los registros de cada trabajador');
+    rechazarFirma(fn() => $modelo->obtener_reporte_propio_pdf(1, '2026-10-19', '2026-10-20', 'APROBADO'));
+    rechazarFirma(fn() => $modelo->obtener_reporte_propio_pdf(1, '2025-01-01', '2025-01-15'));
+    comprobarFirma(true, 'El PDF personal informa periodos o estados sin jornadas');
 } finally {
     $db->exec('DROP SCHEMA ' . $schema . ' CASCADE');
 }

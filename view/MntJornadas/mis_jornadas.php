@@ -290,6 +290,10 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                                 <i class="fas fa-undo mr-1"></i>
                                                 Restablecer
                                             </button>
+                                            <button type="button" class="btn btn-outline-danger" id="btn-pdf-jornadas-historial"
+                                                title="Exportar las jornadas de horas extras del periodo y estado seleccionados">
+                                                <i class="fas fa-file-pdf mr-1"></i>Exportar PDF GH-F-19
+                                            </button>
                                         </div>
                                     </div>
 
@@ -361,7 +365,7 @@ if (empty($_SESSION['csrf_jornadas'])) {
                                                 autocomplete="off">
                                         </div>
 
-                                        <div class="col-md-7 d-flex align-items-end jornada-acciones">
+                                        <div class="col-md-7 d-flex align-items-end flex-wrap jornada-acciones">
                                             <button type="button" class="btn btn-info" id="btn-consultar-reporte">
                                                 <i class="fas fa-search mr-1"></i>
                                                 Consultar reporte
