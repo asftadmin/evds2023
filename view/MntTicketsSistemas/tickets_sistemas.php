@@ -16,6 +16,7 @@ if (isset($_SESSION['user_id'])) {
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <?php require_once('../MainHead/head.php') ?>
+        <link rel="stylesheet" href="../../public/plugins/dropzone/dropzone.css">
 
         <title>MESA DE SERVICIO</title>
 
@@ -468,6 +469,9 @@ if (isset($_SESSION['user_id'])) {
 
                         <form id="form-ticket-sistemas">
 
+                            <?php // Identifica los soportes temporales del formulario. ?>
+                            <input type="hidden" id="ticket-soporte-token" name="soporte_token">
+
 
                             <!-- HEADER -->
 
@@ -791,47 +795,50 @@ if (isset($_SESSION['user_id'])) {
 
                                     <!-- UBICACIÓN -->
 
-                                    <div class="col-md-6">
+                                    <div class="col-md-12">
 
                                         <div class="form-group">
 
-                                            <label>
+                                            <label for="ticket-ubicacion">
 
                                                 Ubicación
 
                                             </label>
 
-                                            <input type="text" id="ticket-ubicacion" name="ubicacion" class="form-control"
-                                                maxlength="150" autocomplete="off" placeholder="Ej. Oficina administrativa">
+                                            <select id="ticket-ubicacion" name="ubicacion" class="form-control select2bs4" style="width:100%;">
+                                                <option value="">Seleccione una ubicación</option>
+                                                <option value="INGENIERIA / OBRAS">INGENIERIA / OBRAS</option>
+                                                <option value="TESORERIA">TESORERIA</option>
+                                                <option value="GERENCIA">GERENCIA</option>
+                                                <option value="CONTABILIDAD">CONTABILIDAD</option>
+                                                <option value="SIG">SIG</option>
+                                                <option value="GESTION HUMANA">GESTION HUMANA</option>
+                                                <option value="CONTROL DE CALIDAD">CONTROL DE CALIDAD</option>
+                                                <option value="COMPRAS">COMPRAS</option>
+                                                <option value="ALMACEN">ALMACEN</option>
+                                                <option value="PRODUCCION">PRODUCCION</option>
+                                                <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+                                                <option value="SISTEMAS">SISTEMAS</option>
+                                            </select>
 
                                         </div>
 
                                     </div>
 
-
-                                    <!-- EQUIPO -->
-
-                                    <div class="col-md-6">
-
-                                        <div class="form-group">
-
-                                            <label>
-
-                                                Equipo relacionado
-
-                                            </label>
-
-                                            <input type="text" id="ticket-equipo" name="equipo" class="form-control"
-                                                maxlength="150" autocomplete="off" placeholder="Ej. PC Contabilidad 01">
-
-                                        </div>
-
-                                    </div>
 
                                 </div>
 
                             </div>
 
+
+                            <?php // Los archivos se vinculan al ticket al enviarlo. ?>
+                            <div class="px-3 pb-3">
+                                <label id="ticket-soportes-label">Archivos de soporte (opcional)</label>
+                                <div id="ticket-soportes" class="dropzone" aria-labelledby="ticket-soportes-label">
+                                    <div class="dz-message">Arrastra tus archivos o haz clic aquí</div>
+                                </div>
+                                <small class="text-muted">JPG, JPEG, PNG o PDF. Máximo 10 MB por archivo y 10 archivos por ticket.</small>
+                            </div>
 
                             <!-- FOOTER -->
 
@@ -984,7 +991,7 @@ if (isset($_SESSION['user_id'])) {
 
                             <div class="row">
 
-                                <div class="col-md-6">
+                                <div class="col-md-12">
                                     <strong>Ubicación</strong>
 
                                     <p
@@ -995,18 +1002,12 @@ if (isset($_SESSION['user_id'])) {
                                 </div>
 
 
-                                <div class="col-md-6">
-                                    <strong>Equipo</strong>
-
-                                    <p
-                                        class="text-muted"
-                                        id="detalle-ticket-equipo">
-                                        -
-                                    </p>
-                                </div>
-
                             </div>
 
+
+                            <?php // Los soportes se consultan y descargan mediante AJAX. ?>
+                            <strong>Archivos de soporte</strong>
+                            <ul id="detalle-ticket-soportes" class="list-group mt-2 mb-3"></ul>
 
                             <strong>Solución</strong>
 
@@ -1074,6 +1075,7 @@ if (isset($_SESSION['user_id'])) {
 
         <!-- JS Módulo -->
 
+        <script src="../../public/plugins/dropzone/dropzone.js"></script>
         <script type="text/javascript" src="tickets_sistemas.js"></script>
 
 

@@ -178,3 +178,26 @@ Estado: implementado y validado.
 - [x] Corrección de ubicación: Exportar PDF GH-F-19 en Historial después de Restablecer, usando el periodo filtro_fechas. Retirado de Reporte para firma. Prueba específica ajustada al periodo del historial.
 
 - [x] Sustituir la conexión equivocada del botón del Historial: exportar exclusivamente las jornadas de horas extras del trabajador autenticado mediante jornada.php / exportarMisJornadasPdf y Jornada::obtener_reporte_propio_pdf, con periodo y estado del historial. SQL en modelo, permiso mis_jornadas, identidad de sesión, JSON limpio y descarga AJAX. No modifica estados ni firmas. Sin llamadas a BioTime en este botón. Verificación: jornadas_vista.cjs --pdf-jornadas y jornadas_firma_unica.php (PostgreSQL aislado, jornadas propias, firmas, filtros y generación real del PDF).
+
+## Carga de soportes de Tickets de Sistemas
+
+Estado: implementado; validado con PostgreSQL temporal y Chrome con API simulada. Pendiente prueba con sesión real del usuario.
+
+- Esquemas revisados: evds2023.sql y preoperacional_schema.sql, proporcionados en la raíz. No contienen soportes de tickets de Sistemas. Se propuso explícitamente la ampliación antes de programarla.
+- Migración: database/migrations/20261026_preoperacional_tickets_soportes.sql, destinada a la base propietaria de tickets. Crea tickets_sistemas_soportes, FK a tickets_sistemas.ticket_id, propietario, token temporal, nombre, ruta privada, MIME, tamaño y fecha; índices y límites de MIME/tamaño.
+- Migración aplicada en preoperacional_prueba, base actualmente configurada por la API. No se insertaron tickets reales durante la validación.
+- Interfaz: view/MntTicketsSistemas/tickets_sistemas.php y tickets_sistemas.js. Dropzone local, JPG/JPEG/PNG/PDF, 10 MB y 10 archivos máximo; carga previa, eliminación confirmada en servidor, conservación del formulario con soportes al cerrar, espera de cargas/eliminaciones y conservación ante errores de creación. Lista y descarga en el detalle; textos externos escapados.
+- Controller local: controller/tickets_sistemas.php. Operaciones prepararSoportes, subirSoporte, eliminarSoporte, listarSoportes y descargarSoporte; token por formulario limitado a la sesión/24 horas e identidad exclusivamente del modelo de empleados. Conserva JSON y transporte API existentes, sin SQL.
+- API dependiente modificada en C:/xampp/htdocs/preoperacional: api/tickets.php, api/controller/TicketsSistemas.php y api/model/TicketsSistemas.php; nuevo api/model/TicketsSoportes.php. Asociación de soportes en la transacción de creación y reintento del mismo lote con soportes sin duplicar ticket. Se completó detalle, invocado por la vista pero ausente de la API, con comprobación de propietario.
+- Archivos en C:/xampp/storage/tickets_sistemas por defecto, fuera de htdocs, con claves aleatorias. Configuración opcional TICKETS_SOPORTES_DIR. Se conserva la experiencia de carga de permisos, sin reutilizar sus tablas ni sus credenciales FTP. No se modificó el módulo de permisos.
+- API recibe JSON con base64 por el transporte existente; PostgreSQL conserva solo metadatos. Descargas JSON/base64 autorizadas por propietario. Eliminación solo de temporales. Cargas posteriores limpian temporales abandonados del mismo propietario con más de 24 horas; para usuarios que no regresan no hay limpieza periódica configurada.
+- Pruebas: tests/tickets_soportes.php, 23 verificaciones con tablas temporales y archivos de prueba aislados: MIME/tamaño, nombres repetidos, acceso de otro propietario, eliminación, asociación, descarga, reintento, máximo de archivos, limpieza y rollback. El error SQL registrado durante la prueba es intencional para verificar rollback.
+- tests/tickets_soportes_vista.cjs: Chrome con API simulada verifica carga, bloqueo durante pendientes, eliminación fallida/correcta, conservación al fallar creación, reintento, asociación, escape de nombres y descarga. Requiere playwright en NODE_PATH y Chrome.
+- Respuestas HTTP de rechazo sin sesión y sin credencial API verificadas como JSON limpio; sintaxis PHP/JavaScript validada.
+- STRUCTURE.md y PLAN.md de ambos proyectos actualizados. Conservados cambios previos de Ubicación/Equipo. Pendiente: prueba de integración con sesión real y configuración TICKETS_API_TOKEN del servidor; cualquier otra instalación debe ejecutar la migración en su base de preoperacional y desplegar también los cambios de API.
+
+### Corrección de Select2 en Nuevo ticket
+
+- view/MntTicketsSistemas/tickets_sistemas.js: inicializa los cuatro Select2 del formulario en shown.bs.modal, después de la transición de Bootstrap; mantiene una sola instancia y usa .modal-content como dropdownParent para mantener los desplegables dentro del formulario. El filtro de estado conserva su inicialización exterior.
+- tests/tickets_soportes_vista.cjs: incorpora CSS de AdminLTE, Select2 y tema Bootstrap 4; espera el fin real de las transiciones, verifica apertura repetida de los cuatro selectores, búsqueda, selección, filtro exterior y reapertura del modal sin duplicar instancias. Conserva las verificaciones de soportes.
+- Validación: Chrome/API simulada satisfactoria y sintaxis JavaScript correcta. Sin cambios en controladores, modelos ni base de datos.

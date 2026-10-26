@@ -1,4 +1,10 @@
 let tablaTicketsSistemas;
+let soportesTicket;
+let preparandoSoportesTicket = false;
+let enviandoTicket = false;
+let eliminandoSoportesTicket = 0;
+let cargaSoportesTicket = null;
+Dropzone.autoDiscover = false;
 
 
 /*
@@ -13,6 +19,7 @@ function init() {
     initTablaTicketsSistemas();
 
     initEventosTicketsSistemas();
+    initSoportesTicketsSistemas();
 
     cargarEmpleadoTicketsSistemas();
     cargarCategoriasTicketsSistemas();
@@ -37,6 +44,14 @@ function initSelect2TicketsSistemas() {
         allowClear: true
     });
 
+    // Espera a que Bootstrap termine de mostrar y posicionar el formulario.
+    $('#modal-nuevo-ticket').on('shown.bs.modal.select2Tickets', initSelect2ModalTickets);
+}
+
+// Inicializa una sola vez y mantiene los desplegables dentro del contenido del modal.
+function initSelect2ModalTickets() {
+    const contenidoModal = $('#modal-nuevo-ticket .modal-content');
+    if ($('#ticket-tipo').hasClass('select2-hidden-accessible')) { return; }
 
     /*
      * Selects ubicados dentro del modal.
@@ -49,7 +64,7 @@ function initSelect2TicketsSistemas() {
         width: '100%',
         placeholder: 'Seleccione',
         allowClear: true,
-        dropdownParent: $('#modal-nuevo-ticket')
+        dropdownParent: contenidoModal
     });
 
 
@@ -58,7 +73,7 @@ function initSelect2TicketsSistemas() {
         width: '100%',
         placeholder: 'Seleccione una categoría',
         allowClear: true,
-        dropdownParent: $('#modal-nuevo-ticket')
+        dropdownParent: contenidoModal
     });
 
 
@@ -66,7 +81,15 @@ function initSelect2TicketsSistemas() {
         theme: 'bootstrap4',
         width: '100%',
         minimumResultsForSearch: Infinity,
-        dropdownParent: $('#modal-nuevo-ticket')
+        dropdownParent: contenidoModal
+    });
+
+    $('#ticket-ubicacion').select2({
+        theme: 'bootstrap4',
+        width: '100%',
+        placeholder: 'Seleccione una ubicación',
+        allowClear: true,
+        dropdownParent: contenidoModal
     });
 
 }
@@ -434,6 +457,15 @@ function initEventosTicketsSistemas() {
         }
     );
 
+    // Conserva el formulario y sus archivos mientras se envía el ticket.
+    $('#modal-nuevo-ticket').on('hide.bs.modal', function (event) {
+        if (enviandoTicket || preparandoSoportesTicket || eliminandoSoportesTicket > 0
+            || (soportesTicket && (soportesTicket.getUploadingFiles().length > 0 || soportesTicket.getQueuedFiles().length > 0))) {
+            event.preventDefault();
+        }
+    });
+    $('#modal-nuevo-ticket').on('show.bs.modal', prepararSoportesTicket);
+
     $('#filtro-buscar').on('keyup', function () {
 
         if (tablaTicketsSistemas) {
@@ -627,6 +659,9 @@ function validarFormularioTicket() {
  * =====================================================
  */
 function limpiarFormularioTicket() {
+    // Conserva los archivos y formulario al cerrar para permitir retomar o retirarlos.
+    if (soportesTicket && soportesTicket.files.length > 0) { return; }
+    $('#ticket-soporte-token').val('');
 
     const formulario =
         document.getElementById(
@@ -664,11 +699,8 @@ function limpiarFormularioTicket() {
 
 
     $('#ticket-ubicacion')
-        .val('');
-
-
-    $('#ticket-equipo')
-        .val('');
+        .val('')
+        .trigger('change');
 
 }
 
@@ -835,6 +867,18 @@ $(document).on(
  */
 function crearTicketSistemas() {
 
+    // Espera confirmación de todas las cargas y eliminaciones antes de crear.
+    if (enviandoTicket) { return; }
+    if (preparandoSoportesTicket || !$('#ticket-soporte-token').val()
+        || eliminandoSoportesTicket > 0 || soportesTicket.files.some(function (file) {
+            return file.status !== Dropzone.SUCCESS;
+        })) {
+        Swal.fire('Soportes pendientes', 'Espere la carga de los archivos o retire los que tienen error.', 'warning');
+        return;
+    }
+    enviandoTicket = true;
+    soportesTicket.disable();
+
     const boton = $('#btn-guardar-ticket');
 
     boton
@@ -863,6 +907,11 @@ function crearTicketSistemas() {
             }
 
             const ticket = respuesta.data || {};
+
+            // Evita solicitar la eliminación de archivos ya asociados al ticket.
+            soportesTicket.files.forEach(function (file) { file.soporteAsociado = true; });
+            soportesTicket.removeAllFiles(true);
+            enviandoTicket = false;
 
             $('#modal-nuevo-ticket').modal('hide');
 
@@ -926,6 +975,8 @@ function crearTicketSistemas() {
         },
 
         complete: function () {
+            enviandoTicket = false;
+            soportesTicket.enable();
 
             boton
                 .prop('disabled', false)
@@ -1013,6 +1064,7 @@ function consultarDetalleTicket(ticketId) {
 function mostrarDetalleTicket(data) {
 
     const ticket = data.ticket;
+    cargarSoportesTicket(ticket.ticket_id);
     const seguimientos = Array.isArray(data.seguimientos)
         ? data.seguimientos
         : [];
@@ -1051,10 +1103,6 @@ function mostrarDetalleTicket(data) {
 
     $('#detalle-ticket-ubicacion').text(
         ticket.ubicacion || 'No registrada'
-    );
-
-    $('#detalle-ticket-equipo').text(
-        ticket.equipo || 'No registrado'
     );
 
     $('#detalle-ticket-solucion').text(
@@ -1152,5 +1200,156 @@ function renderizarSeguimientosTicket(seguimientos) {
  * INICIAR
  * =====================================================
  */
+
+// Prepara un token temporal sin incluir identidad del empleado en el navegador.
+function prepararSoportesTicket() {
+    if ($('#ticket-soporte-token').val() || preparandoSoportesTicket) { return; }
+    preparandoSoportesTicket = true;
+    soportesTicket.disable();
+    $.ajax({
+        url: '../../controller/tickets_sistemas.php?op=prepararSoportes',
+        type: 'POST', dataType: 'json'
+    }).done(function (respuesta) {
+        if (!respuesta.success || !respuesta.data || !respuesta.data.soporte_token) {
+            Swal.fire('Error', respuesta.message || 'No fue posible preparar los soportes.', 'error');
+            return;
+        }
+        $('#ticket-soporte-token').val(respuesta.data.soporte_token);
+    }).fail(function () {
+        Swal.fire('Error', 'No fue posible preparar los soportes. Cierre y abra Nuevo ticket.', 'error');
+    }).always(function () {
+        preparandoSoportesTicket = false;
+        if ($('#ticket-soporte-token').val()) { soportesTicket.enable(); }
+    });
+}
+
+// Inicializa Dropzone con el mismo tipo y tamaño de archivos que permisos.
+function initSoportesTicketsSistemas() {
+    soportesTicket = new Dropzone('#ticket-soportes', {
+        url: '../../controller/tickets_sistemas.php?op=subirSoporte',
+        maxFilesize: 10, maxFiles: 10, parallelUploads: 1,
+        acceptedFiles: '.jpg,.jpeg,.png,.pdf', addRemoveLinks: false,
+        dictRemoveFile: 'Eliminar', dictCancelUpload: 'Cancelar carga',
+        dictMaxFilesExceeded: 'Puede adjuntar hasta 10 archivos.',
+        dictInvalidFileType: 'Solo se permiten JPG, PNG y PDF.',
+        dictFileTooBig: 'El archivo supera el máximo de 10 MB.',
+        // La eliminación se confirma en servidor antes de retirar la vista previa.
+        removedfile: function (file) {
+            const dz = this;
+            if (!file.soporteId || file.soporteAsociado) {
+                if (file.previewElement) { file.previewElement.remove(); }
+                return;
+            }
+            dz.files.push(file);
+            if (file.eliminando) { return; }
+            file.eliminando = true;
+            eliminandoSoportesTicket++;
+            $.ajax({
+                url: '../../controller/tickets_sistemas.php?op=eliminarSoporte',
+                type: 'POST', dataType: 'json',
+                data: { soporte_id: file.soporteId, soporte_token: file.soporteToken }
+            }).done(function (respuesta) {
+                if (!respuesta.success) {
+                    Swal.fire('Error', respuesta.message || 'No fue posible eliminar el soporte.', 'error');
+                    return;
+                }
+                file.soporteId = null;
+                dz.removeFile(file);
+            }).fail(function (xhr) {
+                Swal.fire('Error', (xhr.responseJSON || {}).message || 'No fue posible eliminar el soporte.', 'error');
+            }).always(function () {
+                file.eliminando = false;
+                eliminandoSoportesTicket--;
+            });
+        },
+        init: function () {
+            // Impide cancelar una petición que podría haberse guardado en el servidor.
+            this.on('addedfile', function (file) {
+                const dz = this;
+                file.botonEliminar = $('<button type="button" class="btn btn-sm btn-outline-danger mt-2">')
+                    .text('Eliminar').on('click', function () {
+                        if (!enviandoTicket && file.status !== Dropzone.UPLOADING) { dz.removeFile(file); }
+                    }).appendTo(file.previewElement);
+            });
+            this.on('sending', function (file, xhr, formData) {
+                file.botonEliminar.prop('disabled', true);
+                file.soporteToken = $('#ticket-soporte-token').val();
+                formData.append('soporte_token', file.soporteToken);
+            });
+            this.on('success', function (file, respuesta) {
+                if (typeof respuesta === 'string') {
+                    try { respuesta = JSON.parse(respuesta); } catch (e) { respuesta = {}; }
+                }
+                if (!respuesta.success || !respuesta.data || !respuesta.data.soporte_id) {
+                    file.status = Dropzone.ERROR;
+                    this.emit('error', file, respuesta.message || 'No se confirmó la carga del archivo.');
+                    return;
+                }
+                file.soporteId = respuesta.data.soporte_id;
+                file.botonEliminar.prop('disabled', false);
+            });
+            this.on('error', function (file, mensaje) {
+                if (file.botonEliminar) { file.botonEliminar.prop('disabled', false); }
+                Swal.fire('Error de soporte', typeof mensaje === 'string' ? mensaje
+                    : (mensaje.message || 'No fue posible cargar el archivo.'), 'error');
+            });
+        }
+    });
+    soportesTicket.disable();
+}
+
+// Consulta los soportes sin depender de cambios en la respuesta del detalle.
+function cargarSoportesTicket(ticketId) {
+    if (cargaSoportesTicket) { cargaSoportesTicket.abort(); }
+    const lista = $('#detalle-ticket-soportes').empty();
+    $('<li class="list-group-item text-muted">').text('Consultando soportes...').appendTo(lista);
+    cargaSoportesTicket = $.ajax({
+        url: '../../controller/tickets_sistemas.php?op=listarSoportes',
+        type: 'POST', dataType: 'json', data: { ticket_id: ticketId }
+    }).done(function (respuesta) {
+        lista.empty();
+        if (!respuesta.success || !Array.isArray(respuesta.data)) {
+            $('<li class="list-group-item text-danger">').text(respuesta.message || 'No fue posible consultar soportes.').appendTo(lista);
+            return;
+        }
+        if (!respuesta.data.length) {
+            $('<li class="list-group-item text-muted">').text('Sin soportes adjuntos.').appendTo(lista);
+        }
+        respuesta.data.forEach(function (soporte) {
+            const fila = $('<li class="list-group-item d-flex justify-content-between align-items-center">').appendTo(lista);
+            $('<span>').text(soporte.soporte_nombre).appendTo(fila);
+            $('<button type="button" class="btn btn-sm btn-outline-primary">').text('Descargar')
+                .on('click', function () { descargarSoporteTicket(soporte.soporte_id, $(this)); }).appendTo(fila);
+        });
+    }).fail(function (xhr, estado) {
+        if (estado !== 'abort') { lista.empty().append($('<li class="list-group-item text-danger">').text('No fue posible consultar soportes.')); }
+    });
+}
+
+// Genera una descarga local después de recibir el JSON autorizado del controlador.
+function descargarSoporteTicket(id, boton) {
+    boton.prop('disabled', true);
+    $.ajax({
+        url: '../../controller/tickets_sistemas.php?op=descargarSoporte',
+        type: 'POST', dataType: 'json', data: { soporte_id: id }
+    }).done(function (respuesta) {
+        if (!respuesta.success || !respuesta.data) {
+            Swal.fire('Error', respuesta.message || 'No fue posible descargar el soporte.', 'error');
+            return;
+        }
+        const soporte = respuesta.data;
+        const bytes = Uint8Array.from(atob(soporte.contenido), function (c) { return c.charCodeAt(0); });
+        const url = URL.createObjectURL(new Blob([bytes], { type: soporte.soporte_mime }));
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.download = soporte.soporte_nombre;
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }).fail(function (xhr) {
+        Swal.fire('Error', (xhr.responseJSON || {}).message || 'No fue posible descargar el soporte.', 'error');
+    }).always(function () { boton.prop('disabled', false); });
+}
 
 init();

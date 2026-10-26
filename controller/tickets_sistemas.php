@@ -109,6 +109,16 @@ function decodificarRespuestaTicketsApi($respuesta)
     return $resultado;
 }
 
+// Comprueba que el lote temporal fue generado en la sesión autenticada.
+function validarTokenSoportesTickets($token)
+{
+    if (!preg_match('/^[a-f0-9]{64}$/', $token)
+        || empty($_SESSION['tickets_soportes_tokens'][$token])
+        || $_SESSION['tickets_soportes_tokens'][$token] < time() - 86400) {
+        responderTicketsSistemas(false, 'El formulario expiró. Cierre y abra Nuevo ticket.', null, 422);
+    }
+}
+
 exigirSesionTicketsSistemas();
 
 $op = isset($_GET['op'])
@@ -117,6 +127,57 @@ $op = isset($_GET['op'])
 
 try {
     switch ($op) {
+        // Genera un lote independiente para cada formulario, incluso en varias pestañas.
+        case 'prepararSoportes':
+            validarMetodoTicketsSistemas('POST');
+            $tokens = $_SESSION['tickets_soportes_tokens'] ?? array();
+            foreach ($tokens as $clave => $fecha) {
+                if ($fecha < time() - 86400) { unset($tokens[$clave]); }
+            }
+            if (count($tokens) >= 100) { array_shift($tokens); }
+            $token = bin2hex(random_bytes(32));
+            $tokens[$token] = time();
+            $_SESSION['tickets_soportes_tokens'] = $tokens;
+            responderTicketsSistemas(true, 'Formulario preparado.', array('soporte_token' => $token));
+            break;
+
+        // Recibe archivos y transporta JSON por la API existente, sin SQL en el controlador.
+        case 'subirSoporte':
+        case 'eliminarSoporte':
+        case 'listarSoportes':
+        case 'descargarSoporte':
+            validarMetodoTicketsSistemas('POST');
+            $empleado = $modelo->obtenerEmpleadoSesion((int) $_SESSION['user_id']);
+            if ($empleado === null) {
+                responderTicketsSistemas(false, 'No se encontró el empleado autenticado.', null, 422);
+            }
+            $datosSoporte = array('empleado_documento' => trim((string) $empleado['cedu_empl']));
+            if ($op === 'subirSoporte' || $op === 'eliminarSoporte') {
+                $token = textoPostTicketsSistemas('soporte_token', 64, true);
+                validarTokenSoportesTickets($token);
+                $datosSoporte['soporte_token'] = $token;
+            }
+            if ($op === 'subirSoporte') {
+                $archivo = $_FILES['file'] ?? null;
+                if (!$archivo || !isset($archivo['error'], $archivo['size'], $archivo['tmp_name'], $archivo['name'])
+                    || is_array($archivo['error']) || $archivo['error'] !== UPLOAD_ERR_OK
+                    || $archivo['size'] <= 0 || $archivo['size'] > 10485760
+                    || !is_uploaded_file($archivo['tmp_name'])) {
+                    responderTicketsSistemas(false, 'Adjunte un archivo válido de hasta 10 MB.', null, 422);
+                }
+                $datosSoporte['nombre'] = basename(str_replace('\\', '/', $archivo['name']));
+                $datosSoporte['contenido'] = base64_encode(file_get_contents($archivo['tmp_name']));
+            } else {
+                $campo = $op === 'listarSoportes' ? 'ticket_id' : 'soporte_id';
+                $id = filter_var($_POST[$campo] ?? null, FILTER_VALIDATE_INT);
+                if (!$id || $id < 1) { responderTicketsSistemas(false, 'Identificador no válido.', null, 422); }
+                $datosSoporte[$campo] = $id;
+            }
+            $resultado = decodificarRespuestaTicketsApi(CurlController::requestPreoperacional('op=' . $op, 'POST', $datosSoporte));
+            responderTicketsSistemas(!empty($resultado['success']), $resultado['message'] ?? 'Error procesando soporte.',
+                $resultado['data'] ?? null, !empty($resultado['success']) ? 200 : 422);
+            break;
+
         /*
          * =====================================================
          * EMPLEADO AUTENTICADO
@@ -257,7 +318,11 @@ try {
                 'prioridad'
             );
 
+            // El token opcional conserva compatibilidad con consumidores anteriores.
+            $soporteToken = textoPostTicketsSistemas('soporte_token', 64);
+            if ($soporteToken !== '') { validarTokenSoportesTickets($soporteToken); }
             $datosTicket = array(
+                'soporte_token' => $soporteToken,
                 'empleado_documento' => trim((string) $empleado['cedu_empl']),
                 'empleado_nombre' => trim((string) $empleado['nomb_empl']),
                 'empleado_correo' => trim((string) ($empleado['email_empl'] ?? '')),
