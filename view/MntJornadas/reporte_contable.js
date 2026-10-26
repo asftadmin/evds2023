@@ -1,5 +1,117 @@
 let rcLoteActual = null;
 let rcFilasActuales = [];
+let rcPeriodoHoras = null;
+
+function rcNombreLote(nombre) {
+    return String(nombre || '').replace(/^(?:Corrección v\d+ - )+/, '');
+}
+
+function rcInicializarHorasExtras() {
+    JornadasPeriodo.inicializar('#horas_periodo', {
+        showDropdowns: true,
+        locale: {
+            format: 'DD/MM/YYYY', separator: ' - ', applyLabel: 'Aplicar',
+            cancelLabel: 'Cancelar', customRangeLabel: 'Otro periodo',
+            daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+            monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        }
+    });
+    const tabla = $('#tabla-horas-extras').DataTable({
+        data: [], autoWidth: false, order: [[0, 'asc']], dom: 'Bfrtip',
+        buttons: [{
+            extend: 'excelHtml5', text: '<i class="fas fa-file-excel mr-1"></i>Exportar a Excel',
+            className: 'btn btn-success',
+            enabled: false,
+            title: function () { return 'Horas extras liquidadas ' + (rcPeriodoHoras || ''); },
+            filename: function () { return 'Horas_extras_' + (rcPeriodoHoras || ''); },
+            exportOptions: { columns: ':visible', orthogonal: 'export' }
+        }],
+        columns: [
+            { data: 'empleado', render: $.fn.dataTable.render.text() },
+            { data: 'documento', render: $.fn.dataTable.render.text() }
+        ].concat(['ibc', 'valor_hora', 'rn', 'valor_rn', 'hed', 'valor_hed',
+            'hen', 'valor_hen', 'hedf', 'valor_hedf', 'henf', 'valor_henf', 'total'].map(function (codigo) {
+            return { data: codigo, className: 'text-right', render: function (valor, tipo) {
+                if (valor === null || valor === undefined) {
+                    return tipo === 'display' ? (codigo === 'valor_rn' ? 'Sin cálculo' : 'No disponible') : '';
+                }
+                const horas = Number(valor) || 0;
+                return tipo === 'display' ? horas.toLocaleString('es-CO', {
+                    minimumFractionDigits: 2, maximumFractionDigits: 2
+                }) : horas;
+            } };
+        })),
+        language: {
+            emptyTable: 'No hay jornadas liquidadas para mostrar', search: 'Buscar:',
+            info: 'Mostrando _START_ a _END_ de _TOTAL_ trabajadores',
+            infoEmpty: 'Sin trabajadores', infoFiltered: '(de _MAX_ trabajadores)',
+            zeroRecords: 'No se encontraron trabajadores',
+            paginate: { previous: 'Anterior', next: 'Siguiente' }
+        }
+    });
+    tabla.buttons().container().appendTo('#horas-exportar');
+    tabla.button(0).enable(false);
+    $('#horas_periodo').on('apply.daterangepicker', function () {
+        tabla.clear().draw();
+        tabla.button(0).enable(false);
+        rcPeriodoHoras = null;
+        $('#horas-resultado').text('Pulse Consultar para cargar el periodo seleccionado.');
+    });
+    $('#btn-consultar-horas').on('click', function () {
+        const rango = $('#horas_periodo').data('daterangepicker');
+        const desde = rango.startDate.format('YYYY-MM-DD');
+        const hasta = rango.endDate.format('YYYY-MM-DD');
+        const boton = $(this).prop('disabled', true);
+        tabla.clear().draw();
+        tabla.button(0).enable(false);
+        $('#horas-resultado').text('Consultando jornadas liquidadas y salarios en Siesa...');
+        Swal.fire({
+            title: 'Consultando',
+            text: 'Consultando jornadas liquidadas y salarios en Siesa...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            showCloseButton: false,
+            didOpen: function () { Swal.showLoading(); }
+        });
+        $.getJSON('../../controller/jornada_contable.php', {
+            op: 'listarHorasExtras', fecha_desde: desde, fecha_hasta: hasta
+        }).done(function (respuesta) {
+            Swal.close();
+            // Descarta respuestas si se cambió el periodo durante la consulta.
+            if (rango.startDate.format('YYYY-MM-DD') !== desde ||
+                rango.endDate.format('YYYY-MM-DD') !== hasta) return;
+            rcPeriodoHoras = desde + '_al_' + hasta;
+            const filas = respuesta.data || [];
+            tabla.rows.add(filas).draw();
+            tabla.button(0).enable(filas.length > 0);
+            $('#horas-resultado').text('Periodo: (' + moment(desde).format('DD/MM/YYYY')
+                + ' - ' + moment(hasta).format('DD/MM/YYYY') + '), trabajadores ' + filas.length + '.');
+        }).fail(function (xhr) {
+            Swal.close();
+            $('#horas-resultado').text('No fue posible consultar el periodo.');
+            Swal.fire('Error de consulta', rcError(xhr, 'No fue posible consultar las horas extras.'), 'error');
+        }).always(function () { boton.prop('disabled', false); });
+    });
+    const claveTab = 'jornadas-reporte-contable:tab:' + location.pathname;
+    $('#tab-lotes, #tab-horas-extras').on('shown.bs.tab', function () {
+        try {
+            sessionStorage.setItem(claveTab, this.id);
+        } catch (e) {
+            // La navegación sigue disponible si el navegador bloquea el almacenamiento.
+        }
+        $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+    });
+    try {
+        const tabGuardado = sessionStorage.getItem(claveTab);
+        if (['tab-lotes', 'tab-horas-extras'].includes(tabGuardado)) {
+            $('#' + tabGuardado).tab('show');
+        }
+    } catch (e) {
+        // Conserva la pestaña predeterminada cuando no hay almacenamiento disponible.
+    }
+}
 
 function rcEscapar(texto) {
     return $('<div>').text(texto == null ? '' : texto).html();
@@ -16,6 +128,7 @@ function rcEstado(estado) {
         BORRADOR: 'badge-warning',
         CERRADO: 'badge-success',
         REEMPLAZADO: 'badge-secondary',
+        ANULADO: 'badge-danger',
         LISTO: 'badge-success',
         SIN_NOVEDAD: 'badge-secondary',
         PENDIENTE: 'badge-warning',
@@ -54,7 +167,10 @@ function rcCargarLotes(seleccionarId) {
                         data: 'jlot_fecha_creacion',
                         render: function (v) { return rcFechaHora(v); }
                     },
-                    { data: 'jlot_nombre' },
+                    { data: 'jlot_nombre', render: function (valor, tipo) {
+                        const nombre = rcNombreLote(valor);
+                        return tipo === 'display' ? rcEscapar(nombre) : nombre;
+                    } },
                     {
                         data: null,
                         render: function (fila) {
@@ -109,11 +225,14 @@ function rcCargarLotes(seleccionarId) {
 
 function rcAccionesLote(lote) {
     const id = lote.jlot_id;
+    if (lote.jlot_estado === 'ANULADO') return '';
+    const anular = '<button class="btn btn-sm btn-outline-danger ml-2" id="btn-anular-lote">'
+        + '<i class="fas fa-ban mr-1"></i>Anular lote</button>';
     if (lote.jlot_estado === 'BORRADOR') {
         return '<button class="btn btn-sm btn-outline-info mr-2" id="btn-refrescar-lote">'
             + '<i class="fas fa-sync-alt mr-1"></i>Validar de nuevo</button>'
             + '<button class="btn btn-sm btn-success" id="btn-cerrar-lote">'
-            + '<i class="fas fa-lock mr-1"></i>Cerrar lote</button>';
+            + '<i class="fas fa-lock mr-1"></i>Cerrar lote</button>' + anular;
     }
     let acciones = '<a class="btn btn-sm btn-danger mr-2" target="_blank" '
         + 'href="../../controller/jornada_exportar.php?tipo=pdf_lote&lote_id=' + id + '">'
@@ -126,7 +245,7 @@ function rcAccionesLote(lote) {
             + 'id="btn-corregir-lote">'
             + '<i class="fas fa-edit mr-1"></i>Corregir lote</button>';
     }
-    return acciones;
+    return acciones + (lote.jlot_estado === 'CERRADO' ? anular : '');
 }
 
 function rcAbrirLote(loteId) {
@@ -138,7 +257,7 @@ function rcAbrirLote(loteId) {
         rcFilasActuales = respuesta.data.empleados || [];
         $('#card-detalle').removeClass('d-none');
         $('#titulo-lote').text(
-            rcLoteActual.jlot_nombre
+            rcNombreLote(rcLoteActual.jlot_nombre)
             + ' — versión ' + (rcLoteActual.jlot_version || 1)
             + ' — corte ' + rcLoteActual.jlot_fecha_corte
         );
@@ -184,6 +303,7 @@ function rcAbrirLote(loteId) {
                         orderable: false,
                         searchable: false,
                         render: function (fila) {
+                            if (rcLoteActual.jlot_estado === 'ANULADO') return '';
                             if (rcLoteActual.jlot_estado === 'BORRADOR') {
                                 return '<button class="btn btn-sm btn-primary btn-editar-periodo" '
                                     + 'data-id="' + fila.jle_id + '" title="Ajustar periodo">'
@@ -212,6 +332,7 @@ function rcAbrirLote(loteId) {
 }
 
 $(document).ready(function () {
+    rcInicializarHorasExtras();
     $('#fecha_corte').val(moment().format('YYYY-MM-DD'));
     $.getJSON('../../controller/jornada_contable.php', {
         op: 'contextoReporte'
@@ -220,6 +341,7 @@ $(document).ready(function () {
             'Acceso exclusivo de Contabilidad — ' + r.data.empleado
         );
         rcCargarLotes();
+        $('#btn-consultar-horas').prop('disabled', false);
     }).fail(function () {
         $('#alerta-contexto').removeClass('alert-info').addClass('alert-danger');
         $('#texto-contexto').text('Acceso no autorizado.');
@@ -326,6 +448,49 @@ $(document).on('click', '#btn-cerrar-lote', function () {
         }).fail(function (xhr) {
             Swal.fire('No fue posible cerrar', rcError(xhr, 'Error al cerrar.'), 'error');
         });
+    });
+});
+
+$(document).on('click', '#btn-anular-lote', function () {
+    const lote = rcLoteActual;
+    if (!lote) return;
+    Swal.fire({
+        title: '¿Anular lote?',
+        text: rcNombreLote(lote.jlot_nombre) + ' — versión ' + lote.jlot_version
+            + ' — corte ' + lote.jlot_fecha_corte
+            + '. Dejará de estar vigente y sus periodos quedarán disponibles para otros lotes. '
+            + 'Se conservará el historial y las jornadas no se modificarán. No se reactivarán versiones anteriores.',
+        icon: 'warning',
+        input: 'textarea',
+        inputLabel: 'Motivo de anulación',
+        inputAttributes: { maxlength: 500 },
+        inputValidator: function (valor) {
+            if (!valor || !valor.trim()) return 'Indique el motivo de anulación.';
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Sí, anular lote',
+        confirmButtonColor: '#dc3545',
+        cancelButtonText: 'Cancelar',
+        showLoaderOnConfirm: true,
+        allowOutsideClick: function () { return !Swal.isLoading(); },
+        allowEscapeKey: function () { return !Swal.isLoading(); },
+        preConfirm: function (motivo) {
+            return $.ajax({
+                url: '../../controller/jornada_contable.php', type: 'POST', dataType: 'json',
+                data: { op: 'anularLoteReporte', lote_id: lote.jlot_id,
+                    motivo: motivo.trim(), csrf_token: $('#csrf_token').val() }
+            }).then(function (r) {
+                if (!r.success) { Swal.showValidationMessage(r.message); return false; }
+                return r;
+            }, function (xhr) {
+                Swal.showValidationMessage(rcError(xhr, 'No fue posible anular el lote.'));
+                return false;
+            });
+        }
+    }).then(function (resultado) {
+        if (!resultado.isConfirmed || !resultado.value) return;
+        Swal.fire('Lote anulado', resultado.value.message, 'success');
+        rcCargarLotes(lote.jlot_id);
     });
 });
 

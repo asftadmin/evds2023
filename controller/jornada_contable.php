@@ -141,12 +141,14 @@ try {
         'contextoReporte' => 'reporte_contable',
         'reporteContable' => 'reporte_contable',
         'listarLotesReporte' => 'reporte_contable',
+        'listarHorasExtras' => 'reporte_contable',
         'crearLoteReporte' => 'reporte_contable',
         'crearCorreccionLote' => 'reporte_contable',
         'listarEmpleadosLote' => 'reporte_contable',
         'ajustarPeriodoLote' => 'reporte_contable',
         'refrescarLoteReporte' => 'reporte_contable',
         'cerrarLoteReporte' => 'reporte_contable',
+        'anularLoteReporte' => 'reporte_contable',
         'contextoConfiguracion' => 'configuracion',
         'listarFestivos' => 'configuracion',
         'guardarFestivo' => 'configuracion',
@@ -501,6 +503,15 @@ try {
             jc_responder(['success' => true, 'data' => $data]);
             break;
 
+        case 'listarHorasExtras':
+            list($desde, $hasta) = jc_filtros();
+            require_once '../models/JornadaValorHoras.php';
+            $valorador = new JornadaValorHoras();
+            jc_responder(['success' => true, 'data' => $valorador->valorar(
+                $reporte->listar_horas_extras($desde, $hasta)
+            )]);
+            break;
+
         case 'listarLotesReporte':
             jc_responder([
                 'success' => true,
@@ -650,6 +661,19 @@ try {
                 'success' => true,
                 'message' => 'El lote fue validado nuevamente.'
             ]);
+            break;
+
+        case 'anularLoteReporte':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                jc_responder(['success' => false, 'message' => 'Utilice POST para anular.'], 405);
+            }
+            jc_validar_csrf();
+            $lote_id = filter_var(jc_entrada('lote_id'), FILTER_VALIDATE_INT);
+            if (!$lote_id || $lote_id <= 0) {
+                throw new InvalidArgumentException('El lote no es válido.');
+            }
+            $reporte->anular_lote($lote_id, jc_entrada('motivo'), $contexto['user_id']);
+            jc_responder(['success' => true, 'message' => 'El lote fue anulado y se conservó su historial.']);
             break;
 
         case 'cerrarLoteReporte':

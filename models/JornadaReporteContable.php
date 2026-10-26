@@ -6,6 +6,36 @@
  */
 class JornadaReporteContable extends Conectar
 {
+    public function listar_horas_extras($desde, $hasta)
+    {
+        $inicio = DateTimeImmutable::createFromFormat('!Y-m-d', $desde);
+        $fin = DateTimeImmutable::createFromFormat('!Y-m-d', $hasta);
+        if (!$inicio || !$fin || $inicio->format('Y-m-d') !== $desde
+            || $fin->format('Y-m-d') !== $hasta || $inicio->format('d') !== '16'
+            || $inicio->modify('+1 month')->modify('-1 day')->format('Y-m-d') !== $hasta) {
+            throw new InvalidArgumentException('Seleccione un periodo completo del 16 al 15.');
+        }
+        $db = parent::Conexion();
+        $stmt = $db->prepare("SELECT emp.id_empl AS empleado_id,
+                emp.nomb_empl AS empleado, emp.cedu_empl AS documento,
+                COALESCE(SUM(c.jcla_minutos) FILTER (WHERE con.jcon_codigo = 'RN'), 0) / 60.0 AS rn,
+                COALESCE(SUM(c.jcla_minutos) FILTER (WHERE con.jcon_codigo = 'HED'), 0) / 60.0 AS hed,
+                COALESCE(SUM(c.jcla_minutos) FILTER (WHERE con.jcon_codigo = 'HEN'), 0) / 60.0 AS hen,
+                COALESCE(SUM(c.jcla_minutos) FILTER (WHERE con.jcon_codigo = 'HEDF'), 0) / 60.0 AS hedf,
+                COALESCE(SUM(c.jcla_minutos) FILTER (WHERE con.jcon_codigo = 'HENF'), 0) / 60.0 AS henf
+            FROM jornadas_trabajo j
+            INNER JOIN jornada_estados estado ON estado.je_id = j.jornada_estado_id
+            INNER JOIN empleados emp ON emp.id_empl = j.empleado_id
+            LEFT JOIN jornada_clasificaciones c ON c.jornada_id = j.jornada_id
+            LEFT JOIN jornada_conceptos con ON con.jcon_id = c.jcon_id
+            WHERE estado.je_codigo = 'LIQUIDADO'
+              AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
+            GROUP BY emp.id_empl, emp.nomb_empl, emp.cedu_empl
+            ORDER BY emp.nomb_empl, emp.id_empl");
+        $stmt->execute([$desde, $hasta]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function listar_lotes()
     {
         $db = parent::Conexion();
@@ -147,9 +177,12 @@ class JornadaReporteContable extends Conectar
                 );
             }
 
-            $version = (int) $origen['jlot_version'] + 1;
-            $nombre = 'Corrección v' . $version . ' - '
-                . $origen['jlot_nombre'];
+            $stmt = $db->prepare('SELECT MAX(jlot_version) FROM jornada_lotes_reporte WHERE jlot_lote_origen_id = ?');
+            $stmt->execute([$lote_origen_id]);
+            $version = max((int) $origen['jlot_version'], (int) $stmt->fetchColumn()) + 1;
+            // Nombre y corte son únicos: conservar solo el prefijo de la versión actual.
+            $nombreBase = preg_replace('/^(?:Corrección v\d+ - )+/u', '', $origen['jlot_nombre']);
+            $nombre = 'Corrección v' . $version . ' - ' . $nombreBase;
             $stmt = $db->prepare(
                 "INSERT INTO jornada_lotes_reporte (
                     jlot_nombre,
@@ -296,8 +329,8 @@ class JornadaReporteContable extends Conectar
             }
 
             $stmt = $db->prepare(
-                "SELECT EXISTS (
-                    SELECT 1
+                "SELECT lote.jlot_id, lote.jlot_nombre, lote.jlot_version,
+                        lote.jlot_fecha_corte, otra.jle_desde, otra.jle_hasta
                     FROM jornada_lote_empleados otra
                     INNER JOIN jornada_lotes_reporte lote
                         ON lote.jlot_id = otra.jlot_id
@@ -307,7 +340,7 @@ class JornadaReporteContable extends Conectar
                       AND lote.jlot_id <> COALESCE(?, -1)
                       AND otra.jle_desde <= ?::date
                       AND otra.jle_hasta >= ?::date
-                 )"
+                    ORDER BY lote.jlot_fecha_corte, lote.jlot_id"
             );
             $stmt->execute([
                 $anterior['empleado_id'],
@@ -316,9 +349,10 @@ class JornadaReporteContable extends Conectar
                 $hasta,
                 $desde
             ]);
-            if ((bool) $stmt->fetchColumn()) {
+            $cruces = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($cruces) {
                 throw new RuntimeException(
-                    'El periodo se superpone con otro lote ya cerrado.'
+                    $this->describir_cruces($cruces)
                 );
             }
 
@@ -374,6 +408,38 @@ class JornadaReporteContable extends Conectar
             foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $fila_id) {
                 $this->recalcular_fila($db, (int) $fila_id, $usuario_id);
             }
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    public function anular_lote($lote_id, $motivo, $usuario_id)
+    {
+        $motivo = trim($motivo);
+        if ($motivo === '' || mb_strlen($motivo) > 500) {
+            throw new InvalidArgumentException('Indique un motivo de anulación de máximo 500 caracteres.');
+        }
+        $db = parent::Conexion();
+        try {
+            $db->beginTransaction();
+            $lote = $this->bloquear_lote($db, $lote_id);
+            if (!in_array($lote['jlot_estado'], ['BORRADOR', 'CERRADO'], true)) {
+                throw new RuntimeException('Solo puede anular lotes en borrador o cerrados vigentes.');
+            }
+            $stmt = $db->prepare("SELECT jlot_id FROM jornada_lotes_reporte
+                WHERE jlot_lote_origen_id = ? AND jlot_estado = 'BORRADOR' LIMIT 1");
+            $stmt->execute([$lote_id]);
+            if ($stmt->fetchColumn()) {
+                throw new RuntimeException('Anule primero la corrección en borrador de este lote.');
+            }
+            $stmt = $db->prepare("UPDATE jornada_lotes_reporte SET jlot_estado = 'ANULADO' WHERE jlot_id = ?");
+            $stmt->execute([$lote_id]);
+            $this->auditar($db, $lote_id, null, 'ANULAR',
+                ['estado' => $lote['jlot_estado']], ['estado' => 'ANULADO'], $motivo, $usuario_id);
             $db->commit();
         } catch (Throwable $e) {
             if ($db->inTransaction()) {
@@ -639,8 +705,9 @@ class JornadaReporteContable extends Conectar
         $conteo = $stmt->fetch(PDO::FETCH_ASSOC);
 
         $stmt = $db->prepare(
-            "SELECT EXISTS (
-                SELECT 1
+            "SELECT lote_cerrado.jlot_id, lote_cerrado.jlot_nombre,
+                    lote_cerrado.jlot_version, lote_cerrado.jlot_fecha_corte,
+                    cerrada.jle_desde, cerrada.jle_hasta
                 FROM jornada_lote_empleados cerrada
                 INNER JOIN jornada_lotes_reporte lote_cerrado
                     ON lote_cerrado.jlot_id = cerrada.jlot_id
@@ -650,7 +717,7 @@ class JornadaReporteContable extends Conectar
                   AND lote_cerrado.jlot_id <> COALESCE(?, -1)
                   AND cerrada.jle_desde <= ?::date
                   AND cerrada.jle_hasta >= ?::date
-             )"
+                ORDER BY lote_cerrado.jlot_fecha_corte, lote_cerrado.jlot_id"
         );
         $stmt->execute([
             $fila['empleado_id'],
@@ -659,14 +726,14 @@ class JornadaReporteContable extends Conectar
             $fila['jle_hasta'],
             $fila['jle_desde']
         ]);
-        $superpone_cierre = (bool) $stmt->fetchColumn();
+        $cruces = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if (!$fila['jle_desde']) {
             $estado = 'SIN_BASE';
             $diagnostico = 'Defina la fecha inicial del empleado.';
-        } elseif ($superpone_cierre) {
+        } elseif ($cruces) {
             $estado = 'BLOQUEADO';
-            $diagnostico = 'El periodo se superpone con otro lote ya cerrado.';
+            $diagnostico = $this->describir_cruces($cruces);
         } elseif ((int) $conteo['inconsistentes'] > 0) {
             $estado = 'BLOQUEADO';
             $diagnostico = 'Existen jornadas inconsistentes.';
@@ -712,6 +779,25 @@ class JornadaReporteContable extends Conectar
             $fila_id
         ]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    private function describir_cruces(array $cruces)
+    {
+        $detalles = [];
+        foreach ($cruces as $lote) {
+            $nombre = preg_replace('/^(?:Corrección v\d+ - )+/u', '', $lote['jlot_nombre']);
+            $detalles[] = sprintf(
+                '%s (#%d), versión %d, corte %s; periodo del empleado: %s al %s',
+                $nombre,
+                $lote['jlot_id'],
+                $lote['jlot_version'],
+                (new DateTimeImmutable($lote['jlot_fecha_corte']))->format('d/m/Y'),
+                (new DateTimeImmutable($lote['jle_desde']))->format('d/m/Y'),
+                (new DateTimeImmutable($lote['jle_hasta']))->format('d/m/Y')
+            );
+        }
+        return 'El periodo se superpone con los siguientes lotes cerrados: '
+            . implode(' | ', $detalles) . '.';
     }
 
     private function construir_snapshot(PDO $db, $fila_id)

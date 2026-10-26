@@ -377,9 +377,7 @@ function clasificarJornada(jornadaId, recalcular) {
 }
 
 function lcMostrarResultado(procesadas, fallidas, pendientes, total) {
-    const panel = $('#resultado-liquidacion').empty()
-        .removeClass('d-none alert-info alert-success alert-warning')
-        .addClass(fallidas.length || pendientes ? 'alert-warning' : 'alert-success');
+    const panel = $('<div class="text-left">');
     $('<strong>').text(procesadas + ' de ' + total + ' jornada(s) liquidadas. '
         + fallidas.length + ' con error.' + (pendientes ? ' ' + pendientes + ' sin procesar.' : '')).appendTo(panel);
     if (fallidas.length) {
@@ -389,6 +387,12 @@ function lcMostrarResultado(procesadas, fallidas, pendientes, total) {
                 + ' (#' + fallida.fila.jornada_id + '): ' + fallida.mensaje).appendTo(lista);
         });
     }
+    Swal.fire({
+        icon: fallidas.length || pendientes ? 'warning' : 'success',
+        title: fallidas.length || pendientes ? 'Liquidación con novedades' : 'Liquidación completa',
+        html: panel.html(),
+        confirmButtonText: 'Aceptar'
+    });
 }
 
 /** Reutiliza el endpoint individual, con una transacción y resultado por jornada. */
@@ -422,11 +426,22 @@ function liquidarFilas(filas, individual, recalcular) {
         let procesadas = 0;
         let intentadas = 0;
         const fallidas = [];
-        const panel = $('#resultado-liquidacion').empty()
-            .removeClass('d-none alert-success alert-warning').addClass('alert-info');
+        $('#resultado-liquidacion').empty().addClass('d-none');
+        Swal.fire({
+            title: 'Liquidando jornadas',
+            html: '<p id="lc-progreso" role="status" aria-live="polite">Preparando liquidación...</p>'
+                + '<small>Espere mientras se procesan las jornadas.</small>',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            showCloseButton: false,
+            didOpen: function () {
+                Swal.showLoading();
+            }
+        });
         try {
             for (const fila of filas) {
-                panel.text('Liquidando ' + (intentadas + 1) + ' de ' + filas.length + '...');
+                $('#lc-progreso').text('Liquidando ' + (intentadas + 1) + ' de ' + filas.length + '...');
                 intentadas++;
                 try {
                     const respuesta = await $.ajax({
@@ -449,21 +464,13 @@ function liquidarFilas(filas, individual, recalcular) {
                 }
             }
         } finally {
+            Swal.close();
             lcEnCurso = false;
             lcActualizarControles();
             lcMostrarResultado(procesadas, fallidas, filas.length - intentadas, filas.length);
             if (tablaLiquidacion) {
                 tablaLiquidacion.ajax.reload(null, false);
             }
-        }
-        if (individual) {
-            Swal.fire({
-                icon: fallidas.length ? 'error' : 'success',
-                title: fallidas.length ? 'No fue posible clasificar' : 'Clasificación completa',
-                text: fallidas.length ? fallidas[0].mensaje : 'La jornada fue clasificada correctamente.',
-                timer: fallidas.length ? undefined : 1800,
-                showConfirmButton: fallidas.length > 0
-            });
         }
     });
 }
