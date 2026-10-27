@@ -74,7 +74,7 @@ class CurlController
         );
 
         curl_setopt_array($curl, array(
-            CURLOPT_URL => 'http://localhost/preoperacional/api/tickets.php?' . $url,
+            CURLOPT_URL => 'http://181.204.219.154:3396/preoperacional/api/tickets.php?' . $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
