@@ -78,11 +78,13 @@ try {
             VALUES (1, 1, '2026-09-01 03:00', '2026-09-01 16:00', 2, 1);
         CREATE TABLE jornada_reportes_firma (jrf_id bigint PRIMARY KEY, empleado_id integer, jrf_estado varchar(20));
         INSERT INTO jornada_reportes_firma VALUES (1, 1, 'FIRMADO');
-        CREATE TABLE jornada_reporte_detalle (jrf_id bigint, jornada_id bigint, jrd_snapshot jsonb, jrd_jornada_version integer);
+        CREATE TABLE empleados (id_empl integer PRIMARY KEY, cedu_empl varchar(30), nomb_empl varchar(100));
+        INSERT INTO empleados VALUES (1, '123', 'Prueba'), (2, '456', 'Continuidad');
+        CREATE TABLE jornada_reporte_detalle (jrd_id bigserial PRIMARY KEY, jrf_id bigint, jornada_id bigint, jrd_snapshot jsonb, jrd_jornada_version integer);
         CREATE TABLE jornada_auditoria (jornada_id bigint, jaud_accion varchar(60), jaud_estado_anterior varchar(40),
             jaud_estado_nuevo varchar(40), jaud_datos_anteriores jsonb, jaud_datos_nuevos jsonb,
             jaud_motivo text, jaud_usuario_id integer)");
-    $stmt = $dbAjusteBiotime->prepare('INSERT INTO jornada_reporte_detalle VALUES (1, 1, CAST(? AS jsonb), 1)');
+    $stmt = $dbAjusteBiotime->prepare('INSERT INTO jornada_reporte_detalle (jrf_id, jornada_id, jrd_snapshot, jrd_jornada_version) VALUES (1, 1, CAST(? AS jsonb), 1)');
     $stmt->execute([$snapshot]);
     // PostgreSQL normaliza JSONB: se autentica exactamente la representación consultada.
     $snapshotOriginal = $dbAjusteBiotime->query('SELECT jrd_snapshot FROM jornada_reporte_detalle')->fetchColumn();
@@ -105,6 +107,36 @@ try {
         && $r['fin_actual'] === $fila['salida_bio'], 'Permite ambas acciones consecutivas con evidencia actualizada');
     comprobarAjuste((int)$dbAjusteBiotime->query('SELECT jornada_minutos_ordinarios FROM jornadas_trabajo WHERE jornada_id=1')->fetchColumn() === 720,
         'No cambia cálculos de horas');
+
+    // La selección incluye ambos extremos aunque el periodo corte el bloque a medianoche.
+    $dbAjusteBiotime->exec("INSERT INTO jornada_reportes_firma VALUES (16, 2, 'FIRMADO');
+        INSERT INTO jornadas_trabajo (jornada_id, empleado_id, jornada_inicio, jornada_fin, jornada_version, jornada_estado_id)
+        VALUES (255, 2, '2026-10-06 20:30', '2026-10-07 00:00', 1, 1),
+               (256, 2, '2026-10-07 00:00', '2026-10-07 16:00', 1, 1),
+               (257, 2, '2026-10-08 08:00', '2026-10-08 16:00', 1, 1);
+        INSERT INTO jornada_reporte_detalle (jrf_id, jornada_id, jrd_snapshot, jrd_jornada_version)
+        SELECT 16, jornada_id, jsonb_build_object('jornada_inicio', jornada_inicio, 'jornada_fin', jornada_fin), 1
+        FROM jornadas_trabajo WHERE empleado_id = 2");
+    $vecinas = $modelo->reportes('2026-10-07', '2026-10-07', 2);
+    comprobarAjuste(array_map('intval', array_column($vecinas, 'jornada_id')) === [255, 256],
+        'Incluye la jornada anterior al periodo cuando continúa a medianoche');
+    comprobarAjuste(array_map('intval', array_column($modelo->reportes('2026-10-06', '2026-10-06', 2), 'jornada_id')) === [255, 256],
+        'Incluye la jornada posterior al periodo sin incorporar días desconectados');
+    comprobarAjuste($modelo->reportes('2026-10-07', '2026-10-07', 1) === [], 'La consulta de vecinos respeta el empleado');
+    comprobarAjuste(count($modelo->reportes('2026-10-07', '2026-10-07')) === 2, 'La consulta de continuidad permite todos los empleados');
+
+    $dbAjusteBiotime->exec("INSERT INTO jornadas_trabajo (jornada_id, empleado_id, jornada_inicio, jornada_fin, jornada_version, jornada_estado_id)
+        VALUES (511, 2, '2026-10-09 20:00', '2026-10-10 07:00', 1, 1),
+               (512, 2, '2026-10-10 07:00', '2026-10-10 16:00', 1, 1),
+               (513, 2, '2026-10-10 16:00', '2026-10-10 20:00', 1, 1);
+        INSERT INTO jornada_reporte_detalle (jrf_id, jornada_id, jrd_snapshot, jrd_jornada_version)
+        SELECT 16, jornada_id, jsonb_build_object('jornada_inicio', jornada_inicio, 'jornada_fin', jornada_fin), 1
+        FROM jornadas_trabajo WHERE jornada_id IN (511, 512, 513)");
+    comprobarAjuste(array_map('intval', array_column($modelo->reportes('2026-10-09', '2026-10-09', 2), 'jornada_id')) === [511, 512, 513],
+        'Incluye continuaciones fuera del periodo con cortes a las 07:00 y 16:00');
+    comprobarAjuste(array_map('intval', array_column($modelo->reportes('2026-10-10', '2026-10-10', 2), 'jornada_id')) === [511, 512, 513],
+        'Recupera el inicio anterior al periodo mediante un corte distinto de medianoche');
+
     $fila['version_actual'] = 4;
     $fila['fin_actual'] = $r['fin_actual'];
     $fila['entrada_bio'] = '2026-09-01 04:00:00';

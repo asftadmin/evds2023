@@ -34,13 +34,30 @@ if (!isset($icEmpleadoAcceso) || $icEmpleadoAcceso['rol_nomb'] !== 'Contabilidad
     <div class="table-responsive">
         <table id="icb-tabla" class="table table-bordered table-striped" style="width:100%">
             <thead><tr>
-                <th>Reporte / jornada</th><th>Empleado</th><th>Entrada firmada</th><th>Salida firmada</th>
-                <th>Ubicación</th><th>Entrada BioTime</th><th>Salida BioTime</th>
+                <th>Empleado</th><th>Fecha entrada firmada</th><th>Hora entrada firmada</th>
+                <th>Fecha salida firmada</th><th>Hora salida firmada</th><th>Ubicación</th>
+                <th>Fecha entrada BioTime</th><th>Hora entrada BioTime</th>
+                <th>Fecha salida BioTime</th><th>Hora salida BioTime</th>
                 <th>Diferencia entrada</th><th>Diferencia salida</th><th>Resultado</th><th>Detalle</th>
             </tr></thead><tbody></tbody>
         </table>
     </div>
     <small class="text-muted">Diferencias = marcación menos horario firmado. Esta consulta incluye únicamente jornadas de reportes firmados.
         Se revisan todas las marcaciones de los días abarcados por las jornadas, incluidos los turnos nocturnos.
+        Si hay pares reales para cada jornada, se respetan sus marcaciones. Las jornadas donde la salida coincide
+        exactamente con la entrada siguiente, a cualquier hora, pueden cruzarse como un bloque continuo,
+        incluyendo los extremos fuera del periodo seleccionado.
+        Cuando el par valida la continuidad, la diferencia del corte muestra 00:00; ese corte no representa
+        una marcación y no permite ajustes BioTime.
+        Si una jornada cierra a las 00:00 del final del periodo y la salida real ocurre después,
+        se muestra un corte de periodo con diferencia 00:00. La salida real se conserva en el detalle
+        como soporte de la continuación del periodo siguiente.
+        Una jornada con entrada y salida inequívocas puede mostrar sus diferencias y conservar
+        marcaciones intermedias identificadas como adicionales pendientes de revisión.
+        Los bloques continuos también pueden compararse si sus extremos son únicos y no compiten
+        con otras jornadas; las marcas sin asignación permanecen visibles para revisión.
+        Una marca real en un corte respalda el límite compartido sin contarse como dos eventos.
+        Una marca aislada dentro de una jornada sin resolver se muestra como pendiente;
+        su posición por cercanía es provisional y requiere confirmación antes de cualquier ajuste.
         “Sin marcaciones” requiere revisar ubicación, permisos y soportes; no implica ausencia.</small>
 </div>

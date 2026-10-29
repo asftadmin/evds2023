@@ -5,9 +5,21 @@ $(function () {
     let ocupado = false;
     const escapar = function (valor) { return $('<div>').text(valor == null ? '' : String(valor)).html(); };
     const texto = $.fn.dataTable.render.text();
-    // Conserva el texto original para búsqueda y presenta un guion si falta evidencia.
-    const evidencia = function (valor, type) {
-        return type === 'display' ? (valor ? escapar(valor) : '—') : (valor || '');
+    // Separa la presentación sin modificar los horarios usados en el detalle y los ajustes.
+    const fechaHora = function (parte, extremo) {
+        return function (valor, type, fila) {
+            const continuidad = extremo && fila['continuidad_' + extremo];
+            const cortePeriodo = extremo === 'salida' && fila.corte_periodo_salida;
+            const pendiente = extremo && fila.extremo_pendiente === extremo;
+            const compartido = extremo && fila['limite_compartido_' + extremo];
+            const horario = continuidad || cortePeriodo ? fila[extremo === 'entrada' ? 'inicio' : 'fin'] : valor;
+            const fragmento = horario ? (parte === 'fecha' ? horario.slice(0, 10) : horario.slice(11, 19)) : '';
+            if (type !== 'display') return fragmento;
+            if (!fragmento) return '—';
+            return escapar(fragmento) + ((continuidad || cortePeriodo || pendiente || compartido) && parte === 'hora'
+                ? '<small class="d-block text-muted">' + (pendiente ? 'Pendiente de confirmar'
+                    : (cortePeriodo ? 'Corte de periodo' : (compartido ? 'Límite compartido' : 'Corte por continuidad'))) + '</small>' : '');
+        };
     };
     // Formatea solo la presentación y búsqueda; ordenamiento y cálculos conservan los minutos.
     const diferencia = function (valor, type) {
@@ -21,12 +33,18 @@ $(function () {
             + ':' + String(total % 60).padStart(2, '0');
     };
     const tabla = $('#icb-tabla').DataTable({
-        data: [], responsive: true, autoWidth: false, order: [[2, 'desc']],
+        data: [], responsive: true, autoWidth: false, order: [[1, 'desc'], [2, 'desc']],
         columns: [
-            { data: null, render: function (d, type, fila) { return fila.reporte + ' / ' + fila.jornada; } },
-            { data: 'empleado', render: texto }, { data: 'inicio', render: texto },
-            { data: 'fin', render: texto }, { data: 'ubicacion', render: texto },
-            { data: 'entrada_bio', render: evidencia }, { data: 'salida_bio', render: evidencia },
+            { data: 'empleado', render: texto },
+            { data: 'inicio', render: fechaHora('fecha') },
+            { data: 'inicio', render: fechaHora('hora') },
+            { data: 'fin', render: fechaHora('fecha') },
+            { data: 'fin', render: fechaHora('hora') },
+            { data: 'ubicacion', render: texto },
+            { data: 'entrada_bio', render: fechaHora('fecha', 'entrada') },
+            { data: 'entrada_bio', render: fechaHora('hora', 'entrada') },
+            { data: 'salida_bio', render: fechaHora('fecha', 'salida') },
+            { data: 'salida_bio', render: fechaHora('hora', 'salida') },
             { data: 'diferencia_entrada', render: diferencia, defaultContent: '—' },
             { data: 'diferencia_salida', render: diferencia, defaultContent: '—' },
             { data: 'resultado', render: function (valor, type) {
@@ -151,14 +169,19 @@ $(function () {
         Swal.fire({ title: 'Marcaciones del periodo de la jornada',
             html: '<p>' + escapar(fila.detalle) + '</p><p>Versión firmada: ' + fila.version_firmada
                 + '. Versión actual: ' + fila.version_actual + '.</p><p>La firma también incrementa la versión.</p><ul>'
-                + fila.marcaciones.map(function (m) { return '<li>' + escapar(m) + '</li>'; }).join('')
+                + fila.marcaciones.map(function (m) {
+                    const adicional = (fila.marcaciones_adicionales || []).includes(m);
+                    const pendiente = (fila.marcaciones_pendientes || []).includes(m);
+                    return '<li>' + escapar(m) + (pendiente ? ' <strong>— Pendiente de confirmar</strong>'
+                        : (adicional ? ' <strong>— Adicional por revisar</strong>' : '')) + '</li>';
+                }).join('')
                 + '</ul>' + (fila.marcaciones.length ? '' : '<p>No hay marcaciones en la consulta.</p>')
                 + '<p><strong>Jornada actual:</strong> ' + escapar(fila.inicio_actual) + ' — ' + escapar(fila.fin_actual) + '</p>'
                 + '<div class="d-flex justify-content-center flex-wrap">'
                 + '<button type="button" id="icb-usar-entrada" class="btn btn-primary m-1"'
-                + (editable && fila.entrada_bio ? '' : ' disabled') + '>Usar entrada BioTime</button>'
+                + (editable && fila.entrada_bio && fila.extremo_pendiente !== 'entrada' && !fila.limite_compartido_entrada ? '' : ' disabled') + '>Usar entrada BioTime</button>'
                 + '<button type="button" id="icb-usar-salida" class="btn btn-primary m-1"'
-                + (editable && fila.salida_bio ? '' : ' disabled') + '>Usar salida BioTime</button></div>',
+                + (editable && fila.salida_bio && fila.extremo_pendiente !== 'salida' && !fila.limite_compartido_salida ? '' : ' disabled') + '>Usar salida BioTime</button></div>',
             confirmButtonText: 'Cerrar',
             didOpen: function () {
                 $('#icb-usar-entrada').on('click', function () { ajustarHorario(fila, 'entrada'); });

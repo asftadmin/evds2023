@@ -208,14 +208,18 @@ try {
             }
             $clave_evidencia = $_SESSION['biotime_evidencia_clave'];
             if ($filas) {
+                $inicio_consulta = $desde;
                 $fin_consulta = $hasta;
                 foreach ($filas as $fila) {
                     $copia = json_decode($fila['jrd_snapshot'], true);
+                    if (!empty($copia['jornada_inicio'])) {
+                        $inicio_consulta = min($inicio_consulta, (new DateTimeImmutable($copia['jornada_inicio']))->format('Y-m-d'));
+                    }
                     if (!empty($copia['jornada_fin'])) {
                         $fin_consulta = max($fin_consulta, (new DateTimeImmutable($copia['jornada_fin']))->format('Y-m-d'));
                     }
                 }
-                if ((new DateTimeImmutable($desde))->diff(new DateTimeImmutable($fin_consulta))->days > 65) {
+                if ((new DateTimeImmutable($inicio_consulta))->diff(new DateTimeImmutable($fin_consulta))->days > 65) {
                     throw new InvalidArgumentException('El intervalo firmado es demasiado extenso para este cruce.');
                 }
                 require_once 'curl.php';
@@ -224,11 +228,11 @@ try {
                     session_write_close();
                 }
                 // Incluye evidencia próxima a medianoche en los límites del periodo.
-                $inicio_biotime = (new DateTimeImmutable($desde))->modify('-1 day')->format('Y-m-d');
+                $inicio_biotime = (new DateTimeImmutable($inicio_consulta))->modify('-1 day')->format('Y-m-d');
                 $fin_biotime = (new DateTimeImmutable($fin_consulta))->modify('+1 day')->format('Y-m-d');
                 $marcaciones = $cruce->marcaciones($inicio_biotime, $fin_biotime);
             }
-            $filas_cruce = JornadaCruceBiotime::comparar($filas, $marcaciones, $tolerancia);
+            $filas_cruce = JornadaCruceBiotime::comparar($filas, $marcaciones, $tolerancia, $hasta);
             foreach ($filas_cruce as &$fila_cruce) {
                 $fila_cruce['evidencia_ajuste'] = JornadaCruceBiotime::autorizar_evidencia(
                     $fila_cruce, $clave_evidencia, $contexto['user_id']);
