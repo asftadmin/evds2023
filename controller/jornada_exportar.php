@@ -83,9 +83,14 @@ function je_celda_xml($valor, $estilo = '')
         . je_xml($valor) . '</Data></Cell>';
 }
 
-function je_hoja_xml($nombre, $encabezados, $filas)
+/** Identifica cada hoja anulada sin modificar las filas del snapshot original. */
+function je_hoja_xml($nombre, $encabezados, $filas, $anulado = false)
 {
     $xml = '<Worksheet ss:Name="' . je_xml($nombre) . '"><Table>';
+    if ($anulado) {
+        $xml .= '<Row><Cell ss:StyleID="Anulado" ss:MergeAcross="' . (count($encabezados) - 1)
+            . '"><Data ss:Type="String">ANULADO - SOLO CONSULTA HISTÓRICA</Data></Cell></Row>';
+    }
     $xml .= '<Row>';
     foreach ($encabezados as $encabezado) {
         $xml .= je_celda_xml($encabezado, 'Header');
@@ -98,15 +103,18 @@ function je_hoja_xml($nombre, $encabezados, $filas)
         }
         $xml .= '</Row>';
     }
+    $filaEncabezado = $anulado ? 2 : 1;
     return $xml . '</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">'
-        . '<FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal>'
-        . '<TopRowBottomPane>1</TopRowBottomPane><AutoFilter x:Range="R1C1:R1C'
+        . '<FreezePanes/><FrozenNoSplit/><SplitHorizontal>' . $filaEncabezado . '</SplitHorizontal>'
+        . '<TopRowBottomPane>' . $filaEncabezado . '</TopRowBottomPane><AutoFilter x:Range="R' . $filaEncabezado . 'C1:R' . $filaEncabezado . 'C'
         . count($encabezados) . '" xmlns="urn:schemas-microsoft-com:office:excel"/>'
         . '</WorksheetOptions></Worksheet>';
 }
 
+/** Exporta el histórico e identifica los anulados en todas las hojas y el nombre del archivo. */
 function je_excel($snapshots, $lote)
 {
+    $anulado = ($lote['jlot_estado'] ?? '') === 'ANULADO';
     $control = [];
     $detalle = [];
     $totales = [];
@@ -185,8 +193,12 @@ function je_excel($snapshots, $lote)
         . '
         </Style>
         <Style ss:ID="Header">
-        <Font ss:Bold="1"ss:Color="#FFFFFF"/>'
+        <Font ss:Bold="1" ss:Color="#FFFFFF"/>'
         . '<Interior ss:Color="#087F8C" ss:Pattern="Solid"/>
+        </Style>
+        <Style ss:ID="Anulado">
+        <Font ss:Bold="1" ss:Color="#B40000"/>
+        <Interior ss:Color="#FCE4E4" ss:Pattern="Solid"/>
         </Style>
     </Styles>';
     $xml .= je_hoja_xml(
@@ -194,32 +206,36 @@ function je_excel($snapshots, $lote)
         ['Lote', 'Versión lote', 'Tipo', 'Lote reemplazado', 'Estado lote',
             'Corte', 'Empleado', 'Documento', 'Cargo', 'Desde', 'Hasta',
             'Estado empleado', 'Jornadas', 'Horas reportables'],
-        $control
+        $control,
+        $anulado
     );
     $xml .= je_hoja_xml(
         'Detalle',
         ['Empleado', 'Documento', 'Jornada', 'Entrada', 'Salida', 'Concepto',
             'Nombre concepto', 'Código contable', 'Inicio segmento',
             'Fin segmento', 'Horas', 'Aprobó'],
-        $detalle
+        $detalle,
+        $anulado
     );
     $xml .= je_hoja_xml(
         'Totales',
         ['Empleado', 'Documento', 'Desde', 'Hasta', 'Concepto', 'Total horas'],
-        $totales
+        $totales,
+        $anulado
     );
     $xml .= je_hoja_xml(
         'Novedades',
         ['Empleado', 'Documento', 'Entrada', 'Salida', 'Lugar / frente',
             'Actividad', 'Observaciones', 'Origen'],
-        $novedades
+        $novedades,
+        $anulado
     );
     $xml .= '</Workbook>';
 
     if (ob_get_length()) {
         ob_clean();
     }
-    $archivo = je_nombre_archivo($lote['jlot_nombre']) . '_consolidado.xls';
+    $archivo = ($anulado ? 'ANULADO_' : '') . je_nombre_archivo($lote['jlot_nombre']) . '_consolidado.xls';
     header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $archivo . '"');
     header('Content-Length: ' . strlen($xml));
@@ -291,7 +307,8 @@ try {
             [$datos['snapshot']],
             $datos['lote'],
             je_nombre_archivo(
-                'GH-F-19_' . $datos['snapshot']['documento']
+                ($datos['lote']['jlot_estado'] === 'ANULADO' ? 'ANULADO_' : '')
+                . 'GH-F-19_' . $datos['snapshot']['documento']
                 . '_' . $datos['snapshot']['hasta']
             )
         );
@@ -305,7 +322,8 @@ try {
         je_pdf(
             $datos['snapshots'],
             $datos['lote'],
-            je_nombre_archivo('GH-F-19_' . $datos['lote']['jlot_nombre'])
+            je_nombre_archivo(($datos['lote']['jlot_estado'] === 'ANULADO' ? 'ANULADO_' : '')
+                . 'GH-F-19_' . $datos['lote']['jlot_nombre'])
         );
     }
     if ($tipo === 'excel') {

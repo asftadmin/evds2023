@@ -231,37 +231,30 @@ class JornadaCruceBiotime extends Conectar
                     // Busca una única distribución que consuma todas las marcas: pares reales
                     // por jornada, bloques sin marcas internas, o una combinación de ambos.
                     $pares = self::asociar_pares($comparaciones, $candidatas, $jornadas, $salida);
-                    if ($pares === null && count($comparaciones) === 1 && count($comparaciones[0]['ids']) === 1) {
-                        // Una jornada con extremos inequívocos puede compararse aunque tenga marcas intermedias.
-                        $parConAdicionales = self::extremos_con_adicionales($comparaciones[0], $candidatas);
-                        if ($parConAdicionales !== null) $pares = [$parConAdicionales];
-                    }
-                    if (count(array_filter($comparaciones, function ($b) { return count($b['ids']) > 1; })) > 0) {
-                        $rescates = self::bloques_con_adicionales($comparaciones, $candidatas, $jornadas, $salida);
-                        if ($pares === null) {
-                            $pares = $rescates;
-                        } else {
-                            // Un conteo exacto tampoco justifica desplazar los extremos reales
-                            // del bloque para consumir marcas que pertenecen a otros horarios.
-                            $porJornada = [];
-                            foreach ($pares as $par) {
-                                $porJornada[$par['ids'][0]]['entrada'] = $par['marcas']['entrada'];
-                                $porJornada[$par['ids'][count($par['ids']) - 1]]['salida'] = $par['marcas']['salida'];
-                            }
-                            $mejora = false;
-                            $sinEmpeorar = true;
-                            foreach ($rescates as $rescate) {
-                                if ($rescate['revision']) { $sinEmpeorar = false; break; }
-                                foreach (['entrada', 'salida'] as $extremo) {
-                                    $id = $extremo === 'entrada' ? $rescate['ids'][0] : $rescate['ids'][count($rescate['ids']) - 1];
-                                    $anterior = abs($porJornada[$id][$extremo] - $rescate[$extremo]);
-                                    $nueva = abs($rescate['marcas'][$extremo] - $rescate[$extremo]);
-                                    if ($nueva > $anterior) $sinEmpeorar = false;
-                                    if ($nueva < $anterior) $mejora = true;
-                                }
-                            }
-                            if ($sinEmpeorar && $mejora) $pares = $rescates;
+                    // Una misma regla resuelve jornadas separadas y bloques continuos.
+                    $rescates = self::bloques_con_adicionales($comparaciones, $candidatas, $jornadas, $salida);
+                    if ($pares === null) {
+                        $pares = $rescates;
+                    } else {
+                        // No desplaza extremos reales para consumir marcas de otros horarios.
+                        $porJornada = [];
+                        foreach ($pares as $par) {
+                            $porJornada[$par['ids'][0]]['entrada'] = $par['marcas']['entrada'];
+                            $porJornada[$par['ids'][count($par['ids']) - 1]]['salida'] = $par['marcas']['salida'];
                         }
+                        $mejora = false;
+                        $sinEmpeorar = true;
+                        foreach ($rescates as $rescate) {
+                            if ($rescate['revision']) { $sinEmpeorar = false; break; }
+                            foreach (['entrada', 'salida'] as $extremo) {
+                                $id = $extremo === 'entrada' ? $rescate['ids'][0] : $rescate['ids'][count($rescate['ids']) - 1];
+                                $anterior = abs($porJornada[$id][$extremo] - $rescate[$extremo]);
+                                $nueva = abs($rescate['marcas'][$extremo] - $rescate[$extremo]);
+                                if ($nueva > $anterior) $sinEmpeorar = false;
+                                if ($nueva < $anterior) $mejora = true;
+                            }
+                        }
+                        if ($sinEmpeorar && $mejora) $pares = $rescates;
                     }
                     if ($pares === null) {
                         $revision = true;
@@ -289,7 +282,7 @@ class JornadaCruceBiotime extends Conectar
                         if (!empty($bloque['pendientes'])) {
                             $item['marcaciones_pendientes'] = $bloque['pendientes'];
                             $item['resultado'] = 'Marcación pendiente de identificar';
-                            $item['detalle'] .= 'Quedó una marcación sin pareja dentro del intervalo firmado: '
+                            $item['detalle'] .= 'Marcación sin pareja para esta jornada: '
                                 . implode(', ', $bloque['pendientes']) . '. No se modificaron los pares ya comparados. ';
                             if (!empty($bloque['parcial'])) {
                                 foreach ($bloque['parcial'] as $extremo => $instante) {
@@ -383,7 +376,7 @@ class JornadaCruceBiotime extends Conectar
         return $salida;
     }
 
-    /** Agrega evidencia parcial únicamente a jornadas sin resolver; no modifica pares existentes. */
+    /** Agrega evidencia parcial a jornadas sin resolver, sin modificar pares existentes. */
     private static function identificar_pendientes(array $bloques, array $candidatas, $revision)
     {
         $usadas = [];
@@ -397,27 +390,40 @@ class JornadaCruceBiotime extends Conectar
         $sinAsignar = array_diff_key($candidatas, $usadas);
         foreach ($bloques as $b => &$bloque) {
             if ((!$revision && empty($bloque['revision'])) || count($bloque['ids']) !== 1) continue;
-            $internas = array_filter($sinAsignar, function ($instante) use ($bloque) {
-                return $instante >= $bloque['entrada'] && $instante <= $bloque['salida'];
-            }, ARRAY_FILTER_USE_KEY);
-            if (count($internas) !== 1) continue;
-            $instante = array_keys($internas)[0];
-            // Si existen otras candidatas para alguno de los extremos, conserva
-            // la revisión anterior: esto solo agrega una evidencia realmente aislada.
-            $aislada = true;
+            $cercanas = [];
             foreach (['entrada', 'salida'] as $extremo) {
+                $distancia = PHP_INT_MAX;
+                $mejor = null;
                 foreach ($candidatas as $otraMarca => $texto) {
-                    if ($otraMarca !== $instante
-                        && abs($otraMarca - $bloque[$extremo]) <= abs($instante - $bloque[$extremo])) $aislada = false;
+                    $diferencia = abs($otraMarca - $bloque[$extremo]);
+                    if ($diferencia < $distancia) {
+                        $distancia = $diferencia;
+                        $mejor = $otraMarca;
+                    } elseif ($diferencia === $distancia) {
+                        $mejor = null;
+                    }
                 }
+                $cercanas[$extremo] = $mejor;
             }
-            if (!$aislada) continue;
-            $bloque['pendientes'] = array_values($internas);
+            if ($cercanas['entrada'] === null || $cercanas['entrada'] !== $cercanas['salida']) continue;
+            $instante = $cercanas['entrada'];
+            if (!isset($sinAsignar[$instante])) continue;
+            $zona = new DateTimeZone('America/Bogota');
+            $desde = (new DateTimeImmutable('@' . $bloque['entrada']))->setTimezone($zona)->format('Y-m-d');
+            $hasta = (new DateTimeImmutable('@' . $bloque['salida']))->setTimezone($zona)->format('Y-m-d');
+            $diaMarca = substr($sinAsignar[$instante], 0, 10);
+            if ($diaMarca < $desde || $diaMarca > $hasta) continue;
             $compite = false;
+            $pertenece = true;
+            $distanciaIntervalo = max($bloque['entrada'] - $instante, $instante - $bloque['salida'], 0);
             foreach ($bloques as $otro => $vecino) {
                 if ($otro === $b) continue;
-                if ($instante >= $vecino['entrada'] && $instante <= $vecino['salida']) $compite = true;
+                $distanciaVecino = max($vecino['entrada'] - $instante, $instante - $vecino['salida'], 0);
+                if ($distanciaVecino < $distanciaIntervalo) $pertenece = false;
+                if ($distanciaVecino === $distanciaIntervalo) $compite = true;
             }
+            if (!$pertenece) continue;
+            $bloque['pendientes'] = [$sinAsignar[$instante]];
             $distanciaEntrada = abs($instante - $bloque['entrada']);
             $distanciaSalida = abs($instante - $bloque['salida']);
             if (!$compite && $distanciaEntrada !== $distanciaSalida) {
@@ -480,8 +486,11 @@ class JornadaCruceBiotime extends Conectar
                 if ($entrada < $vecino['salida'] && $fin > $vecino['entrada']) $seguro = false;
                 foreach ($vecino['ids'] as $id) {
                     foreach ($jornadas[$id] as $objetivo) {
-                        foreach ([$entrada, $fin] as $instante) {
+                        foreach (['entrada' => $entrada, 'salida' => $fin] as $extremoAsignado => $instante) {
                             if (!isset($porBloque[$otro][$instante])) continue;
+                            // Un turno incompleto no reclama una marca que encaja mejor
+                            // en el extremo ya identificado de esta jornada.
+                            if (abs($instante - $objetivo) > abs($instante - $bloque[$extremoAsignado])) continue;
                             $hayMasCercana = false;
                             foreach ($porBloque[$otro] as $marca => $texto) {
                                 if (abs($marca - $objetivo) < abs($instante - $objetivo)) {
@@ -508,26 +517,6 @@ class JornadaCruceBiotime extends Conectar
         }
         unset($bloque);
         return $bloques;
-    }
-
-    /** Compara una jornada con marcas intermedias sin ocultarlas ni resolver su significado. */
-    private static function extremos_con_adicionales(array $bloque, array $candidatas)
-    {
-        $tiempos = array_keys($candidatas);
-        if (count($tiempos) < 3) return null;
-        $entrada = $tiempos[0];
-        $fin = $tiempos[count($tiempos) - 1];
-        foreach ($tiempos as $instante) {
-            if ($instante !== $entrada && abs($instante - $bloque['entrada']) <= abs($entrada - $bloque['entrada'])) return null;
-            if ($instante !== $fin && abs($instante - $bloque['salida']) <= abs($fin - $bloque['salida'])) return null;
-        }
-        $adicionales = array_slice($tiempos, 1, -1);
-        foreach ($adicionales as $instante) {
-            if ($instante < $bloque['entrada'] || $instante > $bloque['salida']) return null;
-        }
-        $bloque['marcas'] = ['entrada' => $entrada, 'salida' => $fin];
-        $bloque['adicionales'] = array_map(function ($instante) use ($candidatas) { return $candidatas[$instante]; }, $adicionales);
-        return $bloque;
     }
 
     /** Distribuye pares cronológicos sin omitir marcas ni elegir entre varias soluciones. */

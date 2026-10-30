@@ -161,8 +161,9 @@ SQL
 
     // Los reportes contables deben incluir pendientes de liquidación y jornadas ya liquidadas.
     $db->exec(<<<'SQL'
-CREATE TABLE jornada_lotes_reporte (jlot_id integer, jlot_lote_origen_id integer, jlot_tipo text, jlot_estado text);
-INSERT INTO jornada_lotes_reporte VALUES (1,NULL,'NORMAL','BORRADOR');
+CREATE TABLE jornada_lotes_reporte (jlot_id integer, jlot_lote_origen_id integer, jlot_tipo text, jlot_estado text,
+ jlot_nombre text DEFAULT 'Prueba', jlot_version integer DEFAULT 1, jlot_fecha_corte date DEFAULT '2026-10-20');
+INSERT INTO jornada_lotes_reporte (jlot_id,jlot_lote_origen_id,jlot_tipo,jlot_estado) VALUES (1,NULL,'NORMAL','BORRADOR');
 CREATE TABLE jornada_lote_empleados (jle_id integer, jlot_id integer, empleado_id integer, jle_desde date, jle_hasta date,
  jle_estado text, jle_cantidad_jornadas integer, jle_cantidad_pendientes integer, jle_minutos_reportables integer,
  jle_diagnostico text, jle_actualizado_por integer, jle_fecha_actualizacion timestamp);
@@ -179,7 +180,47 @@ SQL
     $fila = $recalcular->invoke($contable, $db, 1, 9);
     comprobarFirma($fila['jle_estado'] === 'LISTO' && (int)$fila['jle_cantidad_jornadas'] === 2, 'Reporte contable reconoce las pendientes firmadas y clasificadas como listas');
     $construir = new ReflectionMethod($contable, 'construir_snapshot');
-    comprobarFirma(count($construir->invoke($contable, $db, 1)['jornadas']) === 2, 'El snapshot para exportación contiene las pendientes de liquidación');
+    $contableFirmado = $construir->invoke($contable, $db, 1);
+    comprobarFirma(count($contableFirmado['jornadas']) === 2, 'El snapshot para exportación contiene las pendientes de liquidación');
+    comprobarFirma($contableFirmado['firma_empleado'] === $firma && $contableFirmado['firma_jefe'] === $firma
+        && $contableFirmado['jefe_nombre'] === 'Jefe' && $contableFirmado['jornadas_firmadas'] === 2
+        && $contableFirmado['mostrar_firmas'] && empty($contableFirmado['borrador']),
+        'El snapshot contable congela las mismas firmas verificadas sin activar el modo borrador');
+    $sinSoporteContable = $contableFirmado['jornadas'];
+    foreach ($sinSoporteContable as &$filaSinSoporte) $filaSinSoporte['jornada_actividad'] = 'Actividad no firmada';
+    unset($filaSinSoporte);
+    comprobarFirma(Jornada::obtener_firmas_pdf($db, 1, $sinSoporteContable)['firma_empleado'] === null,
+        'No incorpora la firma del trabajador si las jornadas del documento no coinciden con el soporte');
+    comprobarFirma(Jornada::obtener_firmas_pdf($db, 1, $contableFirmado['jornadas'], '2000-01-01 00:00:00')['firma_empleado'] === null,
+        'La recuperación histórica no usa firmas posteriores al cierre');
+    // Recuperación en memoria para lotes antiguos sin modificar el JSON persistido.
+    $legadoContable = $contableFirmado;
+    foreach (['firma_empleado', 'firma_jefe', 'firmas_jefes', 'jefe_nombre', 'fecha_firma_empleado', 'jornadas_firmadas', 'mostrar_firmas'] as $campoFirma) {
+        unset($legadoContable[$campoFirma]);
+    }
+    foreach ($legadoContable['jornadas'] as &$jornadaLegada) unset($jornadaLegada['jornada_minutos_ordinarios']);
+    unset($jornadaLegada);
+    $db->exec('ALTER TABLE jornada_lote_empleados ADD COLUMN jle_snapshot jsonb');
+    $guardarLegado = $db->prepare('UPDATE jornada_lote_empleados SET jle_snapshot=?::jsonb WHERE jle_id=1');
+    $guardarLegado->execute([json_encode($legadoContable, JSON_UNESCAPED_UNICODE)]);
+    $db->exec("UPDATE jornada_lotes_reporte SET jlot_estado='CERRADO' WHERE jlot_id=1");
+    $antesLegado = $db->query('SELECT jle_snapshot::text FROM jornada_lote_empleados WHERE jle_id=1')->fetchColumn();
+    $recuperado = $contable->obtener_snapshot_empleado(1)['snapshot'];
+    $recuperados = $contable->obtener_snapshots_lote(1)['snapshots'];
+    comprobarFirma($recuperado['firma_empleado'] === $firma && $recuperado['firma_jefe'] === $firma
+        && $recuperado['firmas_recuperadas'] && $recuperados[0]['firma_empleado'] === $firma,
+        'PDF individual y por lote recuperan firmas compatibles de reportes antiguos');
+    comprobarFirma($antesLegado === $db->query('SELECT jle_snapshot::text FROM jornada_lote_empleados WHERE jle_id=1')->fetchColumn(),
+        'Recuperar firmas no sobrescribe el snapshot histórico');
+    $congelarFirmas = $db->prepare('UPDATE jornada_lote_empleados SET jle_snapshot=?::jsonb WHERE jle_id=1');
+    $congelarFirmas->execute([json_encode($contableFirmado, JSON_UNESCAPED_UNICODE)]);
+    $firmaJefeActual = $db->query('SELECT firma_base64 FROM firma_usuario WHERE user_id=3')->fetchColumn();
+    $db->exec("UPDATE firma_usuario SET firma_base64=NULL WHERE user_id=3");
+    comprobarFirma($contable->obtener_snapshot_empleado(1)['snapshot']['firma_jefe'] === $firma,
+        'Un snapshot con firmas congeladas no depende de cambios posteriores en la configuración');
+    $restaurarFirma = $db->prepare('UPDATE firma_usuario SET firma_base64=? WHERE user_id=3');
+    $restaurarFirma->execute([$firmaJefeActual]);
+    $db->exec("UPDATE jornada_lotes_reporte SET jlot_estado='BORRADOR' WHERE jlot_id=1");
     $db->exec("UPDATE jornadas_trabajo SET jornada_estado_id=(SELECT je_id FROM jornada_estados WHERE je_codigo='LIQUIDADO') WHERE jornada_id IN ($uno,$dos)");
     comprobarFirma($recalcular->invoke($contable, $db, 1, 9)['jle_estado'] === 'LISTO', 'Las jornadas liquidadas siguen disponibles para cierre contable');
     $borrador = $modelo->obtener_borrador_equipo(3, 1, '2026-10-19', '2026-10-20');
@@ -217,6 +258,45 @@ SQL
     rechazarFirma(fn() => $modelo->obtener_reporte_propio_pdf(1, '2026-10-19', '2026-10-20', 'APROBADO'));
     rechazarFirma(fn() => $modelo->obtener_reporte_propio_pdf(1, '2025-01-01', '2025-01-15'));
     comprobarFirma(true, 'El PDF personal informa periodos o estados sin jornadas');
+
+    // La relación actual conserva al jefe 3, pero las horas fueron aprobadas por el 4.
+    $db->exec("INSERT INTO empleados (id_empl,cedu_empl,nomb_empl) VALUES (4,'444','Jefe Aprobador')");
+    $imagenAprobador = imagecreatetruecolor(90, 25);
+    imagefill($imagenAprobador, 0, 0, imagecolorallocate($imagenAprobador, 255, 255, 255));
+    imageline($imagenAprobador, 4, 4, 86, 21, imagecolorallocate($imagenAprobador, 0, 40, 180));
+    ob_start(); imagepng($imagenAprobador); $firmaAprobador = 'data:image/png;base64,' . base64_encode(ob_get_clean());
+    imagedestroy($imagenAprobador);
+    $guardarFirmaAprobador = $db->prepare('INSERT INTO firma_usuario VALUES (4,?)');
+    $guardarFirmaAprobador->execute([$firmaAprobador]);
+    $db->exec("UPDATE jornada_aprobaciones SET jap_empleado_id=4 WHERE jornada_id IN ($uno,$dos) AND jap_decision='APROBADO'");
+    $personalAprobado = $modelo->obtener_reporte_propio_pdf(1, '2026-10-19', '2026-10-20', 'LIQUIDADO');
+    comprobarFirma($personalAprobado['jefe_nombre'] === 'Jefe Aprobador' && $personalAprobado['firma_jefe'] === $firmaAprobador
+        && $personalAprobado['firmas_jefes'][0]['empleado_id'] === 4,
+        'La firma corresponde al aprobador real aunque otro jefe figure en la relación actual');
+    $nuevoContable = $construir->invoke($contable, $db, 1);
+    comprobarFirma($nuevoContable['jefe_nombre'] === 'Jefe Aprobador'
+        && (int)$nuevoContable['jornadas'][0]['aprobado_por_id'] === 4,
+        'El cierre contable conserva la identidad del aprobador real por jornada');
+    $viejoConFirmaIncorrecta = $nuevoContable;
+    unset($viejoConFirmaIncorrecta['firmas_jefes']);
+    $viejoConFirmaIncorrecta['firma_jefe'] = $firma;
+    $viejoConFirmaIncorrecta['jefe_nombre'] = 'Jefe';
+    $congelarFirmas->execute([json_encode($viejoConFirmaIncorrecta, JSON_UNESCAPED_UNICODE)]);
+    $db->exec("UPDATE jornada_lotes_reporte SET jlot_estado='CERRADO' WHERE jlot_id=1");
+    $antesCorregirAprobador = $db->query('SELECT jle_snapshot::text FROM jornada_lote_empleados WHERE jle_id=1')->fetchColumn();
+    $corregidoAprobador = $contable->obtener_snapshot_empleado(1)['snapshot'];
+    comprobarFirma($corregidoAprobador['firma_jefe'] === $firmaAprobador && $corregidoAprobador['firma_empleado'] === $firma
+        && $antesCorregirAprobador === $db->query('SELECT jle_snapshot::text FROM jornada_lote_empleados WHERE jle_id=1')->fetchColumn(),
+        'Un snapshot antiguo con jefe asignado incorrecto se presenta con el aprobador real sin reescribirlo');
+    $db->exec("UPDATE jornada_aprobaciones SET jap_empleado_id=3 WHERE jornada_id=$dos AND jap_decision='APROBADO'");
+    $varios = $modelo->obtener_reporte_propio_pdf(1, '2026-10-19', '2026-10-20', 'LIQUIDADO');
+    comprobarFirma(array_column($varios['firmas_jefes'], 'empleado_id') === [3, 4]
+        && $varios['firma_jefe'] === null && $varios['jefe_nombre'] === null,
+        'Con varios aprobadores conserva cada firma sin elegir un jefe arbitrario');
+    $db->exec("DELETE FROM jornada_aprobaciones WHERE jornada_id IN ($uno,$dos)");
+    $sinAprobador = Jornada::obtener_firmas_pdf($db, 1, $personal['jornadas']);
+    comprobarFirma($sinAprobador['firmas_jefes'] === [] && $sinAprobador['firma_jefe'] === null,
+        'Sin aprobación registrada no utiliza la firma del jefe actualmente asignado');
 } finally {
     $db->exec('DROP SCHEMA ' . $schema . ' CASCADE');
 }

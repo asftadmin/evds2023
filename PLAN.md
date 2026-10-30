@@ -25,7 +25,7 @@ Estado: implementado, pendiente de validacion funcional con datos reales.
 
 ## Registro, aprobacion y liquidacion de jornadas
 
-Estado: registro, aprobacion de jefe, liquidacion y reportes contables implementados; integracion BioTime y correcciones de Gestion Humana pendientes.
+Estado: registro, aprobacion de jefe, liquidacion, reportes contables y cruce informativo BioTime con ajustes auditados implementados; flujo de correcciones de Gestion Humana pendiente.
 
 - Crear migracion versionada con tablas de jornadas, horarios, reglas, festivos, estados, auditoria, correcciones y clasificacion.
 - Mantener el esquema existente de permisos por rol y menu, sin permisos por accion.
@@ -47,7 +47,7 @@ Estado: registro, aprobacion de jefe, liquidacion y reportes contables implement
 - Mantener opcional la descripcion de las fechas especiales; la fecha y el estado activo determinan su aplicacion.
 - Parametrizar la jornada diurna habil de 06:00 a 15:00; representar el descuento abstracto de almuerzo con NO_LIQ al final del tramo ordinario y comenzar HED desde las 15:00.
 - Reestructurar el reporte contable mediante lotes documentales con una fecha de corte comun y periodos sugeridos individualmente por empleado.
-- Tomar como inicio del primer reporte la primera jornada registrada y, despues de un cierre, continuar automaticamente desde el dia siguiente al ultimo periodo cerrado.
+- Tomar como inicio del primer reporte la primera jornada válida hasta el corte. Después de un cierre, buscar la primera jornada válida desde el día siguiente al último jle_hasta cerrado; ese día es un límite de búsqueda, no el inicio obligatorio.
 - Mostrar por empleado los estados Listo, Sin novedad, Pendiente, Bloqueado o Sin base; impedir el cierre mientras existan pendientes o inconsistencias.
 - Permitir ajustes manuales del periodo solo en borrador, con motivo obligatorio, auditoria y validacion contra periodos cerrados superpuestos.
 - Congelar al cerrar el lote un snapshot JSON de empleado, jornadas, aprobadores, segmentos y totales para reproducibilidad documental.
@@ -61,42 +61,115 @@ Estado: registro, aprobacion de jefe, liquidacion y reportes contables implement
 - Mantener deshabilitados los menus de fases posteriores hasta que existan sus vistas y endpoints, evitando enlaces con error 404.
 - Pruebas realizadas en fase 1: lint PHP de archivos afectados, `node --check` del JavaScript y revision de whitespace del diff.
 - La fase de jefes incluye registro delegado, consulta historica del equipo y bandeja de decisiones.
-- Pendiente fase 3: Gestion Humana, comparacion BioTime mediante `controller/curl.php`, inconsistencias y correcciones.
+- Pendiente fase 3: completar Gestion Humana y correcciones. El cruce BioTime de Contabilidad ya está implementado mediante `controller/curl.php`.
 - Pruebas de reportes realizadas: migracion aplicada, lint PHP, validacion JavaScript, creacion y limpieza de lote temporal, cierre con snapshot y verificacion binaria de PDF y Excel.
-- Pendiente fase 4: integrar BioTime para inconsistencias y completar el flujo de correcciones.
+- Pendiente fase 4: completar la resolución persistente de inconsistencias y el flujo de correcciones; el diagnóstico y los ajustes BioTime se describen a continuación.
+
+### Inicio sugerido del lote según jornadas reales (2026-10-29)
+
+Estado: implementado y validado en PostgreSQL con esquema temporal.
+
+- models/JornadaReporteContable.php / calcular_inicio_sugerido(): el día posterior al MAX(jle_hasta) de lotes CERRADO es solo la fecha mínima de búsqueda. Devuelve MIN(jornada_inicio::date) de jornadas del empleado desde esa base hasta el corte común, ambos inclusive.
+- Sin cierres previos, conserva la primera jornada válida registrada hasta el corte. En ambos casos resuelve el estado por je_codigo y excluye ANULADO y RECHAZADO.
+- crear_lote() conserva empleados activos, omite candidatos sin jornada elegible y guarda jle_desde real, jle_hasta igual al corte y jle_origen_periodo = SUGERIDO. Se alinea la consulta de candidatos para excluir también RECHAZADO.
+- La regla se aplica al crear lotes y al incorporar empleados faltantes mediante Validar de nuevo en borradores normales. Los periodos existentes no se vuelven a sugerir. Las correcciones siguen copiando empleados y periodos del lote original.
+- Se conserva recalcular_fila(), diagnóstico contable, horas, clasificaciones, cierre, snapshots, PDF y Excel. No requiere modificar la vista ni el esquema.
+- Prueba: php tests/jornadas_reporte_inicio.php con JORNADAS_TEST_DSN. Ejecutada satisfactoriamente con PostgreSQL aislado; el esquema de prueba se elimina al terminar.
+- Escenarios verificados: cierre 2026-10-15 e inicio real el 16, 17 o 20; falta de jornadas hasta el corte; estados excluidos; primer reporte; fecha de corte inclusiva; base posterior al corte; lotes no cerrados ignorados; empleados inactivos; creación de filas SUGERIDO; conservación de periodos/snapshots históricos y de las correcciones.
+
+### Validar de nuevo: empleados faltantes (2026-10-29)
+
+Estado: implementado y validado en PostgreSQL temporal.
+
+- agregar_empleados_sugeridos() centraliza la búsqueda e inserción de empleados faltantes y se reutiliza desde crear_lote() y refrescar_lote(), sin duplicar la regla de inicio sugerido.
+- En borradores NORMAL, Validar de nuevo incorpora empleados activos con jornadas elegibles hasta el corte, incluidos registros posteriores a la creación del lote. Usa la primera jornada real desde el cierre anterior, origen SUGERIDO y el corte común como Hasta.
+- Las filas existentes se conservan: no cambia Desde, Hasta, origen ni motivo manual. Recalcula únicamente el diagnóstico y los conteos mediante el método existente.
+- Excluye ANULADO/RECHAZADO y candidatos sin actividad nueva hasta el corte. NOT EXISTS y la unicidad por lote/empleado evitan duplicados al repetir la validación.
+- Las correcciones revalidan exclusivamente sus filas originales. Cerrados, reemplazados y anulados continúan bloqueados para esta acción.
+- La operación mantiene el bloqueo del lote y la transacción; registra AGREGAR_EMPLEADOS cuando hay incorporaciones y devuelve empleados_agregados. El controlador informa ese número en el mensaje existente de la interfaz.
+- tests/jornadas_reporte_inicio.php: incorporación tardía con Desde 23/09 y Hasta 15/10, exclusiones, conservación de ajustes, repetición sin duplicados, auditoría, correcciones y rollback/reintento ante una falla. Las pruebas usan un esquema desechable, sin agregar empleados a lotes reales.
+
+### Descarga histórica de lotes anulados (2026-10-29)
+
+- Despliegue verificado el 2026-10-29: la base activa todavía excluía ANULADO del CHECK de jornada_lotes_reporte. Se aplicó database/migrations/20261023_anulacion_lotes_jornadas.sql; habilita BORRADOR, CERRADO, REEMPLAZADO y ANULADO. Verificado que no cambiaron los estados de los lotes ni los snapshots. Otras instalaciones deben aplicar esta migración antes de anular.
+
+Estado: implementado y validado con snapshots sintéticos y PostgreSQL temporal.
+
+- [x] Conservar PDF individual, PDF por lote y Excel consolidado de lotes ANULADO que tengan snapshots de un cierre anterior. No reconstruir reportes desde jornadas actuales ni habilitar exportaciones de borradores anulados sin copia histórica.
+- [x] Mantener las descargas en la interfaz sin habilitar edición, recálculo, cierre, corrección ni nueva anulación. Identificar el detalle como ANULADO (consulta histórica).
+- [x] Mostrar ANULADO - SOLO CONSULTA HISTÓRICA en todas las páginas PDF y en las cuatro hojas Excel. Prefijar los nombres de descarga con ANULADO_; conservar los snapshots y la auditoría.
+- [x] Mantener las exportaciones de CERRADO y REEMPLAZADO, el diseño de borradores/firmas y la autorización exclusiva de Contabilidad con permiso reporte_contable.
+- Archivos: models/JornadaReporteContable.php, controller/jornada_exportar.php, view/PDF/jornadas_formato.php y view/MntJornadas/reporte_contable.js. Sin migraciones nuevas ni anulación de lotes reales durante este ajuste.
+- Pruebas: tests/jornadas_anulados_exportacion.php genera PDF/Excel reales y valida snapshots, estados y auditoría en PostgreSQL aislado mediante JORNADAS_TEST_DSN; tests/jornadas_anulados_vista.cjs comprueba botones y renderers con API simulada; tests/jornadas_pdf_borrador.php verifica regresiones de páginas y firmas. Sintaxis PHP/JavaScript validada. Pendiente comprobación visual y descarga con sesión real en navegador.
+
+### Firmas en el PDF contable (2026-10-29)
+
+Estado: implementado; PostgreSQL aislado, generación PDF y consulta real de solo lectura verificados.
+
+- Jornada::obtener_firmas_pdf() comparte la recuperación de firmas entre Mis jornadas / Historial y el reporte contable. Valida propietario, vigencia y coincidencia con las jornadas del documento; no usa firmas de otros empleados ni de datos distintos.
+- Al cerrar un lote, construir_snapshot() incluye jefe, firma del jefe, firma del trabajador, fecha y cantidad de jornadas firmadas, además de jornada_minutos_ordinarios. Las firmas quedan congeladas junto con los datos contables.
+- El PDF utiliza mostrar_firmas independientemente de borrador: presenta trabajador y jefe en la segunda hoja por empleado, sin cambiar conceptos, totales ni cálculos de liquidación.
+- Para snapshots antiguos sin firmas, la exportación completa solo la presentación: verifica soportes contra las jornadas congeladas y, si existe fecha de cierre, descarta firmas posteriores. Los snapshots anteriores no guardaban jornada_minutos_ordinarios; en ese caso se contrastan los demás campos documentales disponibles.
+- La recuperación histórica se identifica en el pie del PDF; los jefes se identifican mediante las aprobaciones efectivas hasta el cierre, y sus imágenes recuperadas corresponden a las firmas configuradas de esos aprobadores. No se sobrescriben snapshots persistidos ni firmas ya congeladas; si falta soporte se conserva la indicación de firma pendiente/no configurada.
+- Pruebas: tests/jornadas_firma_unica.php verifica firmas compartidas, datos alterados, límite de fecha, recuperación histórica sin escritura y conservación de firmas congeladas; tests/jornadas_pdf_borrador.php incluye contable firmado de dos/tres hojas y regresiones de Historial, lote y BioTime. Exportación de anulados y sintaxis PHP verificadas.
+
+### PDF contable: horas netas y aprobadores reales (2026-10-29)
+
+Estado: implementado; generación PDF, pruebas PostgreSQL aisladas y consulta de solo lectura del lote real verificados.
+
+- La columna Horas ordinarias del PDF y su total muestran las horas netas laboradas, no únicamente el concepto liquidado ORD. Se utiliza jornada_minutos_ordinarios cuando está congelado; para snapshots antiguos se toma el intervalo guardado menos los segmentos NO_LIQ. No introduce descuentos nuevos ni altera clasificaciones, conceptos o Excel.
+- Caso verificado: 16/09, 03:53–18:27, sin NO_LIQ en el snapshot, muestra 14:34 netas en lugar de 05:53 del concepto ORD. RN y extras conservan su desglose liquidado.
+- Jornada::obtener_aprobadores_pdf() resuelve la aprobación efectiva por jornada mediante jornada_aprobaciones, decisión APROBADO, orden por fecha/ID y fecha límite del cierre cuando existe. La firma se busca por el empleado que aprobó; no selecciona el primer jefe de empleado_jefe ni exige que siga activo actualmente.
+- Si hay varios aprobadores, firmas_jefes conserva sus identidades, imágenes y jornadas aprobadas. El PDF identifica cada JEFE APROBADOR. Si no hay aprobación o firma disponible, no la sustituye por otro jefe.
+- Los cierres nuevos congelan aprobado_por_id por jornada y firmas_jefes. Los snapshots antiguos sin esta identificación se completan solo en la respuesta, verificando el aprobador contra la identidad guardada, sin cambiar horas ni JSON persistido. Las firmas ya congeladas con aprobadores identificados permanecen intactas.
+- Pruebas: columna y total netos, descuento NO_LIQ, respeto del neto guardado, jefe asignado distinto del aprobador, varios aprobadores, ausencia de aprobación y corrección de presentación histórica sin escritura. Regresiones de Historial, firmas, páginas, lotes y exportación histórica.
 
 ## Cruce informativo BioTime para Contabilidad
 
-Estado: implementado; pendiente validación funcional en navegador y servicios reales.
+Estado al 2026-10-29: implementado; pruebas aisladas y validación PostgreSQL temporal realizadas. Pendiente validación integral de las últimas reglas con sesión real, navegador y BioTime.
 
-- Consulta independiente de reportes FIRMADO usando jornada_reporte_detalle.jrd_snapshot y las tablas existentes del esquema compartido. No crea tablas, columnas ni migraciones.
-- Vista y endpoints autorizados únicamente para Contabilidad con permiso del menú Inconsistencias.
-- Inconsistencias BioTime es un diagnóstico operativo: no condiciona el menú Liquidaciones, sus acciones ni el acceso a ellas. No persiste resultados ni marca jornada_inconsistente. Las validaciones preexistentes de liquidación permanecen fuera del alcance de este cambio.
-- Mantiene la consulta externa mediante controller/curl.php, incluidos departments=1 y areas=2. Respuestas incompletas generan error, nunca una ausencia.
-- Agrupa por documento y días abarcados por las jornadas; ordena jornadas y marcaciones cronológicamente y consume cada pareja una sola vez. Las jornadas superpuestas o pares ambiguos requieren revisión manual.
-- No se descartan marcaciones por distancia horaria. Una jornada con dos marcas en los días correspondientes utiliza ambas, aunque estén lejos del horario firmado. Los turnos nocturnos incluyen los días de entrada y salida.
-- La tolerancia solo evalúa las diferencias después de asociar las marcaciones. No recalcula horas ordinarias, conceptos, descuentos ni liquidaciones.
-- Estados: Horario correcto, Diferencia de horario, Marcación incompleta, Sin marcaciones, Revisión de marcaciones y Jornada modificada. Conserva JSON y detalle de candidatas, versiones y horario firmado.
-- No diferencia reglas por Planta, Mantenimiento u Obras. Contabilidad decide cómo proceder con las diferencias.
-- Frontend Bootstrap 4 / AdminLTE 3 con jQuery AJAX, JSON limpio, DataTables, Select2, DateRangePicker y SweetAlert2; conserva la bandeja de inconsistencias existente.
-- Pruebas: php tests/jornadas_cruce_biotime.php (28 verificaciones aisladas, sin servicios externos), lint PHP. Pendiente prueba de integración con PostgreSQL/BioTime y navegador.
-- Esta etapa consulta solo jornadas incluidas en reportes firmados. No detecta todavía marcaciones sin reporte ni implementa un flujo de resolución persistente.
+- Consulta independiente de reportes FIRMADO mediante jornada_reporte_detalle.jrd_snapshot. Conserva la copia firmada y no requiere tablas, columnas ni migraciones nuevas.
+- Acceso exclusivo de Contabilidad con permiso del menú Inconsistencias. El diagnóstico no condiciona Liquidaciones ni persiste resultados o marca jornada_inconsistente.
+- Consulta externa mediante controller/curl.php, con departments=1 y areas=2. Una respuesta incompleta genera error, nunca ausencia.
+- Agrupa por documento y días abarcados, deduplica eventos y ordena las jornadas. La tolerancia solo clasifica las diferencias después de asociar; no selecciona ni descarta marcas por ese valor.
+- No aplica reglas distintas por Planta, Mantenimiento u Obras ni recalcula conceptos de liquidación. Contabilidad decide sobre las diferencias.
+- El cruce incluye solo jornadas de reportes firmados. La detección de marcaciones sin reporte y la resolución persistente integral siguen pendientes.
 
-### Corrección de asociación cronológica BioTime
+### Reglas vigentes de asociación y continuidad
 
-- Caso real obligatorio: firmado 2026-08-27 08:00–13:00 frente a 04:17–20:31 produce diferencias -223 y +451 minutos y Diferencia de horario.
-- Una jornada sin marcas produce Sin marcaciones; una sola marca se presenta en el extremo más próximo y produce Marcación incompleta; dos marcas se asignan como entrada/salida cronológicas.
-- Varias jornadas con pares completos, cronológicamente compatibles, se asocian en orden sin reutilizar evidencias. Cantidades impares, sobrantes o asociaciones ambiguas permanecen como Revisión de marcaciones, conservando todas las candidatas.
-- La tolerancia solo clasifica el resultado después de la asociación. No se modifican liquidaciones, jornadas, firmas, snapshots, tablas ni columnas.
-- Archivos ajustados: models/JornadaCruceBiotime.php, view/MntJornadas/inconsistencias_biotime.php, tests/jornadas_cruce_biotime.php, PLAN.md y STRUCTURE.md.
-- Validación: 28 pruebas aisladas y sintaxis PHP correctas; pendiente ejecución en navegador con datos reales.
+- [x] Respetar los pares reales compatibles por jornada. Con dos marcas en los días correspondientes, conservar ambas aunque estén lejos del horario firmado. Caso de regresión: 04:17–20:31 frente a 08:00–13:00, diferencias -223 y +451 minutos.
+- [x] Formar bloques cuando la salida firmada coincide exactamente con la siguiente entrada del mismo empleado, a cualquier hora y con vecinos únicos. Huecos, duplicados y superposiciones no justifican continuidad automática.
+- [x] Incluir mediante consulta recursiva los vecinos firmados fuera del filtro para comparar el bloque completo. Ampliar el intervalo BioTime conservando los límites de consulta.
+- [x] Comparar los extremos del bloque y mantener las filas diarias. Un corte interno sin marca muestra su hora firmada y diferencia 00:00 solo cuando el par valida la continuidad; un extremo faltante no se sustituye con una marca interna.
+- [x] Usar una marca real exacta en un corte como límite compartido de las filas vecinas, contado una sola vez. Mostrar Límite compartido y calcular el resultado con las diferencias propias de cada jornada.
+- [x] Si una jornada firmada termina a las 00:00 posteriores al último día del periodo y un par válido demuestra salida posterior, mostrar Corte de periodo y diferencia 00:00. Conservar salida_bio_real en el detalle como soporte del periodo siguiente; no crear jornadas ni trasladar horas automáticamente.
+- [x] Comparar extremos únicos de cualquier grupo, incluidos turnos separados sin continuidad, manteniendo las marcas adicionales visibles y señaladas. No elegir entre extremos empatados o que compitan con otros turnos; una cantidad impar no bloquea por sí sola todas las comparaciones.
+- [x] Agregar una marca aislada asociable a una jornada individual sin resolver cuando el grupo ya tiene pares resueltos; puede quedar después de la salida firmada si pertenece a sus días y no compite con otro turno. Mostrar posición provisional por cercanía como Marcación incompleta; si hay empate o competencia, Marcación pendiente de identificar. Mantener intactos los pares y cortes anteriores, sin inventar el otro extremo.
+- Estados: Horario correcto, Diferencia de horario, Marcación incompleta, Sin marcaciones, Revisión de marcaciones, Jornada modificada, Marcación adicional por revisar, Marcaciones adicionales por revisar y Marcación pendiente de identificar.
+- Sin marcaciones no implica ausencia laboral. Las propuestas por cercanía requieren confirmar si la marca es entrada o salida.
 
-### Presentación de diferencias BioTime en HH:MM
+### Ajustes explícitos y evidencia
 
-- inconsistencias_biotime.js muestra diferencia_entrada y diferencia_salida con signo y formato HH:MM, conservando los minutos numéricos del JSON y el ordenamiento por valor.
-- Ejemplos: -223 -> -03:43; 451 -> +07:31; 30 -> +00:30; -5 -> -00:05; 0 -> 00:00. Sin marcación se muestra —.
-- Las fracciones se redondean al minuto exclusivamente para presentación. No se modifica la comparación ni la tolerancia del modelo.
-- inconsistencias_biotime.php usa los encabezados Diferencia entrada y Diferencia salida, sin unidad en minutos.
+- [x] Confirmar un ajuste de entrada o salida desde el detalle de Contabilidad y modificar únicamente ese extremo de la jornada actual.
+- [x] Validar CSRF, evidencia HMAC privada de sesión con vencimiento, usuario, versión, estado, horario actual y hash del snapshot firmado. Operar en transacción con bloqueo por empleado/fila, control de superposición y auditoría; reconsultar después de guardar.
+- [x] Conservar firmas y snapshots; no recalcular horas ordinarias, conceptos ni descuentos como parte del cruce o del ajuste.
+- [x] Excluir de ajustes los cortes virtuales, cortes de periodo, límites compartidos y propuestas provisionales, con protección en servidor y botones deshabilitados en la interfaz.
+- El diagnóstico no persiste una resolución operativa; los ajustes confirmados sí se guardan con su auditoría.
+
+### Presentación
+
+- [x] Eliminar Reporte / jornada de la tabla y separar fecha y hora en las entradas/salidas firmadas y BioTime. Conservar los identificadores internos para detalle y evidencia; ordenar por fecha y hora de entrada firmada descendentes.
+- [x] Mostrar diferencias con signo en HH:MM, manteniendo minutos numéricos para cálculos y ordenamiento. Ejemplos: -223 → -03:43; 451 → +07:31; 0 → 00:00. Sin evidencia se muestra —; las fracciones se redondean solo al presentar.
+- [x] Distinguir Corte por continuidad, Corte de periodo, Límite compartido y Pendiente de confirmar. Usar textos breves y señalar marcas adicionales/pendientes en la lista sin repetirlas en párrafos.
+- Frontend Bootstrap 4 / AdminLTE 3 con jQuery AJAX, DataTables, Select2, DateRangePicker y SweetAlert2; conserva la bandeja existente.
+
+### Archivos y validación
+
+- Archivos: models/JornadaCruceBiotime.php, controller/jornada_contable.php, view/MntJornadas/inconsistencias.php, inconsistencias_biotime.php e inconsistencias_biotime.js.
+- Pruebas: php tests/jornadas_cruce_biotime.php; php tests/jornadas_ajuste_biotime.php; sintaxis PHP/JavaScript y revisión de diferencias.
+- La integración opcional de ajustes usa JORNADAS_TEST_DSN y un esquema PostgreSQL desechable. Sin la variable se ejecutan las comprobaciones aisladas y se informa la integración pendiente.
+- PostgreSQL temporal ya validado para selección de vecinos fuera del periodo a las 00:00, 07:00 y 16:00, aislamiento por empleado, ajustes, versiones, auditoría y rollback. La validación integral de la última regla con sesión real, navegador y BioTime sigue pendiente.
+- Regresiones: 241/245/246 (pares reales junto a medianoche); 261/262 (cierre de periodo); 2 de octubre (05:55 / 08:04 / 15:17); 434/435 (bloque con marcas de otros horarios); 427/428/429 (cortes a las 00:00 y 07:00); 00:24 aislada; 31/32 (marca real compartida); Edinson, 5–6 de octubre (dos pares en turnos separados y una salida nocturna pendiente). Incluyen orden determinístico, competencia, empates, evidencias no ajustables y conservación de resultados anteriores.
 
 ## Soporte Nómina: tarifas, borradores y contabilización
 

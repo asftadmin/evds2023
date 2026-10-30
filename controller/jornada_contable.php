@@ -657,13 +657,16 @@ try {
             if (!$lote_id || $lote_id <= 0) {
                 throw new InvalidArgumentException('El lote no es válido.');
             }
-            $reporte->refrescar_lote(
+            // Informa las incorporaciones sin sustituir los periodos ya ajustados.
+            $validacion = $reporte->refrescar_lote(
                 $lote_id,
                 $contexto['user_id']
             );
             jc_responder([
                 'success' => true,
-                'message' => 'El lote fue validado nuevamente.'
+                'data' => $validacion,
+                'message' => 'El lote fue validado nuevamente. Empleados agregados: '
+                    . $validacion['empleados_agregados'] . '.'
             ]);
             break;
 

@@ -54,6 +54,7 @@ class JornadaReporteContable extends Conectar
         return $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /** Prepara periodos sugeridos desde jornadas reales, conservando el corte común. */
     public function crear_lote($nombre, $fecha_corte, $usuario_id)
     {
         $db = parent::Conexion();
@@ -68,62 +69,10 @@ class JornadaReporteContable extends Conectar
             $stmt->execute([$nombre, $fecha_corte, $usuario_id]);
             $lote_id = (int) $stmt->fetchColumn();
 
-            /*
-             * Incluye empleados con jornadas hasta el corte y quienes ya
-             * tuvieron un periodo cerrado, aunque ahora no tengan novedad.
-             */
-            $sql = "SELECT DISTINCT empleado_id
-                    FROM (
-                        SELECT j.empleado_id
-                        FROM jornadas_trabajo j
-                        INNER JOIN empleados emp ON emp.id_empl = j.empleado_id
-                        INNER JOIN jornada_estados estado ON estado.je_id = j.jornada_estado_id
-                        WHERE j.jornada_inicio::date <= ?::date
-                          AND estado.je_codigo <> 'ANULADO'
-                          AND emp.esta_empl = 1
-                        UNION
-                        SELECT e.empleado_id
-                        FROM jornada_lote_empleados e
-                        INNER JOIN jornada_lotes_reporte l
-                            ON l.jlot_id = e.jlot_id
-                        INNER JOIN empleados emp
-                            ON emp.id_empl = e.empleado_id
-                        WHERE l.jlot_estado = 'CERRADO'
-                          AND emp.esta_empl = 1
-                    ) candidatos
-                    ORDER BY empleado_id";
-            $stmt = $db->prepare($sql);
-            $stmt->execute([$fecha_corte]);
-            $empleados = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-            foreach ($empleados as $empleado_id) {
-                $desde = $this->calcular_inicio_sugerido(
-                    $db,
-                    (int) $empleado_id,
-                    $fecha_corte
-                );
-                if ($desde === null || $desde > $fecha_corte) {
-                    continue;
-                }
-                $stmtInsertar = $db->prepare(
-                    "INSERT INTO jornada_lote_empleados (
-                        jlot_id, empleado_id, jle_desde, jle_hasta,
-                        jle_origen_periodo, jle_actualizado_por
-                     ) VALUES (?, ?, ?::date, ?::date, 'SUGERIDO', ?)
-                     RETURNING jle_id"
-                );
-                $stmtInsertar->execute([
-                    $lote_id,
-                    (int) $empleado_id,
-                    $desde,
-                    $fecha_corte,
-                    $usuario_id
-                ]);
-                $this->recalcular_fila(
-                    $db,
-                    (int) $stmtInsertar->fetchColumn(),
-                    $usuario_id
-                );
+            // Creación y validación comparten la incorporación de empleados elegibles.
+            $filas_nuevas = $this->agregar_empleados_sugeridos($db, $lote_id, $fecha_corte, $usuario_id);
+            foreach ($filas_nuevas as $fila_id) {
+                $this->recalcular_fila($db, $fila_id, $usuario_id);
             }
 
             $this->auditar(
@@ -392,6 +341,7 @@ class JornadaReporteContable extends Conectar
         }
     }
 
+    /** Agrega faltantes a borradores normales y revalida sin cambiar periodos existentes. */
     public function refrescar_lote($lote_id, $usuario_id)
     {
         $db = parent::Conexion();
@@ -401,6 +351,13 @@ class JornadaReporteContable extends Conectar
             if ($lote['jlot_estado'] !== 'BORRADOR') {
                 throw new RuntimeException('El lote ya está cerrado.');
             }
+            // Las correcciones mantienen exclusivamente los empleados y periodos copiados.
+            $filas_nuevas = [];
+            if ($lote['jlot_tipo'] === 'NORMAL') {
+                $filas_nuevas = $this->agregar_empleados_sugeridos(
+                    $db, $lote_id, $lote['jlot_fecha_corte'], $usuario_id
+                );
+            }
             $stmt = $db->prepare(
                 'SELECT jle_id FROM jornada_lote_empleados WHERE jlot_id = ?'
             );
@@ -408,7 +365,13 @@ class JornadaReporteContable extends Conectar
             foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $fila_id) {
                 $this->recalcular_fila($db, (int) $fila_id, $usuario_id);
             }
+            if ($filas_nuevas) {
+                $this->auditar($db, $lote_id, null, 'AGREGAR_EMPLEADOS', null,
+                    ['jle_ids' => $filas_nuevas, 'cantidad' => count($filas_nuevas)],
+                    'Empleados faltantes incorporados al validar de nuevo', $usuario_id);
+            }
             $db->commit();
+            return ['empleados_agregados' => count($filas_nuevas)];
         } catch (Throwable $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
@@ -549,6 +512,7 @@ class JornadaReporteContable extends Conectar
         }
     }
 
+    /** Exporta la copia histórica, incluso anulada, sin reconstruirla desde jornadas actuales. */
     public function obtener_snapshot_empleado($fila_id)
     {
         $db = parent::Conexion();
@@ -557,21 +521,23 @@ class JornadaReporteContable extends Conectar
              FROM jornada_lote_empleados le
              INNER JOIN jornada_lotes_reporte l ON l.jlot_id = le.jlot_id
              WHERE le.jle_id = ?
-               AND l.jlot_estado IN ('CERRADO', 'REEMPLAZADO')"
+               AND l.jlot_estado IN ('CERRADO', 'REEMPLAZADO', 'ANULADO')"
         );
         $stmt->execute([$fila_id]);
         $fila = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$fila || !$fila['snapshot']) {
-            throw new RuntimeException('El reporte solicitado no está cerrado.');
+            throw new RuntimeException('El reporte no conserva una copia cerrada para exportar.');
         }
         $snapshot = json_decode($fila['snapshot'], true);
         $snapshot = $this->completar_datos_empleado($db, $snapshot);
+        $snapshot = $this->completar_firmas_documento($db, $snapshot, $fila);
         return [
             'lote' => $fila,
             'snapshot' => $snapshot
         ];
     }
 
+    /** Recupera solo snapshots existentes; un borrador anulado sin cierre no es exportable. */
     public function obtener_snapshots_lote($lote_id)
     {
         $db = parent::Conexion();
@@ -580,11 +546,11 @@ class JornadaReporteContable extends Conectar
             !$lote ||
             !in_array(
                 $lote['jlot_estado'],
-                ['CERRADO', 'REEMPLAZADO'],
+                ['CERRADO', 'REEMPLAZADO', 'ANULADO'],
                 true
             )
         ) {
-            throw new RuntimeException('El lote debe estar cerrado para exportarlo.');
+            throw new RuntimeException('El lote debe tener un cierre histórico para exportarlo.');
         }
         $stmt = $db->prepare(
             'SELECT jle_snapshot::text
@@ -596,14 +562,53 @@ class JornadaReporteContable extends Conectar
         $snapshots = [];
         foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $json) {
             $snapshot = json_decode($json, true);
-            $snapshots[] = $this->completar_datos_empleado(
-                $db,
-                $snapshot
-            );
+            $snapshot = $this->completar_datos_empleado($db, $snapshot);
+            $snapshots[] = $this->completar_firmas_documento($db, $snapshot, $lote);
+        }
+        if (!$snapshots) {
+            throw new RuntimeException('El lote no conserva reportes cerrados para exportar.');
         }
         return ['lote' => $lote, 'snapshots' => $snapshots];
     }
 
+    /** Incorpora solo empleados faltantes; nunca actualiza periodos ya definidos en el lote. */
+    private function agregar_empleados_sugeridos(PDO $db, $lote_id, $fecha_corte, $usuario_id)
+    {
+        $stmt = $db->prepare("SELECT DISTINCT empleado_id
+            FROM (
+                SELECT j.empleado_id FROM jornadas_trabajo j
+                INNER JOIN empleados emp ON emp.id_empl = j.empleado_id
+                INNER JOIN jornada_estados estado ON estado.je_id = j.jornada_estado_id
+                WHERE j.jornada_inicio::date <= ?::date
+                  AND estado.je_codigo NOT IN ('ANULADO', 'RECHAZADO') AND emp.esta_empl = 1
+                UNION
+                SELECT e.empleado_id FROM jornada_lote_empleados e
+                INNER JOIN jornada_lotes_reporte l ON l.jlot_id = e.jlot_id
+                INNER JOIN empleados emp ON emp.id_empl = e.empleado_id
+                WHERE l.jlot_estado = 'CERRADO' AND emp.esta_empl = 1
+            ) candidatos
+            WHERE NOT EXISTS (
+                SELECT 1 FROM jornada_lote_empleados actual
+                WHERE actual.jlot_id = ? AND actual.empleado_id = candidatos.empleado_id
+            ) ORDER BY empleado_id");
+        $stmt->execute([$fecha_corte, $lote_id]);
+        $empleados = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $insertar = $db->prepare("INSERT INTO jornada_lote_empleados (
+                jlot_id, empleado_id, jle_desde, jle_hasta, jle_origen_periodo, jle_actualizado_por
+            ) VALUES (?, ?, ?::date, ?::date, 'SUGERIDO', ?)
+            ON CONFLICT (jlot_id, empleado_id) DO NOTHING RETURNING jle_id");
+        $filas_nuevas = [];
+        foreach ($empleados as $empleado_id) {
+            $desde = $this->calcular_inicio_sugerido($db, (int) $empleado_id, $fecha_corte);
+            if ($desde === null || $desde > $fecha_corte) continue;
+            $insertar->execute([$lote_id, (int) $empleado_id, $desde, $fecha_corte, $usuario_id]);
+            $fila_id = $insertar->fetchColumn();
+            if ($fila_id !== false) $filas_nuevas[] = (int) $fila_id;
+        }
+        return $filas_nuevas;
+    }
+
+    /** Primera jornada válida hasta el corte, posterior al último cierre si existe. */
     private function calcular_inicio_sugerido(PDO $db, $empleado_id, $corte)
     {
         $stmt = $db->prepare(
@@ -613,18 +618,21 @@ class JornadaReporteContable extends Conectar
              WHERE le.empleado_id = ? AND l.jlot_estado = 'CERRADO'"
         );
         $stmt->execute([$empleado_id]);
-        $desde = $stmt->fetchColumn();
-        if ($desde) {
-            return $desde;
-        }
-        $stmt = $db->prepare(
-            "SELECT MIN(j.jornada_inicio::date)
+        // El día posterior al cierre es solo el límite inferior de la búsqueda.
+        $fecha_base = $stmt->fetchColumn();
+        $sql = "SELECT MIN(j.jornada_inicio::date)
              FROM jornadas_trabajo j
              INNER JOIN jornada_estados estado ON estado.je_id = j.jornada_estado_id
              WHERE j.empleado_id = ? AND j.jornada_inicio::date <= ?::date
-               AND estado.je_codigo <> 'ANULADO'"
-        );
-        $stmt->execute([$empleado_id, $corte]);
+               AND estado.je_codigo NOT IN ('ANULADO', 'RECHAZADO')";
+        $parametros = [$empleado_id, $corte];
+        // Sin cierre previo se conserva la primera jornada válida registrada.
+        if ($fecha_base) {
+            $sql .= ' AND j.jornada_inicio::date >= ?::date';
+            $parametros[] = $fecha_base;
+        }
+        $stmt = $db->prepare($sql);
+        $stmt->execute($parametros);
         return $stmt->fetchColumn() ?: null;
     }
 
@@ -822,11 +830,13 @@ class JornadaReporteContable extends Conectar
             j.jornada_id,
             j.jornada_inicio,
             j.jornada_fin,
+            j.jornada_minutos_ordinarios,
             j.jornada_ubicacion,
             j.jornada_actividad,
             j.jornada_observaciones,
             j.jornada_origen,
             aprobador.nomb_empl AS aprobado_por,
+            aprobador.empleado_id AS aprobado_por_id,
             COALESCE(
                 jsonb_agg(
                     jsonb_build_object(
@@ -855,7 +865,7 @@ class JornadaReporteContable extends Conectar
             ON con.jcon_id = c.jcon_id
 
         LEFT JOIN LATERAL (
-            SELECT emp_apr.nomb_empl
+            SELECT emp_apr.nomb_empl, apr.jap_empleado_id AS empleado_id
             FROM jornada_aprobaciones apr
 
             LEFT JOIN empleados emp_apr
@@ -864,7 +874,7 @@ class JornadaReporteContable extends Conectar
             WHERE apr.jornada_id = j.jornada_id
               AND apr.jap_decision = 'APROBADO'
 
-            ORDER BY apr.jap_fecha DESC
+            ORDER BY apr.jap_fecha DESC, apr.jap_id DESC
             LIMIT 1
         ) aprobador ON TRUE
 
@@ -878,7 +888,8 @@ class JornadaReporteContable extends Conectar
 
         GROUP BY
             j.jornada_id,
-            aprobador.nomb_empl
+            aprobador.nomb_empl,
+            aprobador.empleado_id
 
         ORDER BY
             j.jornada_inicio,
@@ -948,7 +959,7 @@ class JornadaReporteContable extends Conectar
             $jornadas[] = $jornada;
         }
         ksort($totales);
-        return [
+        $snapshot = [
             'fila_id' => (int) $cabecera['jle_id'],
             'empleado_id' => (int) $cabecera['empleado_id'],
             'empleado' => $cabecera['empleado'],
@@ -964,6 +975,26 @@ class JornadaReporteContable extends Conectar
             'jornadas' => $jornadas,
             'totales' => $totales
         ];
+        // Las firmas verificadas quedan congeladas junto con las jornadas al cerrar.
+        require_once __DIR__ . '/Jornada.php';
+        return array_merge($snapshot, Jornada::obtener_firmas_pdf($db, $cabecera['empleado_id'], $jornadas));
+    }
+
+    /** Completa solo la presentación de lotes antiguos, sin escribir su snapshot histórico. */
+    private function completar_firmas_documento(PDO $db, array $snapshot, array $lote)
+    {
+        if (array_key_exists('firma_empleado', $snapshot) && array_key_exists('firmas_jefes', $snapshot)) {
+            $snapshot['mostrar_firmas'] = true;
+            return $snapshot;
+        }
+        require_once __DIR__ . '/Jornada.php';
+        $firmas = Jornada::obtener_firmas_pdf($db, (int)$snapshot['empleado_id'], $snapshot['jornadas'] ?? [],
+            $lote['jlot_fecha_cierre'] ?? null);
+        // Conserva la firma del trabajador ya congelada; corrige la atribución antigua
+        // del jefe asignado con los aprobadores documentados, sin escribir el snapshot.
+        return array_merge($firmas, $snapshot, ['mostrar_firmas' => true, 'firmas_recuperadas' => true,
+            'jefe_nombre' => $firmas['jefe_nombre'], 'firma_jefe' => $firmas['firma_jefe'],
+            'firmas_jefes' => $firmas['firmas_jefes']]);
     }
 
     private function bloquear_lote(PDO $db, $lote_id)

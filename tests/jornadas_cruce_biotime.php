@@ -94,15 +94,21 @@ $r = JornadaCruceBiotime::comparar([$primera], [marcaCruce('18:00'), marcaCruce(
 verificarCruce($r['entrada_bio'] === '2026-09-01 18:00:00' && $r['salida_bio'] === '2026-09-01 23:00:00'
     && $r['resultado'] === 'Diferencia de horario', 'Dos marcas del mismo día forman el par aunque ambas estén más cerca de la salida');
 $r = JornadaCruceBiotime::comparar([$primera, $segunda], array_slice($dobles, 0, 3), 5);
-verificarCruce($r[0]['resultado'] === 'Revisión de marcaciones' && $r[1]['resultado'] === 'Revisión de marcaciones'
-    && count($r[0]['marcaciones']) === 3 && $r[0]['entrada_bio'] === '', 'Cantidad impar en varias jornadas requiere revisión de todas las evidencias');
+verificarCruce($r[0]['entrada_bio'] === '2026-09-01 07:57:00' && $r[0]['salida_bio'] === '2026-09-01 12:04:00'
+    && $r[1]['resultado'] === 'Marcación incompleta' && $r[1]['entrada_bio'] === '2026-09-01 15:55:00'
+    && $r[1]['salida_bio'] === '' && count($r[0]['marcaciones']) === 3,
+    'Cantidad impar en jornadas separadas conserva el par inequívoco y la entrada aislada');
 $r = JornadaCruceBiotime::comparar([$primera, $segunda], array_merge($dobles, [marcaCruce('23:30')]), 5);
-verificarCruce($r[0]['resultado'] === 'Revisión de marcaciones' && count($r[1]['marcaciones']) === 5, 'No descarta marcas sobrantes para fabricar pares');
+verificarCruce($r[0]['entrada_bio'] === '2026-09-01 07:57:00' && $r[1]['salida_bio'] === '2026-09-01 22:03:00'
+    && count($r[1]['marcaciones']) === 5 && $r[1]['marcaciones_adicionales'] === ['2026-09-01 23:30:00'],
+    'Los turnos separados se comparan y la marca sobrante sigue visible para revisión');
 $diaSiguiente = filaCruce($fila, 7, '2026-09-02 08:00:00', '2026-09-02 12:00:00');
 $r = JornadaCruceBiotime::comparar([$primera, $diaSiguiente], [marcaCruce('08:00'), marcaCruce('12:00')], 0);
 verificarCruce($r[0]['resultado'] === 'Horario correcto' && $r[1]['resultado'] === 'Sin marcaciones', 'No traslada evidencias de un día a otra jornada diurna');
 $r = JornadaCruceBiotime::comparar([$primera], $dobles, 5)[0];
-verificarCruce($r['resultado'] === 'Revisión de marcaciones' && count($r['marcaciones']) === 4, 'Una jornada con cuatro marcas conserva todas para revisión');
+verificarCruce($r['resultado'] === 'Marcaciones adicionales por revisar' && count($r['marcaciones']) === 4
+    && $r['entrada_bio'] === '2026-09-01 07:57:00' && $r['salida_bio'] === '2026-09-01 12:04:00',
+    'Una jornada conserva las cuatro marcas y muestra los extremos inequívocos');
 
 // Continuidad a medianoche: dos registros diarios y un único par real.
 $antesMedianoche = filaCruce($fila, 255, '2026-10-06 20:30:00', '2026-10-07 00:00:00');
@@ -289,8 +295,9 @@ verificarCruce($r['resultado'] === 'Revisión de marcaciones' && $r['entrada_bio
     'Un empate entre salidas mantiene revisión sin escoger extremos');
 $r = JornadaCruceBiotime::comparar([$jornadaAdicional],
     [marcaCruce('05:55:00', '2026-10-02'), marcaCruce('15:17:00', '2026-10-02'), marcaCruce('23:00:00', '2026-10-02')], 0)[0];
-verificarCruce($r['resultado'] === 'Revisión de marcaciones' && $r['salida_bio'] === '',
-    'Una marca exterior no se oculta para escoger una salida intermedia');
+verificarCruce($r['resultado'] === 'Marcación adicional por revisar' && $r['salida_bio'] === '2026-10-02 15:17:00'
+    && $r['marcaciones_adicionales'] === ['2026-10-02 23:00:00'],
+    'Una marca exterior queda visible como adicional al comparar la salida inequívoca');
 $r = JornadaCruceBiotime::comparar([$cierreOctubre],
     [marcaCruce('18:57:00', '2026-10-15'), marcaCruce('22:00:00', '2026-10-15'), marcaCruce('00:02:00', '2026-10-16')], 0, '2026-10-15')[0];
 verificarCruce($r['corte_periodo_salida'] && $r['diferencia_salida'] === 0.0 && $r['resultado'] === 'Marcación adicional por revisar'
@@ -470,6 +477,49 @@ foreach ([array_slice($marcasCompartidas, 1), array_slice($marcasCompartidas, 0,
     verificarCruce($r[0]['resultado'] === 'Revisión de marcaciones' && $r[0]['diferencia_salida'] === null
         && !$r[0]['limite_compartido_salida'], 'Una marca interna no sustituye un extremo faltante del bloque');
 }
+
+// Edinson: turnos separados, dos pares completos y una salida nocturna aislada.
+$filasEdinson = [filaCruce($fila, 601, '2026-10-05 05:00:00', '2026-10-05 18:00:00'),
+    filaCruce($fila, 602, '2026-10-05 22:00:00', '2026-10-06 00:00:00'),
+    filaCruce($fila, 603, '2026-10-06 05:00:00', '2026-10-06 19:00:00')];
+$marcasEdinson = [marcaCruce('05:09:00', '2026-10-05'), marcaCruce('17:48:00', '2026-10-05'),
+    marcaCruce('00:24:00', '2026-10-06'), marcaCruce('05:04:00', '2026-10-06'), marcaCruce('18:51:00', '2026-10-06')];
+$rEdinson = JornadaCruceBiotime::comparar($filasEdinson, $marcasEdinson, 0);
+verificarCruce($rEdinson[0]['entrada_bio'] === '2026-10-05 05:09:00' && $rEdinson[0]['salida_bio'] === '2026-10-05 17:48:00'
+    && $rEdinson[0]['diferencia_entrada'] === 9.0 && $rEdinson[0]['diferencia_salida'] === -12.0,
+    'Edinson: resuelve el par del 5 de octubre aunque la jornada nocturna esté incompleta');
+verificarCruce($rEdinson[2]['entrada_bio'] === '2026-10-06 05:04:00' && $rEdinson[2]['salida_bio'] === '2026-10-06 18:51:00'
+    && $rEdinson[2]['diferencia_entrada'] === 4.0 && $rEdinson[2]['diferencia_salida'] === -9.0,
+    'Edinson: resuelve también el par del 6 de octubre sin exigir continuidad');
+verificarCruce($rEdinson[1]['resultado'] === 'Marcación incompleta' && $rEdinson[1]['entrada_bio'] === ''
+    && $rEdinson[1]['salida_bio'] === '2026-10-06 00:24:00' && $rEdinson[1]['diferencia_salida'] === 24.0
+    && $rEdinson[1]['extremo_pendiente'] === 'salida' && !$rEdinson[1]['corte_periodo_salida'],
+    'Edinson: conserva 00:24 como salida provisional, sin tomar la entrada del turno siguiente');
+verificarCruce(count($rEdinson[0]['marcaciones']) === 5 && count($rEdinson[2]['marcaciones']) === 5
+    && $rEdinson[1]['marcaciones_pendientes'] === ['2026-10-06 00:24:00'],
+    'Las cinco evidencias del grupo permanecen visibles con la marca aislada pendiente');
+verificarCruce($rEdinson === JornadaCruceBiotime::comparar(array_reverse($filasEdinson), array_reverse($marcasEdinson), 0),
+    'La resolución parcial de turnos separados es determinística');
+$tokenEdinson = JornadaCruceBiotime::autorizar_evidencia($rEdinson[0], $claveContinuidad, 7);
+verificarCruce(JornadaCruceBiotime::validar_evidencia($tokenEdinson, 'salida', $claveContinuidad, 7)['salida'] === '2026-10-05 17:48:00',
+    'Los pares completos del grupo mantienen evidencia ajustable');
+$tokenEdinsonPendiente = JornadaCruceBiotime::autorizar_evidencia($rEdinson[1], $claveContinuidad, 7);
+$rechazoEdinson = false;
+try { JornadaCruceBiotime::validar_evidencia($tokenEdinsonPendiente, 'salida', $claveContinuidad, 7); }
+catch (RuntimeException $e) { $rechazoEdinson = true; }
+verificarCruce($rechazoEdinson, 'La salida provisional del grupo no autoriza ajustes');
+$r = JornadaCruceBiotime::comparar($filasEdinson,
+    [$marcasEdinson[0], $marcasEdinson[1], $marcasEdinson[3], $marcasEdinson[4]], 0);
+verificarCruce($r[0]['entrada_bio'] === $rEdinson[0]['entrada_bio'] && $r[2]['salida_bio'] === $rEdinson[2]['salida_bio']
+    && $r[1]['entrada_bio'] === '' && $r[1]['salida_bio'] === '',
+    'Sin marca nocturna conserva los dos pares y no inventa la salida faltante');
+$filasCompetencia = [filaCruce($fila, 701, '2026-10-05 08:00:00', '2026-10-05 12:00:00'),
+    filaCruce($fila, 702, '2026-10-05 13:00:00', '2026-10-05 17:00:00')];
+$r = JornadaCruceBiotime::comparar($filasCompetencia,
+    [marcaCruce('08:00:00', '2026-10-05'), marcaCruce('12:30:00', '2026-10-05'), marcaCruce('17:00:00', '2026-10-05')], 0);
+verificarCruce($r[0]['resultado'] === 'Revisión de marcaciones' && $r[1]['resultado'] === 'Revisión de marcaciones'
+    && $r[0]['salida_bio'] === '' && $r[1]['entrada_bio'] === '',
+    'Una marca equidistante entre turnos separados no se asigna a ninguno por orden');
 
 // El transporte existente se verifica con respuestas simuladas, sin acceso de red.
 class CurlController {

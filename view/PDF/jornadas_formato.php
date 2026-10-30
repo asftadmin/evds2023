@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../public/assets/tcpdf/tcpdf.php';
 class JornadaReportePDF extends TCPDF
 {
     private $datosEncabezado = [];
+    private $loteAnulado = false;
 
     // Coordenada inicial y anchos tomados de la distribución del GH-F-19.
     private $xTabla = 10.5;
@@ -30,6 +31,12 @@ class JornadaReportePDF extends TCPDF
     public function configurarEmpleado(array $snapshot)
     {
         $this->datosEncabezado = $snapshot;
+    }
+
+    /** El estado documental se presenta sin alterar la copia histórica del empleado. */
+    public function configurarLote(array $lote)
+    {
+        $this->loteAnulado = ($lote['jlot_estado'] ?? '') === 'ANULADO';
     }
 
     /**
@@ -60,6 +67,15 @@ class JornadaReportePDF extends TCPDF
             '',
             1
         );
+
+        // La advertencia se repite en cada página de las exportaciones anuladas.
+        if ($this->loteAnulado) {
+            $this->SetTextColor(180, 0, 0);
+            $this->SetFont('dejavusans', 'B', 7);
+            $this->SetXY(43, 14);
+            $this->Cell(175, 4, 'ANULADO - SOLO CONSULTA HISTÓRICA', 0, 0, 'C');
+            $this->SetTextColor(0, 0, 0);
+        }
 
         // Control documental.
         $this->SetFont('dejavusans', '', 3.6);
@@ -600,9 +616,8 @@ class JornadaReportePDF extends TCPDF
             $valores[2] = $inicio->format('h:i a');
             $valores[3] = $fin ? $fin->format('h:i a') : '—';
 
-            $valores[4] = isset($totales['ORD'])
-                ? je_horas($totales['ORD'])
-                : '';
+            // Esta columna presenta el neto laborado, no solo el concepto liquidado ORD.
+            $valores[4] = je_horas(je_minutos_netos_jornada($jornada));
 
             $valores[5] = isset($totales['RN'])
                 ? je_horas($totales['RN'])
@@ -711,6 +726,9 @@ class JornadaReportePDF extends TCPDF
             $valor = isset($totales[$codigo])
                 ? je_horas($totales[$codigo])
                 : '00:00';
+            if ($indice === 4 && empty($this->datosEncabezado['biotime'])) {
+                $valor = je_horas(array_sum(array_map('je_minutos_netos_jornada', $this->datosEncabezado['jornadas'] ?? [])));
+            }
             if (!empty($this->datosEncabezado['borrador']) && $indice > 4) {
                 $valor = '';
             }
@@ -775,7 +793,7 @@ class JornadaReportePDF extends TCPDF
         return $y + $alto;
     }
 
-    /** Dibuja una única firma de cada persona al pie de la segunda hoja del borrador. */
+    /** Dibuja una firma por persona, compartida por Historial y reporte contable. */
     public function dibujarFirmasBorrador($y)
     {
         $ancho = array_sum($this->anchos) / 2;
@@ -783,29 +801,54 @@ class JornadaReportePDF extends TCPDF
             ['firma_empleado', 'TRABAJADOR', $this->datosEncabezado['empleado'] ?? ''],
             ['firma_jefe', 'JEFE INMEDIATO', $this->datosEncabezado['jefe_nombre'] ?? '']
         ];
+        // Reparte el espacio derecho entre quienes realmente aprobaron, sin escoger uno al azar.
+        if (array_key_exists('firmas_jefes', $this->datosEncabezado)) {
+            $bloques = [[$this->datosEncabezado['firma_empleado'] ?? '', 'TRABAJADOR',
+                $this->datosEncabezado['empleado'] ?? '', $this->xTabla, $ancho]];
+            $jefes = $this->datosEncabezado['firmas_jefes'];
+            if (!$jefes) $jefes = [['firma_jefe' => null, 'jefe_nombre' => 'Sin aprobación registrada']];
+            $anchoJefe = $ancho / count($jefes);
+            foreach ($jefes as $posicion => $jefe) {
+                $bloques[] = [$jefe['firma_jefe'] ?? '', 'JEFE APROBADOR', $jefe['jefe_nombre'],
+                    $this->xTabla + $ancho + $posicion * $anchoJefe, $anchoJefe];
+            }
+        } else {
+            $bloques = array_map(function ($bloque) use ($ancho) {
+                return [$this->datosEncabezado[$bloque[0]] ?? '', $bloque[1], $bloque[2]];
+            }, $bloques);
+        }
         foreach ($bloques as $indice => $bloque) {
-            $x = $this->xTabla + $indice * $ancho;
-            $firma = $this->datosEncabezado[$bloque[0]] ?? '';
+            $x = $bloque[3] ?? ($this->xTabla + $indice * $ancho);
+            $anchoBloque = $bloque[4] ?? $ancho;
+            $firma = $bloque[0];
             $imagen = $this->imagenFirma($firma);
             if ($imagen !== null) {
                 [$contenido, $dimensiones] = $imagen;
-                $alto = min(11, 65 * $dimensiones[1] / $dimensiones[0]);
+                $alto = min(11, min(65, $anchoBloque - 8) * $dimensiones[1] / $dimensiones[0]);
                 $w = $alto * $dimensiones[0] / $dimensiones[1];
-                $this->Image('@' . $contenido, $x + ($ancho - $w) / 2, $y + (11 - $alto) / 2,
+                $this->Image('@' . $contenido, $x + ($anchoBloque - $w) / 2, $y + (11 - $alto) / 2,
                     $w, $alto, $dimensiones[2] === IMAGETYPE_JPEG ? 'JPEG' : 'PNG');
             } else {
                 $pendiente = !empty($this->datosEncabezado['biotime']) ? 'Espacio para firma' : ($indice === 0 ? 'Pendiente de firma' : 'Firma no configurada');
-                $this->celda($x, $y + 4, $ancho, 4, $pendiente, 'C', false, 5, 0);
+                $this->celda($x, $y + 4, $anchoBloque, 4, $pendiente, 'C', false, 5, 0);
             }
-            $this->Line($x + 18, $y + 12, $x + $ancho - 18, $y + 12);
-            $this->celda($x, $y + 12.5, $ancho, 3, $bloque[1], 'C', true, 6, 0);
-            $this->celda($x, $y + 15.5, $ancho, 3, $bloque[2], 'C', false, 6, 0);
+            $margen = min(18, $anchoBloque / 6);
+            $this->Line($x + $margen, $y + 12, $x + $anchoBloque - $margen, $y + 12);
+            $this->celda($x, $y + 12.5, $anchoBloque, 3, $bloque[1], 'C', true, 6, 0);
+            $this->celda($x, $y + 15.5, $anchoBloque, 3, $bloque[2], 'C', false, 6, 0);
         }
         $total = count($this->datosEncabezado['jornadas'] ?? []);
         $firmadas = (int) ($this->datosEncabezado['jornadas_firmadas'] ?? 0);
+        $notas = [];
         if ($firmadas > 0 && $firmadas < $total) {
+            $notas[] = 'Firma del trabajador: ' . $firmadas . ' de ' . $total . ' jornadas con confirmación vigente.';
+        }
+        if (!empty($this->datosEncabezado['firmas_recuperadas'])) {
+            $notas[] = 'Firmas recuperadas; aprobadores según soporte e imágenes de firma configuradas.';
+        }
+        if ($notas) {
             $this->celda($this->xTabla, $y + 19, $ancho * 2, 2.5,
-                'Firma del trabajador: ' . $firmadas . ' de ' . $total . ' jornadas con confirmación vigente.', 'C', false, 4.5, 0);
+                implode(' ', $notas), 'C', false, 4.5, 0);
         }
         return $y + 22;
     }
@@ -866,11 +909,28 @@ function je_totales_jornada($jornada)
     return $totales;
 }
 
+/** Neto guardado; en snapshots antiguos descuenta solo NO_LIQ del intervalo congelado. */
+function je_minutos_netos_jornada($jornada)
+{
+    if (isset($jornada['jornada_minutos_ordinarios']) && is_numeric($jornada['jornada_minutos_ordinarios'])) {
+        return max(0, (int)$jornada['jornada_minutos_ordinarios']);
+    }
+    if (empty($jornada['jornada_inicio']) || empty($jornada['jornada_fin'])) return 0;
+    $inicio = new DateTimeImmutable($jornada['jornada_inicio']);
+    $fin = new DateTimeImmutable($jornada['jornada_fin']);
+    $descuento = 0;
+    foreach ($jornada['segmentos'] ?? [] as $segmento) {
+        if ($segmento['codigo'] === 'NO_LIQ') $descuento += (int)$segmento['minutos'];
+    }
+    return max(0, (int)(($fin->getTimestamp() - $inicio->getTimestamp()) / 60) - $descuento);
+}
+
 function je_pdf_empleado(
     JornadaReportePDF $pdf,
     $snapshot,
     $lote
 ) {
+    $pdf->configurarLote($lote);
     $pdf->configurarEmpleado($snapshot);
     $pdf->startPageGroup();
 
@@ -942,7 +1002,7 @@ function je_pdf_empleado(
             );
         }
 
-        if (!empty($snapshot['borrador']) && $numeroPagina === 1) {
+        if ((!empty($snapshot['borrador']) || !empty($snapshot['mostrar_firmas'])) && $numeroPagina === 1) {
             $y = $pdf->dibujarFirmasBorrador($pdf->getPageHeight() - 28.5);
         }
 
@@ -964,7 +1024,7 @@ function je_crear_pdf($snapshots, $lote)
     );
     $pdf->SetCreator('EVDS - ASFALTART');
     $pdf->SetAuthor('ASFALTART S.A.S.');
-    $pdf->SetTitle($lote['jlot_nombre']);
+    $pdf->SetTitle((($lote['jlot_estado'] ?? '') === 'ANULADO' ? 'ANULADO - ' : '') . $lote['jlot_nombre']);
     $pdf->setPrintHeader(true);
     $pdf->setPrintFooter(false);
     $pdf->SetHeaderMargin(0);

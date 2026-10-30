@@ -223,9 +223,10 @@ function rcCargarLotes(seleccionarId) {
     });
 }
 
+// Los anulados con snapshots conservan únicamente las descargas históricas.
 function rcAccionesLote(lote) {
     const id = lote.jlot_id;
-    if (lote.jlot_estado === 'ANULADO') return '';
+    if (lote.jlot_estado === 'ANULADO' && !rcFilasActuales.some(function (fila) { return !!fila.jle_snapshot; })) return '';
     const anular = '<button class="btn btn-sm btn-outline-danger ml-2" id="btn-anular-lote">'
         + '<i class="fas fa-ban mr-1"></i>Anular lote</button>';
     if (lote.jlot_estado === 'BORRADOR') {
@@ -260,6 +261,7 @@ function rcAbrirLote(loteId) {
             rcNombreLote(rcLoteActual.jlot_nombre)
             + ' — versión ' + (rcLoteActual.jlot_version || 1)
             + ' — corte ' + rcLoteActual.jlot_fecha_corte
+            + (rcLoteActual.jlot_estado === 'ANULADO' ? ' — ANULADO (consulta histórica)' : '')
         );
         $('#acciones-lote').html(rcAccionesLote(rcLoteActual));
 
@@ -303,7 +305,7 @@ function rcAbrirLote(loteId) {
                         orderable: false,
                         searchable: false,
                         render: function (fila) {
-                            if (rcLoteActual.jlot_estado === 'ANULADO') return '';
+                            if (rcLoteActual.jlot_estado === 'ANULADO' && !fila.jle_snapshot) return '';
                             if (rcLoteActual.jlot_estado === 'BORRADOR') {
                                 return '<button class="btn btn-sm btn-primary btn-editar-periodo" '
                                     + 'data-id="' + fila.jle_id + '" title="Ajustar periodo">'

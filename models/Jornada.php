@@ -654,18 +654,10 @@ class Jornada extends Conectar
         $db = parent::Conexion();
         $stmt = $db->prepare('SELECT emp.nomb_empl AS empleado, emp.cedu_empl AS documento,
                 cargo.nomb_carg AS cargo, emp.fecha_naci_empl AS fecha_nacimiento,
-                genero.desc_gene AS sexo, jefe.nomb_empl AS jefe_nombre, firma.firma_base64 AS firma_jefe
+                genero.desc_gene AS sexo
             FROM empleados emp
             LEFT JOIN cargo ON cargo.codi_carg = emp.carg_empl
             LEFT JOIN genero ON genero.id_gene = emp.gene_empl
-            LEFT JOIN LATERAL (
-                SELECT ej.jefe_id FROM empleado_jefe ej
-                INNER JOIN empleados j ON j.id_empl = ej.jefe_id AND j.esta_empl = 1
-                WHERE ej.empleado_id = emp.id_empl AND ej.ej_estado = 1
-                ORDER BY ej.jefe_id LIMIT 1
-            ) relacion ON true
-            LEFT JOIN empleados jefe ON jefe.id_empl = relacion.jefe_id
-            LEFT JOIN firma_usuario firma ON firma.user_id = jefe.id_empl
             WHERE emp.id_empl = ? AND emp.esta_empl = 1');
         $stmt->execute([(int) $empleado_id]);
         $datos = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -683,14 +675,30 @@ class Jornada extends Conectar
         if (!$datos['jornadas']) throw new RuntimeException('No existen jornadas reportables para el periodo y estado seleccionados.');
         $datos['totales'] = ['ORD' => array_sum(array_column($datos['jornadas'], 'jornada_minutos_ordinarios'))];
 
-        // Conserva una sola firma y verifica que su evidencia corresponda al registro actual.
+        return array_merge($datos, self::obtener_firmas_pdf($db, $empleado_id, $datos['jornadas']));
+    }
+
+    /** Firmas compartidas por Historial y Contabilidad, verificadas contra las jornadas del documento. */
+    public static function obtener_firmas_pdf(PDO $db, $empleado_id, array $jornadas, $fecha_limite = null)
+    {
+        $datos = array_merge(['jefe_nombre' => null, 'firma_jefe' => null,
+            'firma_empleado' => null, 'fecha_firma_empleado' => null,
+            'jornadas_firmadas' => 0, 'mostrar_firmas' => true],
+            self::obtener_aprobadores_pdf($db, $empleado_id, $jornadas, $fecha_limite));
+        $por_id = array_column($jornadas, null, 'jornada_id');
+        if (!$por_id) return $datos;
+        $ids = array_map('intval', array_keys($por_id));
+        $marcadores = implode(',', array_fill(0, count($ids), '?'));
+        // Usa los IDs congelados, no las fechas actuales de registros que pudieron cambiar.
+        $limite_reporte = $fecha_limite !== null ? ' AND r.jrf_fecha_firma <= ?::timestamp' : '';
+        $limite_obra = $fecha_limite !== null ? ' AND c.jco_fecha_confirmacion <= ?::timestamp' : '';
         $stmt = $db->prepare("SELECT d.jornada_id, d.jrd_snapshot AS snapshot,
                 r.jrf_firma_base64 AS firma, r.jrf_fecha_firma AS fecha
             FROM jornada_reportes_firma r
             INNER JOIN jornada_reporte_detalle d ON d.jrf_id = r.jrf_id
             INNER JOIN jornadas_trabajo j ON j.jornada_id = d.jornada_id
             WHERE r.empleado_id = ? AND j.empleado_id = ? AND r.jrf_estado = 'FIRMADO'
-              AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
+              AND d.jornada_id IN ($marcadores) $limite_reporte
             UNION ALL
             SELECT d.jornada_id, d.jcod_snapshot, c.jco_firma_base64, c.jco_fecha_confirmacion
             FROM jornada_confirmaciones_obra c
@@ -698,10 +706,11 @@ class Jornada extends Conectar
             INNER JOIN jornadas_trabajo j ON j.jornada_id = d.jornada_id
             WHERE c.empleado_id = ? AND j.empleado_id = ?
               AND c.jco_estado = 'VIGENTE' AND d.jcod_estado = 'VIGENTE'
-              AND j.jornada_inicio::date BETWEEN ?::date AND ?::date
+              AND d.jornada_id IN ($marcadores) $limite_obra
             ORDER BY fecha DESC, jornada_id DESC");
-        $stmt->execute([$empleado_id, $empleado_id, $desde, $hasta, $empleado_id, $empleado_id, $desde, $hasta]);
-        $por_id = array_column($datos['jornadas'], null, 'jornada_id');
+        $parametros = array_merge([$empleado_id, $empleado_id], $ids, $fecha_limite !== null ? [$fecha_limite] : [],
+            [$empleado_id, $empleado_id], $ids, $fecha_limite !== null ? [$fecha_limite] : []);
+        $stmt->execute($parametros);
         $firmadas = [];
         $datos['firma_empleado'] = null;
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $evidencia) {
@@ -710,6 +719,8 @@ class Jornada extends Conectar
             if (!isset($por_id[$id]) || !is_array($snapshot) || empty($evidencia['firma'])) continue;
             foreach (['jornada_inicio', 'jornada_fin', 'jornada_minutos_ordinarios',
                 'jornada_ubicacion', 'jornada_actividad', 'jornada_observaciones'] as $campo) {
+                // Los snapshots contables antiguos no incluían este campo; verifica los demás.
+                if ($campo === 'jornada_minutos_ordinarios' && !array_key_exists($campo, $por_id[$id])) continue;
                 if (!array_key_exists($campo, $snapshot) || (string) $snapshot[$campo] !== (string) $por_id[$id][$campo]) continue 2;
             }
             $firmadas[$id] = true;
@@ -719,6 +730,48 @@ class Jornada extends Conectar
             }
         }
         $datos['jornadas_firmadas'] = count($firmadas);
+        return $datos;
+    }
+
+    /** Firmantes reales de las jornadas, sin sustituirlos por la jefatura asignada actualmente. */
+    public static function obtener_aprobadores_pdf(PDO $db, $empleado_id, array $jornadas, $fecha_limite = null)
+    {
+        $datos = ['jefe_nombre' => null, 'firma_jefe' => null, 'firmas_jefes' => []];
+        $por_id = array_column($jornadas, null, 'jornada_id');
+        if (!$por_id) return $datos;
+        $ids = array_map('intval', array_keys($por_id));
+        $marcadores = implode(',', array_fill(0, count($ids), '?'));
+        $limite = $fecha_limite !== null ? ' AND apr.jap_fecha <= ?::timestamp' : '';
+        $stmt = $db->prepare("SELECT DISTINCT ON (apr.jornada_id)
+                apr.jornada_id, apr.jap_empleado_id AS empleado_id,
+                jefe.nomb_empl AS jefe_nombre, firma.firma_base64 AS firma_jefe
+            FROM jornada_aprobaciones apr
+            INNER JOIN jornadas_trabajo j ON j.jornada_id = apr.jornada_id
+            LEFT JOIN empleados jefe ON jefe.id_empl = apr.jap_empleado_id
+            LEFT JOIN firma_usuario firma ON firma.user_id = jefe.id_empl
+            WHERE j.empleado_id = ? AND apr.jornada_id IN ($marcadores)
+              AND apr.jap_decision = 'APROBADO' $limite
+            ORDER BY apr.jornada_id, apr.jap_fecha DESC, apr.jap_id DESC");
+        $stmt->execute(array_merge([$empleado_id], $ids, $fecha_limite !== null ? [$fecha_limite] : []));
+        $jefes = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $aprobacion) {
+            $jornada = $por_id[(int)$aprobacion['jornada_id']];
+            // En un cierre antiguo no atribuye una aprobación a un responsable distinto del congelado.
+            if (!empty($jornada['aprobado_por_id']) && (int)$jornada['aprobado_por_id'] !== (int)$aprobacion['empleado_id']) continue;
+            if (!empty($jornada['aprobado_por']) && trim($jornada['aprobado_por']) !== trim($aprobacion['jefe_nombre'] ?? '')) continue;
+            if (empty($aprobacion['empleado_id']) || empty($aprobacion['jefe_nombre'])) continue;
+            $id = (int)$aprobacion['empleado_id'];
+            if (!isset($jefes[$id])) $jefes[$id] = ['empleado_id' => $id,
+                'jefe_nombre' => $aprobacion['jefe_nombre'], 'firma_jefe' => $aprobacion['firma_jefe'], 'jornadas_aprobadas' => []];
+            $jefes[$id]['jornadas_aprobadas'][] = (int)$aprobacion['jornada_id'];
+        }
+        ksort($jefes);
+        $datos['firmas_jefes'] = array_values($jefes);
+        if (count($jefes) === 1) {
+            $jefe = reset($jefes);
+            $datos['jefe_nombre'] = $jefe['jefe_nombre'];
+            $datos['firma_jefe'] = $jefe['firma_jefe'];
+        }
         return $datos;
     }
 
