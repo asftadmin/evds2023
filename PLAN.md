@@ -274,3 +274,75 @@ Estado: implementado; validado con PostgreSQL temporal y Chrome con API simulada
 - view/MntTicketsSistemas/tickets_sistemas.js: inicializa los cuatro Select2 del formulario en shown.bs.modal, después de la transición de Bootstrap; mantiene una sola instancia y usa .modal-content como dropdownParent para mantener los desplegables dentro del formulario. El filtro de estado conserva su inicialización exterior.
 - tests/tickets_soportes_vista.cjs: incorpora CSS de AdminLTE, Select2 y tema Bootstrap 4; espera el fin real de las transiciones, verifica apertura repetida de los cuatro selectores, búsqueda, selección, filtro exterior y reapertura del modal sin duplicar instancias. Conserva las verificaciones de soportes.
 - Validación: Chrome/API simulada satisfactoria y sintaxis JavaScript correcta. Sin cambios en controladores, modelos ni base de datos.
+
+## HU-01: Microsoft Graph mediante cURL (2026-11-11)
+
+Estado actualizado durante HU-02: finalizada y revalidada. OAuth, 133 usuarios y paginación confirmados en CLI; consulta autenticada confirmada bajo Apache/XAMPP. Los resultados iniciales siguientes se conservan como antecedente, ya resuelto.
+
+- `controller/curl.php`: incorpora en `CurlController` los métodos `obtenerTokenMicrosoftGraph()` (privado) y `requestMicrosoftGraph($url, $method, $data = null)` (público), más auxiliares privados de validación de URL y transporte. Los tres métodos anteriores permanecen idénticos a HEAD, verificado por comparación de contenido.
+- OAuth Client Credentials mediante POST form-urlencoded al tenant, scope `https://graph.microsoft.com/.default`. Variables obligatorias: `MS_GRAPH_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_GRAPH_CLIENT_SECRET`. Se usa `getenv()`, como la integración existente; no se incorpora un cargador `.env` ni se guardan tokens en disco.
+- Solo GET sin cuerpo: `$data` reservado como `null`; otros métodos se rechazan antes de autenticar. Admite recursos JSON de v1.0, sin limitarse a usuarios ni filtrar correos. Retorno `stdClass`, colecciones en `->value`, objetos individuales sin cambios.
+- Paginación: usa literalmente cada URL `@odata.nextLink`, acumula `value`, conserva metadatos de la primera página y elimina el enlace al finalizar. Detecta ciclos y un límite de 10.000 páginas; cualquier error aborta toda la consulta. Reutiliza el token y permite una renovación ante 401 por consulta.
+- HTTPS con certificado/host verificados, sin redirecciones, únicamente `graph.microsoft.com` en v1.0 para consultas. Timeouts de conexión/solicitud: 10/30 s. Hasta tres reintentos por solicitud para 429/5xx, `Retry-After` en segundos o fecha HTTP; fallback exponencial 1/2/4 s. Presupuesto acumulado de espera de 60 s por solicitud: si el servidor pide más, se aborta sin adelantar el reintento. Logs con mensajes locales y códigos técnicos, sin cuerpos remotos, URLs, usuarios ni secretos.
+- Sin SQL, cambios de base de datos, interfaces, endpoints HTTP de prueba, sincronización ni cambios de permisos Entra. Se mantiene el permiso de aplicación `User.Read.All` indicado como ya autorizado.
+
+Pruebas ejecutadas:
+
+- `C:\xampp\php\php.exe -l controller/curl.php` y `C:\xampp\php\php.exe -l tests/microsoft_graph.php`: correctas con PHP 8.2.12.
+- `C:\xampp\php\php.exe tests/microsoft_graph.php`: 180 verificaciones aisladas satisfactorias. cURL simulado sobre el código real: OAuth, codificación del secreto, campos nulos, varias páginas, páginas vacías, enlaces intactos, token reutilizado/renovado, destinos rechazados, ciclos, fallos intermedios, HTTP 400/401/403/429/5xx, JSON inválido, timeout y límites de espera. No constituye una conexión autenticada real.
+- Sondeo de usuarios desde PHP mediante el transporte nuevo sin Authorization: HTTP 401 real, confirmando alcance HTTPS y validación TLS. El primer intento restringido falló con cURL 7; el sondeo fuera del sandbox sí alcanzó Graph. No confirma autenticación ni devuelve usuarios.
+- `C:\xampp\php\php.exe tests/microsoft_graph.php --live`: ejecutado; termina con código 1 y error controlado por ausencia de `MS_GRAPH_TENANT_ID`, antes de contactar OAuth. Las tres variables están ausentes en PHP CLI y Windows (usuario/máquina); no se encontraron referencias en la configuración Apache revisada. cURL habilitado y archivo CA configurado presentes.
+- Apache no estaba ejecutándose. Se revisó su configuración del módulo PHP de XAMPP, pero no se ha comprobado `getenv()` ni una solicitud autenticada dentro del SAPI Apache. No se probaron conexiones reales a SIESA, BioTime o Control de Equipos; sus implementaciones no cambiaron.
+
+Requisitos iniciales de cierre HU-01 (resueltos y revalidados durante HU-02):
+
+1. Configurar las tres variables privadamente en el entorno del proceso o con `SetEnv` en configuración Apache fuera de `htdocs` y Git, incluida por Apache. No pegar valores en este documento ni en el chat. Reiniciar Apache/XAMPP. Un archivo `.env` por sí solo no se carga. CLI no hereda los `SetEnv` de Apache: configurar también su entorno privado para `--live`.
+2. Verificar en PHP ejecutado por Apache la presencia de las variables (solo booleanos), cURL y certificados; ejecutar la consulta desde un contexto administrativo privado, sin publicar un endpoint de diagnóstico.
+3. Ejecutar `tests/microsoft_graph.php --live`: compara la consulta solicitada con otra usando `$top=2`, comprueba los cuatro campos, igualdad de IDs y ausencia de duplicados; solo imprime el conteo. Requiere más de dos usuarios para confirmar varias páginas; si el directorio cambia entre lecturas, repetir la prueba. Documentar el resultado real y la validación bajo Apache antes de marcar esta fase completa.
+
+Referencias: [Client Credentials](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow), [paginación](https://learn.microsoft.com/en-us/graph/paging), [Retry-After](https://learn.microsoft.com/en-us/graph/throttling) y [consulta de usuarios/permisos](https://learn.microsoft.com/en-us/graph/api/user-list?view=graph-rest-1.0).
+
+## HU-02: Sincronización de usuarios Microsoft 365 (2026-11-11)
+
+Estado: implementada, menú registrado y validada con PostgreSQL aislado, Chrome y consultas reales bajo Apache. Las vinculaciones productivas quedan a cargo de la confirmación manual del administrador; durante las pruebas no se modificó ningún `user_graph_id` real.
+
+- Vista `view/MntMicrosoft365/sincronizacion.php` y JavaScript externo: consulta manual, cuatro indicadores dinámicos, DataTables responsive en español, búsqueda/paginación/orden, filtro Select2, Guardar con SweetAlert2, modal Editar informativo y confirmación de sustitución. Revisar explica conflictos; un vinculado sin diferencias no envía una escritura. Los fallos invalidan la comparación visible.
+- `controller/microsoft365.php`: operaciones `consultar`, `guardar`, `editar`, JSON consistente `status/message/data`, Content-Type UTF-8 y no-store. Verifica sesión, permiso vigente en BD, POST y CSRF antes de llamar Graph. Reutiliza exclusivamente `CurlController::requestMicrosoftGraph('users?$select=id,displayName,mail,userPrincipalName', 'GET')`; también vuelve a consultar todas las cuentas antes de cada escritura. No contiene SQL.
+- `models/Usuarios.php`: verificación del esquema, autorización administrativa, normalización de correo, UUID/IDs, comparación y escritura transaccional. SQL parametrizado; relación exacta `e.user_empl = u.user_id`. Solo muestra empleados `esta_empl = 1`, usuario relacionado y correo de dominio exacto `asfaltart.com`. No infiere que id_empl y user_id coincidan.
+- Estados: Nuevo (único match sin ID local, Guardar), Vinculado (mismo ID, Editar sin UPDATE), Cambio detectado (ID distinto, Editar confirmado), Sin coincidencia (Revisar), Conflicto (Revisar, escrituras bloqueadas). Prioridad visual mail; UPN como alternativa. La unión de coincidencias debe identificar una sola cuenta: mail/UPN distintos o varias cuentas nunca se resuelven arbitrariamente.
+- Duplicidades: correos locales, usuario compartido por empleados corporativos, cuenta Graph candidata a varios registros y Object ID asignado a cualquier otro usuario, incluso fuera del listado. Por seguridad los duplicados locales inactivos también requieren revisión, aunque no se muestran como empleados activos. Caso real verificado: usuario 10 activo y usuario 28 inactivo comparten el correo conocido, ambos sin ID; el listado muestra al 10 en Conflicto. Ninguna regla depende de esos IDs y no se corrigen sus correos/estados automáticamente.
+- Antes de guardar se compara de nuevo la cuenta Graph verificada y el estado local confirmado (empleado, usuario, correo, ID actual y propuesto). Se revalida el permiso dentro de la transacción. Solo se actualiza `usuarios.user_graph_id` de un usuario. Una edición idéntica devuelve éxito sin UPDATE; una precondición obsoleta o conflicto produce 409.
+- Concurrencia sin cambios de esquema: `SHARE ROW EXCLUSIVE` sobre usuarios y `SHARE` sobre empleados durante la comprobación y UPDATE, con espera máxima de lock de 5 s. Impide que dos escritores validen simultáneamente el mismo ID y que cambien correo/relación/estado durante la escritura. No mantiene bloqueos durante llamadas Graph. Este bloqueo breve serializa escrituras de usuarios; ante contención se aborta y debe repetirse la consulta.
+- Esquema verificado directamente tras actualizar el usuario la conexión: `empleados.email_empl` text, `esta_empl` integer y `usuarios.user_graph_id` UUID nullable existentes. El respaldo `C:/Users/Cristian/Downloads/Telegram Desktop/evds2023.sql` es anterior a email_empl, user_graph_id y agrupación del menú. No se ejecutó ninguna migración ni se crearon columnas.
+
+Intervención administrativa aplicada:
+
+- `Menu::registrar_microsoft365()` y CLI `others/registrar_microsoft365.php --aplicar`: registro idempotente por identificador/ruta, grupo Administración y rol Administrador resueltos por nombre, sin IDs fijos. SQL únicamente en el modelo; el comando verifica el esquema primero y rechaza acceso HTTP.
+- En la base actualmente configurada se creó `menu_id = 33`, nombre Sincronización Microsoft 365, ruta `../MntMicrosoft365/`, identificador `sincronizacion`, dentro del grupo Administración (6). Se crearon seis permisos: Administrador habilitado; Recurso Humano, Gerencia, Empleado, Jefe Inmediato y Contabilidad sin acceso. No se alteraron permisos de otros menús. Segunda ejecución confirmó `creado: false` y conservó permisos.
+- Acceso exige rol real Administrador activo, empleado activo, menú/grupo activos y `perm_usua = 'Si'`/`perm_esta = 1`. No se heredan permisos de jefe ni se confía en el rol enviado por el navegador. La vista usa la misma comprobación que AJAX.
+
+Pruebas realizadas y criterios:
+
+- PHP 8.2.12: `php -l` correcto para los modelos y todos los PHP nuevos; `node --check` correcto para la interfaz y suite CJS. Comprobación de whitespace de los archivos de HU-02 correcta. Los cambios de configuración efectuados por el usuario se conservaron.
+- `php tests/microsoft365.php`: 19 comprobaciones de los estados, dominio exacto, normalización, UPN nulo/mail alternativo, duplicados locales/Graph, caso 10/28, propietarios externos, UUID y entradas inválidas.
+- `php tests/microsoft365.php --db`: 37 comprobaciones totales con tablas vacías copiadas del esquema real, secuencias propias y roles/IDs sintéticos. Guardar modifica solo el campo de un usuario; xmin confirma que Editar sin diferencias no hace UPDATE; sustitución correcta, conflictos y rollback, autorización, menú idempotente y bloqueo concurrente con dos conexiones. Esquema eliminado al terminar; cero esquemas de prueba restantes.
+- `php tests/microsoft365_http.php`: 11 escenarios del controlador real con servicios simulados: 401, 403, 405, CSRF, operación inválida, Graph fallido/incompleto, consulta, guardado, edición y edición sin cambios. JSON válido, sin filtrar errores remotos.
+- `node tests/microsoft365_vista.cjs`: Chrome con API sintética; consulta solo al pulsar, carga, tarjetas, filtro Select2, escape XSS, cancelación, guardado, edición, revisión, error Graph, conflicto concurrente, recuperación, botones al paginar y viewport móvil; sin errores JavaScript. Playwright se instaló únicamente en `.cache/m365-tools` (ignorada por Git) para ejecutar pruebas; sin dependencias nuevas de la aplicación. La suite acepta `PLAYWRIGHT_MODULE` o el Playwright del entorno.
+- HU-01: 180 comprobaciones aisladas siguen pasando; `php tests/microsoft_graph.php --live` recuperó 133 usuarios y verificó paginación con `$top=2`. Para esta sesión CLI se heredaron en memoria las variables Machine de Windows, sin imprimirlas ni escribirlas en archivos. No se modificó `controller/curl.php` durante HU-02.
+- `php tests/microsoft365_integracion.php --live`: Apache real; sesión administrativa temporal, rechazo sin sesión/permiso/CSRF y escritura GET, vista autorizada/denegada, consulta real repetida. Hash de user_id/user_graph_id antes y después idéntico. Resultado observado: 18 empleados corporativos, 1 Vinculado, 15 Nuevos y 2 para revisión. Sesiones de prueba eliminadas; cero archivos de sesión HU-02 restantes. No se probaron escrituras productivas.
+- CA-01 a CA-25 cubiertos por implementación y pruebas anteriores. La validación de escrituras usa datos sintéticos aislados; la integración productiva se limita deliberadamente a lectura y controles de acceso.
+
+Pendientes operativos:
+
+- Resolver administrativamente las duplicidades de datos, incluido el correo compartido de 10/28, antes de vincular esas filas; esta historia no autoriza modificar correos, empleados o estados.
+- Guardar/Editar vinculaciones reales únicamente desde el módulo y con confirmación del administrador. Para otra instalación, verificar el esquema existente y ejecutar el registro CLI del menú; no se incluyen migraciones de estructura.
+- Planner y Evaluación de Desempeño permanecen fuera del alcance. No se alteraron autenticación, contraseñas, roles de usuarios, integraciones existentes ni datos de empleados.
+
+Commit propuesto: `feat(microsoft365): agregar vinculación manual segura de usuarios con Microsoft Entra`.
+
+
+### Ajuste responsive y orden de Microsoft 365 (2026-11-11)
+
+- La tabla usa un contenedor Bootstrap table-responsive, permite envolver texto y recalcula anchos/columnas responsive después de recibir los datos AJAX. Prioriza ID, acciones, empleado y estado; las columnas restantes se pliegan según el espacio.
+- Orden inicial numérico por ID usuario ascendente, manteniendo la posibilidad de ordenar otras columnas.
+- Validado con php -l, node --check y Chrome/API simulada con nombres/correos largos y UUID completos: tabla dentro de la tarjeta en escritorio y móvil, acciones accesibles y orden 1, 2, 3, 4, 10, 28. Sin cambios en consultas o vinculaciones.

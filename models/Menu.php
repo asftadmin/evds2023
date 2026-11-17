@@ -2,6 +2,50 @@
 
 class Menu extends Conectar {
 
+    /** Registra HU-02 una sola vez; conserva permisos existentes al repetir el despliegue. */
+    public function registrar_microsoft365()
+    {
+        $db = parent::Conexion();
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        try {
+            $db->beginTransaction();
+            $db->exec("SET LOCAL lock_timeout = '5s'");
+            $db->exec('LOCK TABLE public.menu, public.permisos IN SHARE ROW EXCLUSIVE MODE');
+            $stmt = $db->prepare("SELECT menu_id, menu_ruta FROM public.menu WHERE menu_ident = ?");
+            $stmt->execute(['sincronizacion']);
+            $existentes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($existentes) {
+                if (count($existentes) !== 1 || $existentes[0]['menu_ruta'] !== '../MntMicrosoft365/') {
+                    throw new DomainException('El identificador de menú sincronizacion ya está ocupado.');
+                }
+                $db->commit();
+                return ['menu_id' => (int) $existentes[0]['menu_id'], 'creado' => false];
+            }
+            // Se resuelven grupo y rol por los nombres verificados, nunca por IDs fijos.
+            $stmt = $db->prepare("SELECT grme_id FROM public.grupos_menu WHERE grme_nomb = ? AND grme_esta = 1");
+            $stmt->execute(['Administración']);
+            $grupos = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $stmt = $db->prepare("SELECT rol_id FROM public.rol WHERE rol_nomb = ? AND rol_esta = 1");
+            $stmt->execute(['Administrador']);
+            $roles = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (count($grupos) !== 1 || count($roles) !== 1) {
+                throw new DomainException('No se identificó un grupo Administración y un rol Administrador únicos y activos.');
+            }
+            $stmt = $db->prepare("INSERT INTO public.menu (menu_nomb, menu_ruta, menu_ident, menu_esta, menu_icon, menu_grupo, menu_orden)
+                SELECT ?, ?, ?, 1, ?, ?, COALESCE(MAX(menu_orden), 0) + 1 FROM public.menu WHERE menu_grupo = ? RETURNING menu_id");
+            $stmt->execute(['Sincronización Microsoft 365', '../MntMicrosoft365/', 'sincronizacion', 'fas fa-sync-alt', $grupos[0], $grupos[0]]);
+            $id = (int) $stmt->fetchColumn();
+            $stmt = $db->prepare("INSERT INTO public.permisos (perm_menu, perm_rol, perm_usua, perm_esta)
+                SELECT ?, rol_id, CASE WHEN rol_id = ? THEN 'Si' ELSE 'No' END, 1 FROM public.rol");
+            $stmt->execute([$id, $roles[0]]);
+            $db->commit();
+            return ['menu_id' => $id, 'creado' => true];
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) { $db->rollBack(); }
+            throw $e;
+        }
+    }
+
     /*
      * Lista los menús autorizados para el rol principal y, cuando corresponde,
      * incorpora los permisos del rol Jefe Inmediato. También retorna grupo y orden.

@@ -2,6 +2,235 @@
 
 class Usuario extends Conectar {
 
+    /** Abre una conexión para HU-02 con errores transaccionales controlables. */
+    private function conexionMicrosoft365()
+    {
+        $db = parent::Conexion();
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        return $db;
+    }
+
+    /** Valida el esquema existente; nunca crea ni modifica columnas. */
+    public function verificar_esquema_microsoft365()
+    {
+        $db = $this->conexionMicrosoft365();
+        $stmt = $db->prepare("SELECT table_name, column_name, data_type, is_nullable
+            FROM information_schema.columns WHERE table_schema = 'public'
+            AND ((table_name = 'usuarios' AND column_name = 'user_graph_id')
+              OR (table_name = 'empleados' AND column_name = 'email_empl'))");
+        $stmt->execute();
+        $columnas = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), null, 'column_name');
+        if (!isset($columnas['email_empl'], $columnas['user_graph_id'])
+            || $columnas['user_graph_id']['data_type'] !== 'uuid'
+            || $columnas['user_graph_id']['is_nullable'] !== 'YES') {
+            throw new DomainException('El esquema requiere revisión: email_empl y user_graph_id UUID nullable deben existir. No se aplicaron cambios.');
+        }
+    }
+
+    /** Revalida el rol real y su permiso de menú, sin confiar en el rol enviado o en caché. */
+    public function autorizado_microsoft365($userId)
+    {
+        return $this->permisoMicrosoft365($this->conexionMicrosoft365(), $userId);
+    }
+
+    /** Usa el mecanismo rol/menú/permisos también dentro de la transacción de escritura. */
+    private function permisoMicrosoft365(PDO $db, $userId)
+    {
+        $stmt = $db->prepare("SELECT EXISTS (SELECT 1 FROM public.usuarios u
+            JOIN public.rol r ON r.rol_id = u.user_rol
+            JOIN public.permisos p ON p.perm_rol = r.rol_id
+            JOIN public.menu m ON m.menu_id = p.perm_menu
+            LEFT JOIN public.grupos_menu g ON g.grme_id = m.menu_grupo
+            WHERE u.user_id = ? AND r.rol_nomb = 'Administrador' AND r.rol_esta = 1
+              AND m.menu_ident = 'sincronizacion' AND m.menu_ruta = '../MntMicrosoft365/'
+              AND m.menu_esta = 1 AND p.perm_esta = 1 AND p.perm_usua = 'Si'
+              AND (m.menu_grupo IS NULL OR g.grme_esta = 1)
+              AND EXISTS (SELECT 1 FROM public.empleados e WHERE e.user_empl = u.user_id AND e.esta_empl = 1))");
+        $stmt->execute([$userId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    /** Normaliza solo extremos y mayúsculas; nunca realiza coincidencias parciales. */
+    public static function correo_microsoft365($correo)
+    {
+        return is_string($correo) ? mb_strtolower(trim($correo), 'UTF-8') : '';
+    }
+
+    /** Valida el UUID completo sin admitir valores arbitrarios ni conversiones parciales. */
+    public static function uuid_microsoft365($id)
+    {
+        if (!is_string($id) || !preg_match('/\A[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\z/i', $id)) {
+            throw new InvalidArgumentException('El Object ID no tiene un formato UUID válido.');
+        }
+        return strtolower($id);
+    }
+
+    /** Valida todos los parámetros de escritura antes de consultar servicios externos. */
+    public static function validar_vinculacion_microsoft365(array $entrada)
+    {
+        foreach (['user_id', 'id_empl'] as $campo) {
+            if ((!is_string($entrada[$campo] ?? null) && !is_int($entrada[$campo] ?? null))
+                || !preg_match('/\A[1-9][0-9]*\z/', (string) $entrada[$campo])
+                || (float) $entrada[$campo] > 2147483647) {
+                throw new InvalidArgumentException('Identificador local inválido.');
+            }
+            $entrada[$campo] = (int) $entrada[$campo];
+        }
+        $entrada['graph_id'] = self::uuid_microsoft365($entrada['graph_id'] ?? null);
+        if (!array_key_exists('actual', $entrada)) { throw new InvalidArgumentException('Falta el estado de la vinculación consultada.'); }
+        $entrada['actual'] = $entrada['actual'] === '' || $entrada['actual'] === null ? null : self::uuid_microsoft365($entrada['actual']);
+        if (!is_string($entrada['correo'] ?? null) || self::correo_microsoft365($entrada['correo']) === '') {
+            throw new InvalidArgumentException('Debe indicar el correo consultado.');
+        }
+        $entrada['correo'] = self::correo_microsoft365($entrada['correo']);
+        return $entrada;
+    }
+
+    /** Lee empleados relacionados y asignaciones globales; la consulta nunca escribe. */
+    private function datosMicrosoft365(PDO $db, array $cuentas)
+    {
+        $stmt = $db->prepare("SELECT e.id_empl, e.nomb_empl, e.email_empl, e.esta_empl,
+                u.user_id, u.user_graph_id
+            FROM public.empleados e JOIN public.usuarios u ON e.user_empl = u.user_id
+            WHERE e.email_empl IS NOT NULL ORDER BY e.nomb_empl, e.id_empl");
+        $stmt->execute();
+        $empleados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $db->prepare('SELECT user_id, user_graph_id FROM public.usuarios WHERE user_graph_id IS NOT NULL');
+        $stmt->execute();
+        return self::comparar_microsoft365($empleados, $cuentas, $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** Compara todas las páginas obtenidas por CurlController sin modificar PostgreSQL. */
+    public function consultar_microsoft365(array $cuentas)
+    {
+        return $this->datosMicrosoft365($this->conexionMicrosoft365(), $cuentas);
+    }
+
+    /**
+     * Motor de comparación: mail tiene prioridad visual, pero mail/UPN deben ser inequívocos.
+     * También considera correos duplicados de empleados inactivos para exigir revisión;
+     * solo muestra empleados activos del dominio exacto y con usuario relacionado.
+     */
+    public static function comparar_microsoft365(array $empleados, array $cuentas, array $asignados)
+    {
+        $indice = ['mail' => [], 'userPrincipalName' => []];
+        $porId = [];
+        foreach ($cuentas as $cuenta) {
+            $cuenta = (array) $cuenta;
+            $id = self::uuid_microsoft365($cuenta['id'] ?? null);
+            foreach (['mail', 'userPrincipalName'] as $campo) {
+                if (!array_key_exists($campo, $cuenta) || ($cuenta[$campo] !== null && !is_string($cuenta[$campo]))) {
+                    throw new DomainException('Microsoft 365 devolvió una cuenta incompleta. Repita la consulta.');
+                }
+                $correo = self::correo_microsoft365($cuenta[$campo]);
+                if ($correo !== '') { $indice[$campo][$correo][$id] = true; }
+            }
+            $porId[$id] = $cuenta;
+        }
+
+        // Incluye todas las asignaciones, aunque el propietario no aparezca en el listado.
+        $propietarios = [];
+        foreach ($asignados as $asignado) {
+            if (!empty($asignado['user_graph_id'])) {
+                $propietarios[strtolower($asignado['user_graph_id'])][(int) $asignado['user_id']] = true;
+            }
+        }
+        $correos = $usuarios = $candidatos = $filas = [];
+        foreach ($empleados as $empleado) {
+            $correo = self::correo_microsoft365($empleado['email_empl'] ?? null);
+            $usuario = (int) ($empleado['user_id'] ?? 0);
+            if ($usuario <= 0 || !preg_match('/\A[^@\s]+@asfaltart\.com\z/u', $correo)) { continue; }
+            $correos[$correo] = ($correos[$correo] ?? 0) + 1;
+            $usuarios[$usuario] = ($usuarios[$usuario] ?? 0) + 1;
+            if ((int) $empleado['esta_empl'] !== 1) { continue; }
+            $matchesMail = $indice['mail'][$correo] ?? [];
+            $matches = $matchesMail + ($indice['userPrincipalName'][$correo] ?? []);
+            $id = count($matches) === 1 ? (string) array_key_first($matches) : null;
+            if ($id !== null) { $candidatos[$id] = ($candidatos[$id] ?? 0) + 1; }
+            $filas[] = [
+                'id_empl' => (int) $empleado['id_empl'], 'user_id' => $usuario,
+                'empleado' => $empleado['nomb_empl'], 'correo' => $correo,
+                'correo_microsoft' => $id === null ? null : self::correo_microsoft365($porId[$id][isset($matchesMail[$id]) ? 'mail' : 'userPrincipalName']),
+                'cuenta_microsoft' => $id === null ? null : ($porId[$id]['displayName'] ?? ''),
+                'actual' => empty($empleado['user_graph_id']) ? null : strtolower($empleado['user_graph_id']),
+                'encontrado' => $id, 'coincidencias' => count($matches)
+            ];
+        }
+
+        $indicadores = ['total' => count($filas), 'vinculados' => 0, 'pendientes' => 0, 'revision' => 0];
+        foreach ($filas as &$fila) {
+            $id = $fila['encontrado'];
+            $otros = $id === null ? [] : array_diff(array_keys($propietarios[$id] ?? []), [$fila['user_id']]);
+            $otrosActual = $fila['actual'] === null ? [] : array_diff(array_keys($propietarios[$fila['actual']] ?? []), [$fila['user_id']]);
+            $motivos = [];
+            if ($correos[$fila['correo']] > 1) { $motivos[] = 'El correo está compartido por varios empleados locales.'; }
+            if ($usuarios[$fila['user_id']] > 1) { $motivos[] = 'El usuario está relacionado con varios empleados corporativos.'; }
+            if ($fila['coincidencias'] > 1) { $motivos[] = 'mail y/o userPrincipalName coinciden con varias cuentas Microsoft.'; }
+            if ($otros || $otrosActual) { $motivos[] = 'Un Object ID de esta vinculación está asignado a otro usuario local.'; }
+            if ($id !== null && $candidatos[$id] > 1) { $motivos[] = 'La cuenta Microsoft coincide con varios registros locales.'; }
+            if ($motivos) {
+                $estado = 'Conflicto';
+            } elseif ($id === null) {
+                $estado = 'Sin coincidencia';
+                $motivos[] = 'No existe una cuenta Microsoft con este correo exacto.';
+            } elseif ($fila['actual'] === null) {
+                $estado = 'Nuevo';
+            } elseif ($fila['actual'] === $id) {
+                $estado = 'Vinculado';
+            } else {
+                $estado = 'Cambio detectado';
+            }
+            $fila['estado'] = $estado;
+            $fila['detalle'] = implode(' ', $motivos);
+            $fila['accion'] = $estado === 'Nuevo' ? 'guardar' : (in_array($estado, ['Vinculado', 'Cambio detectado'], true) ? 'editar' : 'revisar');
+            unset($fila['coincidencias']);
+            $indicadores[$estado === 'Vinculado' ? 'vinculados' : ($estado === 'Nuevo' ? 'pendientes' : 'revision')]++;
+        }
+        unset($fila);
+        return ['registros' => $filas, 'indicadores' => $indicadores];
+    }
+
+    /**
+     * Vincula un solo usuario con Graph recién consultado por el controlador.
+     * Sin índice UUID único preexistente, bloquea escrituras de usuarios y empleados
+     * brevemente para volver a comparar y evitar carreras; nunca mantiene locks durante HTTP.
+     */
+    public function vincular_microsoft365($actorId, $operacion, array $entrada, array $cuentas)
+    {
+        if (!in_array($operacion, ['guardar', 'editar'], true)) { throw new InvalidArgumentException('Operación inválida.'); }
+        $entrada = self::validar_vinculacion_microsoft365($entrada);
+        $db = $this->conexionMicrosoft365();
+        try {
+            $db->beginTransaction();
+            $db->exec("SET LOCAL lock_timeout = '5s'");
+            $db->exec('LOCK TABLE public.usuarios IN SHARE ROW EXCLUSIVE MODE');
+            $db->exec('LOCK TABLE public.empleados IN SHARE MODE');
+            if (!$this->permisoMicrosoft365($db, $actorId)) { throw new DomainException('No tiene autorización para esta operación.'); }
+            $comparacion = $this->datosMicrosoft365($db, $cuentas);
+            $fila = null;
+            foreach ($comparacion['registros'] as $registro) {
+                if ($registro['user_id'] === $entrada['user_id'] && $registro['id_empl'] === $entrada['id_empl']) { $fila = $registro; break; }
+            }
+            if ($fila === null || $fila['accion'] !== $operacion
+                || $fila['encontrado'] !== $entrada['graph_id'] || $fila['actual'] !== $entrada['actual']
+                || $fila['correo'] !== $entrada['correo']) {
+                throw new DomainException('La vinculación cambió o presenta un conflicto. Consulte Microsoft 365 nuevamente.');
+            }
+            $sinCambios = $fila['actual'] === $fila['encontrado'];
+            if (!$sinCambios) {
+                $stmt = $db->prepare('UPDATE public.usuarios SET user_graph_id = CAST(? AS uuid) WHERE user_id = ?');
+                $stmt->execute([$fila['encontrado'], $fila['user_id']]);
+                if ($stmt->rowCount() !== 1) { throw new DomainException('No fue posible actualizar una única vinculación.'); }
+                $comparacion = $this->datosMicrosoft365($db, $cuentas);
+            }
+            $db->commit();
+            return $comparacion + ['sin_cambios' => $sinCambios];
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) { $db->rollBack(); }
+            throw $e;
+        }
+    }
+
 
     public function login() {
         $conectar = parent::conexion();
