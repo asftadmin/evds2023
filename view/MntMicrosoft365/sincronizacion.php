@@ -24,6 +24,7 @@ if (empty($_SESSION['microsoft365_csrf'])) { $_SESSION['microsoft365_csrf'] = bi
         <section class="content-header">
             <div class="container-fluid">
                 <h1>Sincronización de usuarios Microsoft 365</h1>
+                <a href="cumplimiento.php" class="btn btn-outline-primary mb-2">Cumplimiento mensual Planner</a>
                 <p class="text-muted mb-2">Consulta y vinculación de usuarios corporativos con Microsoft Entra.</p>
                 <button type="button" id="m365_consultar" class="btn btn-primary">
                     <i class="fas fa-sync-alt mr-1" aria-hidden="true"></i> Consultar Microsoft 365

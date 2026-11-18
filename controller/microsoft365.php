@@ -7,12 +7,16 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 $m365Respondido = false;
 
-/** Emite una respuesta consistente y descarta cualquier salida accidental. */
+/**
+ * Emite una respuesta consistente y descarta cualquier salida accidental.
+ */
 function responderMicrosoft365($status, $message, $data = null, $codigo = 200)
 {
     global $m365Respondido;
     $m365Respondido = true;
-    if (ob_get_length()) { ob_clean(); }
+    if (ob_get_length()) {
+        ob_clean();
+    }
     http_response_code($codigo);
     echo json_encode(['status' => $status, 'message' => $message, 'data' => $data],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -21,7 +25,9 @@ function responderMicrosoft365($status, $message, $data = null, $codigo = 200)
 
 // No registra mensajes remotos, consultas, argumentos de excepciones ni datos personales.
 register_shutdown_function(static function () {
-    if (!$GLOBALS['m365Respondido']) { responderMicrosoft365('error', 'No fue posible completar la operación.', null, 500); }
+    if (!$GLOBALS['m365Respondido']) {
+        responderMicrosoft365('error', 'No fue posible completar la operación.', null, 500);
+    }
 });
 set_exception_handler(static function ($e) {
     if ($e instanceof InvalidArgumentException || $e instanceof DomainException) {
@@ -37,7 +43,9 @@ require_once __DIR__ . '/curl.php';
 
 // Cada petición comprueba identidad, rol actual y permiso del menú administrativo.
 $actorId = filter_var($_SESSION['user_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-if (!$actorId) { responderMicrosoft365('error', 'Debe iniciar sesión.', null, 401); }
+if (!$actorId) {
+    responderMicrosoft365('error', 'Debe iniciar sesión.', null, 401);
+}
 $modelo = new Usuario();
 if (!$modelo->autorizado_microsoft365($actorId)) {
     responderMicrosoft365('error', 'No tiene permiso para administrar Microsoft 365.', null, 403);
@@ -77,5 +85,6 @@ switch ($op) {
     case 'editar':
         $resultado = $modelo->vincular_microsoft365($actorId, $op, $entrada, $graph->value);
         responderMicrosoft365('success', $resultado['sin_cambios']
-            ? 'La vinculación ya está actualizada; no se realizaron cambios.' : 'Vinculación guardada correctamente.', $resultado);
+            ? 'La vinculación ya está actualizada; no se realizaron cambios.'
+            : 'Vinculación guardada correctamente.', $resultado);
 }
