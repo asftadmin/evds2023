@@ -3,49 +3,70 @@
 ob_start();
 ini_set('display_errors', '0');
 
-require_once "../config/conexion.php";
-require_once "../models/Jornada.php";
-require_once "../models/JornadaContable.php";
-require_once "../models/JornadaReporteContable.php";
+require_once '../config/conexion.php';
+require_once '../models/Jornada.php';
+require_once '../models/JornadaContable.php';
+require_once '../models/JornadaReporteContable.php';
 
 $jornada = new Jornada();
 $contable = new JornadaContable();
 $reporte = new JornadaReporteContable();
 
-function jc_responder($payload, $status = 200) {
+function jc_responder($payload, $status = 200)
+{
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    if ($json === false) {
+        $status = 500;
+        $json = '{"success":false,"message":"No fue posible codificar la respuesta JSON."}';
+    }
+    // Diagnostico exclusivo del cruce: sin nombres, documentos ni evidencias.
+    if (isset($GLOBALS['jc_cruce_perfil'])) {
+        $perfil = $GLOBALS['jc_cruce_perfil'];
+        unset($GLOBALS['jc_cruce_perfil']);
+        $perfil['total_ms'] = round((microtime(true) - $perfil['inicio']) * 1000, 2);
+        unset($perfil['inicio']);
+        $perfil['http_status'] = (int) $status;
+        $perfil['ok'] = $status >= 200 && $status < 300;
+        $perfil['json_bytes'] = strlen($json);
+        error_log('[JORNADA_CRUCE_PERF] ' . json_encode($perfil, JSON_UNESCAPED_UNICODE));
+    }
     if (ob_get_length()) {
         ob_clean();
     }
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    echo $json;
     exit;
 }
 
-function jc_entrada($nombre, $predeterminado = '') {
+function jc_entrada($nombre, $predeterminado = '')
+{
     $valor = $_POST[$nombre] ?? $_GET[$nombre] ?? $predeterminado;
     return is_string($valor) ? trim($valor) : $predeterminado;
 }
 
-function jc_fecha_valida($fecha) {
+function jc_fecha_valida($fecha)
+{
     $objeto = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
     return $objeto && $objeto->format('Y-m-d') === $fecha;
 }
 
-function jc_minutos_horas($minutos) {
-    $minutos = max(0, (int)$minutos);
-    return str_pad((string)floor($minutos / 60), 2, '0', STR_PAD_LEFT)
+function jc_minutos_horas($minutos)
+{
+    $minutos = max(0, (int) $minutos);
+    return str_pad((string) floor($minutos / 60), 2, '0', STR_PAD_LEFT)
         . ':'
-        . str_pad((string)($minutos % 60), 2, '0', STR_PAD_LEFT);
+        . str_pad((string) ($minutos % 60), 2, '0', STR_PAD_LEFT);
 }
 
-function jc_validar_csrf() {
+function jc_validar_csrf()
+{
     $recibido = jc_entrada('csrf_token');
     $esperado = $_SESSION['csrf_jornadas'] ?? '';
     if (
-        $recibido === ''
-        || $esperado === ''
-        || !hash_equals($esperado, $recibido)
+        $recibido === '' ||
+        $esperado === '' ||
+        !hash_equals($esperado, $recibido)
     ) {
         jc_responder([
             'success' => false,
@@ -57,9 +78,10 @@ function jc_validar_csrf() {
 /**
  * Resuelve el usuario contable y valida el permiso del menú solicitado.
  */
-function jc_contexto(Jornada $modelo, $menu_ident) {
-    $user_id = (int)($_SESSION['user_id'] ?? 0);
-    $rol_id = (int)($_SESSION['user_rol'] ?? 0);
+function jc_contexto(Jornada $modelo, $menu_ident)
+{
+    $user_id = (int) ($_SESSION['user_id'] ?? 0);
+    $rol_id = (int) ($_SESSION['user_rol'] ?? 0);
 
     if ($user_id <= 0 || $rol_id <= 0) {
         jc_responder([
@@ -69,7 +91,7 @@ function jc_contexto(Jornada $modelo, $menu_ident) {
     }
 
     $empleado = $modelo->obtener_empleado_por_usuario($user_id);
-    if (!$empleado || (int)$empleado['esta_empl'] !== 1) {
+    if (!$empleado || (int) $empleado['esta_empl'] !== 1) {
         jc_responder([
             'success' => false,
             'message' => 'El usuario no tiene un empleado activo asociado.'
@@ -99,7 +121,8 @@ function jc_contexto(Jornada $modelo, $menu_ident) {
 /**
  * Valida y normaliza los filtros compartidos por las vistas contables.
  */
-function jc_filtros() {
+function jc_filtros()
+{
     $fecha_desde = jc_entrada('fecha_desde');
     $fecha_hasta = jc_entrada('fecha_hasta');
     $empleado_texto = jc_entrada('empleado_id');
@@ -126,6 +149,13 @@ function jc_filtros() {
 
 try {
     $op = jc_entrada('op');
+    if (in_array($op, ['empleadosCruceBiotime', 'cruzarReporteBiotime'], true)) {
+        $GLOBALS['jc_cruce_perfil'] = [
+            'inicio' => microtime(true),
+            'op' => $op,
+            'etapa' => 'validacion'
+        ];
+    }
     $menus = [
         'contextoLiquidacion' => 'liquidacion',
         'listarEmpleados' => 'liquidacion',
@@ -175,7 +205,8 @@ try {
             $ajuste = $cruce->ajustar_desde_biotime(jc_entrada('evidencia'), jc_entrada('extremo'),
                 $_SESSION['biotime_evidencia_clave'] ?? '', $contexto['user_id']);
             jc_responder(['success' => true, 'data' => $ajuste,
-                'message' => !empty($ajuste['sin_cambios']) ? 'La jornada ya tiene ese horario.'
+                'message' => !empty($ajuste['sin_cambios'])
+                    ? 'La jornada ya tiene ese horario.'
                     : 'Se ajustó la jornada actual y se registró la auditoría. La copia firmada se conservó.']);
             break;
         case 'empleadosCruceBiotime':
@@ -184,25 +215,45 @@ try {
             if ((new DateTimeImmutable($desde))->diff(new DateTimeImmutable($hasta))->days > 62) {
                 throw new InvalidArgumentException('Consulte un periodo de máximo 63 días para el cruce.');
             }
+            $GLOBALS['jc_cruce_perfil']['periodo_dias'] =
+                (new DateTimeImmutable($desde))->diff(new DateTimeImmutable($hasta))->days + 1;
+            $GLOBALS['jc_cruce_perfil']['empleado_filtrado'] = $empleado_id !== null;
             require_once '../models/JornadaCruceBiotime.php';
             $cruce = new JornadaCruceBiotime();
-            $filas = $cruce->reportes($desde, $hasta, $empleado_id);
+
             if ($op === 'empleadosCruceBiotime') {
-                $empleados_cruce = [];
-                foreach ($filas as $fila) {
-                    $empleados_cruce[$fila['empleado_id']] = [
-                        'id' => (int)$fila['empleado_id'],
+                // Selector independiente: no usa consulta recursiva ni recupera snapshots.
+                $GLOBALS['jc_cruce_perfil']['etapa'] = 'empleados_sql';
+                $inicio_sql = microtime(true);
+                $empleados = $cruce->empleados_reportes($desde, $hasta, $empleado_id);
+                $GLOBALS['jc_cruce_perfil']['empleados_sql_ms'] =
+                    round((microtime(true) - $inicio_sql) * 1000, 2);
+                $GLOBALS['jc_cruce_perfil']['empleados'] = count($empleados);
+                $data = [];
+                foreach ($empleados as $fila) {
+                    $data[] = [
+                        'id' => (int) $fila['empleado_id'],
                         'text' => $fila['empleado'] . ' — ' . $fila['documento']
                     ];
                 }
-                jc_responder(['success' => true, 'data' => array_values($empleados_cruce)]);
+                $GLOBALS['jc_cruce_perfil']['etapa'] = 'completado';
+                jc_responder(['success' => true, 'data' => $data]);
             }
+
             $tolerancia = filter_var(jc_entrada('tolerancia', '0'), FILTER_VALIDATE_INT);
             if ($tolerancia === false || $tolerancia < 0 || $tolerancia > 60) {
                 throw new InvalidArgumentException('La tolerancia debe estar entre 0 y 60 minutos.');
             }
+
+            $GLOBALS['jc_cruce_perfil']['etapa'] = 'reportes_sql';
+            $inicio_sql = microtime(true);
+            $filas = $cruce->reportes($desde, $hasta, $empleado_id);
+            $GLOBALS['jc_cruce_perfil']['reportes_sql_ms'] =
+                round((microtime(true) - $inicio_sql) * 1000, 2);
+            $GLOBALS['jc_cruce_perfil']['jornadas_firmadas'] = count($filas);
+
             $marcaciones = [];
-            // Clave privada distinta del CSRF; solo el servidor puede autorizar la evidencia mostrada.
+            // Clave privada distinta del CSRF; solo el servidor autoriza evidencia.
             if (empty($_SESSION['biotime_evidencia_clave'])) {
                 $_SESSION['biotime_evidencia_clave'] = bin2hex(random_bytes(32));
             }
@@ -223,25 +274,68 @@ try {
                     throw new InvalidArgumentException('El intervalo firmado es demasiado extenso para este cruce.');
                 }
                 require_once 'curl.php';
-                // Libera la sesión durante la consulta externa de solo lectura.
+                // Libera la sesion durante la consulta externa de solo lectura.
                 if (session_status() === PHP_SESSION_ACTIVE) {
                     session_write_close();
                 }
-                // Incluye evidencia próxima a medianoche en los límites del periodo.
+                // Incluye evidencia proxima a medianoche en los limites del periodo.
                 $inicio_biotime = (new DateTimeImmutable($inicio_consulta))->modify('-1 day')->format('Y-m-d');
                 $fin_biotime = (new DateTimeImmutable($fin_consulta))->modify('+1 day')->format('Y-m-d');
-                $marcaciones = $cruce->marcaciones($inicio_biotime, $fin_biotime);
+                $GLOBALS['jc_cruce_perfil']['biotime_dias'] =
+                    (new DateTimeImmutable($inicio_biotime))->diff(new DateTimeImmutable($fin_biotime))->days + 1;
+                $GLOBALS['jc_cruce_perfil']['etapa'] = 'biotime_http';
+                $inicio_bio = microtime(true);
+                $metricas_bio = [];
+                try {
+                    $forzar_biotime = jc_entrada('forzar_biotime', '0');
+
+                    if (!in_array($forzar_biotime, ['0', '1'], true)) {
+                        throw new InvalidArgumentException(
+                            'El parámetro de actualización BioTime no es válido.'
+                        );
+                    }
+
+                    $marcaciones = $cruce->marcacionesCacheadas(
+                        $inicio_biotime,
+                        $fin_biotime,
+                        $metricas_bio,
+                        $forzar_biotime === '1'
+                    );
+                    // $marcaciones = $cruce->marcaciones($inicio_biotime, $fin_biotime, $metricas_bio);
+                } finally {
+                    $GLOBALS['jc_cruce_perfil']['biotime_ms'] =
+                        round((microtime(true) - $inicio_bio) * 1000, 2);
+                    $GLOBALS['jc_cruce_perfil']['biotime_paginas'] = $metricas_bio['paginas'] ?? 0;
+                    $GLOBALS['jc_cruce_perfil']['biotime_http_ms'] = $metricas_bio['http_ms'] ?? 0;
+                    $GLOBALS['jc_cruce_perfil']['biotime_pagina_max_ms'] = $metricas_bio['pagina_max_ms'] ?? 0;
+                    $GLOBALS['jc_cruce_perfil']['biotime_esperadas'] = $metricas_bio['esperadas'] ?? 0;
+                    $GLOBALS['jc_cruce_perfil']['biotime_recibidas'] = $metricas_bio['recibidas'] ?? 0;
+                    $GLOBALS['jc_cruce_perfil']['biotime_cache_hit'] = $cruce->biotime_cache_hit;
+                }
             }
+            $GLOBALS['jc_cruce_perfil']['etapa'] = 'comparacion';
+            $inicio_comparacion = microtime(true);
             $filas_cruce = JornadaCruceBiotime::comparar($filas, $marcaciones, $tolerancia, $hasta);
+            $GLOBALS['jc_cruce_perfil']['comparacion_ms'] =
+                round((microtime(true) - $inicio_comparacion) * 1000, 2);
+            $GLOBALS['jc_cruce_perfil']['resultados'] = count($filas_cruce);
+            $GLOBALS['jc_cruce_perfil']['etapa'] = 'evidencias';
+            $inicio_evidencias = microtime(true);
             foreach ($filas_cruce as &$fila_cruce) {
                 $fila_cruce['evidencia_ajuste'] = JornadaCruceBiotime::autorizar_evidencia(
-                    $fila_cruce, $clave_evidencia, $contexto['user_id']);
+                    $fila_cruce, $clave_evidencia, $contexto['user_id']
+                );
             }
             unset($fila_cruce);
+            $GLOBALS['jc_cruce_perfil']['evidencias_ms'] =
+                round((microtime(true) - $inicio_evidencias) * 1000, 2);
+            $GLOBALS['jc_cruce_perfil']['etapa'] = 'completado';
             jc_responder([
                 'success' => true,
                 'data' => $filas_cruce,
-                'consultado' => date('c'), 'tolerancia' => $tolerancia
+                'consultado' => date('c'),
+                'tolerancia' => $tolerancia,
+                'biotime_cache_hit' => $cruce->biotime_cache_hit
             ]);
             break;
         case 'contextoLiquidacion':
@@ -310,13 +404,13 @@ try {
             }
             $resultado = $contable->cambiar_estado_festivo(
                 $festivo_id,
-                (int)$estado_texto,
+                (int) $estado_texto,
                 $contexto['user_id']
             );
             jc_responder([
                 'success' => true,
                 'data' => $resultado,
-                'message' => (int)$estado_texto === 1
+                'message' => (int) $estado_texto === 1
                     ? 'La fecha especial fue activada.'
                     : 'La fecha especial fue inactivada.'
             ]);
@@ -349,13 +443,13 @@ try {
                     $resumen_conceptos = [];
                 }
                 foreach ($resumen_conceptos as &$concepto_resumen) {
-                    $minutos = (int)($concepto_resumen['minutos'] ?? 0);
+                    $minutos = (int) ($concepto_resumen['minutos'] ?? 0);
                     $concepto_resumen['horas'] = $minutos % 60 === 0
-                        ? (string)($minutos / 60)
+                        ? (string) ($minutos / 60)
                         : floor($minutos / 60)
                             . ':'
                             . str_pad(
-                                (string)($minutos % 60),
+                                (string) ($minutos % 60),
                                 2,
                                 '0',
                                 STR_PAD_LEFT
@@ -364,7 +458,7 @@ try {
                 }
                 unset($concepto_resumen);
                 $data[] = [
-                    'jornada_id' => (int)$fila['jornada_id'],
+                    'jornada_id' => (int) $fila['jornada_id'],
                     'empleado' => $fila['empleado'],
                     'documento' => $fila['documento'],
                     'fecha' => $inicio->format('Y-m-d'),
@@ -377,15 +471,15 @@ try {
                     'ubicacion' => $fila['jornada_ubicacion'],
                     'actividad' => $fila['jornada_actividad'],
                     'origen' => $fila['jornada_origen'],
-                    'segmentos' => (int)$fila['cantidad_segmentos'],
+                    'segmentos' => (int) $fila['cantidad_segmentos'],
                     'horas_clasificadas' => jc_minutos_horas(
                         $fila['minutos_liquidables']
                     ),
                     'resumen_conceptos' => $resumen_conceptos,
                     'clasificacion_completa' => (
-                        (int)$fila['cantidad_segmentos'] > 0
-                        && (int)$fila['minutos_clasificados']
-                            === (int)$fila['minutos_intervalo']
+                        (int) $fila['cantidad_segmentos'] > 0 &&
+                        (int) $fila['minutos_clasificados'] ===
+                            (int) $fila['minutos_intervalo']
                     ),
                     'estado_codigo' => $fila['estado_codigo'],
                     'estado_nombre' => $fila['estado_nombre']
@@ -437,7 +531,7 @@ try {
                 $inicio = new DateTimeImmutable($fila['jcla_inicio']);
                 $fin = new DateTimeImmutable($fila['jcla_fin']);
                 $data[] = [
-                    'segmento_id' => (int)$fila['jcla_id'],
+                    'segmento_id' => (int) $fila['jcla_id'],
                     'inicio' => $inicio->format('Y-m-d H:i'),
                     'fin' => $fin->format('Y-m-d H:i'),
                     'concepto_codigo' => $fila['jcon_codigo'],
@@ -468,7 +562,7 @@ try {
                 $inicio = new DateTimeImmutable($fila['jornada_inicio']);
                 $fin = new DateTimeImmutable($fila['jornada_fin']);
                 $data[] = [
-                    'jornada_id' => (int)$fila['jornada_id'],
+                    'jornada_id' => (int) $fila['jornada_id'],
                     'empleado' => $fila['empleado'],
                     'documento' => $fila['documento'],
                     'fecha' => $inicio->format('Y-m-d'),
@@ -585,12 +679,12 @@ try {
             }
             $filas = $reporte->listar_empleados_lote($lote_id);
             foreach ($filas as &$fila) {
-                $fila['jle_id'] = (int)$fila['jle_id'];
-                $fila['empleado_id'] = (int)$fila['empleado_id'];
+                $fila['jle_id'] = (int) $fila['jle_id'];
+                $fila['empleado_id'] = (int) $fila['empleado_id'];
                 $fila['jle_cantidad_jornadas'] =
-                    (int)$fila['jle_cantidad_jornadas'];
+                    (int) $fila['jle_cantidad_jornadas'];
                 $fila['jle_cantidad_pendientes'] =
-                    (int)$fila['jle_cantidad_pendientes'];
+                    (int) $fila['jle_cantidad_pendientes'];
                 $fila['horas_reportables'] = jc_minutos_horas(
                     $fila['jle_minutos_reportables']
                 );

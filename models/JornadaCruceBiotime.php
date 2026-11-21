@@ -1,24 +1,77 @@
 <?php
 
-/** Cruce independiente y ajustes explícitos auditados; conserva firmas y cálculos contables. */
+/**
+ * Cruce independiente y ajustes explícitos auditados; conserva firmas y cálculos contables.
+ */
 class JornadaCruceBiotime extends Conectar
 {
+    public $biotime_cache_hit = false;
+
+    /**
+     * Lista ligera para Select2: solo empleados con al menos una jornada firmada
+     * cuyo inicio historico pertenece al periodo. No ejecuta el cruce recursivo.
+     * Los vecinos de continuidad nunca anaden empleados distintos al conjunto.
+     */
+    public function empleados_reportes($desde, $hasta, $empleado = null)
+    {
+        $sql = "SELECT DISTINCT
+                    emp.id_empl AS empleado_id,
+                    emp.nomb_empl AS empleado,
+                    emp.cedu_empl AS documento
+                FROM jornada_reporte_detalle d
+                INNER JOIN jornada_reportes_firma r ON r.jrf_id = d.jrf_id
+                INNER JOIN jornadas_trabajo j ON j.jornada_id = d.jornada_id
+                INNER JOIN jornada_estados e ON e.je_id = j.jornada_estado_id
+                INNER JOIN empleados emp ON emp.id_empl = r.empleado_id
+                WHERE r.jrf_estado = 'FIRMADO'
+                  AND (d.jrd_snapshot->>'jornada_inicio')::timestamp::date
+                      BETWEEN CAST(:desde AS date) AND CAST(:hasta AS date)";
+        if ($empleado !== null) {
+            $sql .= ' AND r.empleado_id = :empleado';
+        }
+        $sql .= ' ORDER BY emp.nomb_empl, emp.cedu_empl, emp.id_empl';
+        $stmt = parent::Conexion()->prepare($sql);
+        $stmt->bindValue(':desde', $desde, PDO::PARAM_STR);
+        $stmt->bindValue(':hasta', $hasta, PDO::PARAM_STR);
+        if ($empleado !== null) {
+            $stmt->bindValue(':empleado', $empleado, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Cruce historico con vecinos exactos por continuidad.
+     * Optimiza el conjunto de busqueda limitando detalles a empleados que
+     * poseen al menos una jornada firmada con inicio dentro del periodo.
+     * No impone un limite temporal arbitrario a vecinos continuos.
+     */
     public function reportes($desde, $hasta, $empleado = null)
     {
-        // Incluye los vecinos firmados consecutivos aunque el filtro corte el bloque.
-        $sql = "WITH RECURSIVE detalles AS (
+        $sql = "WITH RECURSIVE semillas AS (
                     SELECT d.jrd_id, r.empleado_id,
                         (d.jrd_snapshot->>'jornada_inicio')::timestamp AS inicio,
                         (d.jrd_snapshot->>'jornada_fin')::timestamp AS fin
                     FROM jornada_reporte_detalle d
                     INNER JOIN jornada_reportes_firma r ON r.jrf_id = d.jrf_id
-                    WHERE r.jrf_estado = 'FIRMADO'";
+                    WHERE r.jrf_estado = 'FIRMADO'
+                      AND (d.jrd_snapshot->>'jornada_inicio')::timestamp::date
+                          BETWEEN CAST(:desde AS date) AND CAST(:hasta AS date)";
         if ($empleado !== null) {
             $sql .= ' AND r.empleado_id = :empleado';
         }
-        $sql .= "), continuidad AS (
-                    SELECT * FROM detalles WHERE inicio::date
-                        BETWEEN CAST(:desde AS date) AND CAST(:hasta AS date)
+        $sql .= "), empleados_objetivo AS (
+                    SELECT DISTINCT empleado_id FROM semillas
+                ), detalles AS (
+                    SELECT d.jrd_id, r.empleado_id,
+                        (d.jrd_snapshot->>'jornada_inicio')::timestamp AS inicio,
+                        (d.jrd_snapshot->>'jornada_fin')::timestamp AS fin
+                    FROM jornada_reporte_detalle d
+                    INNER JOIN jornada_reportes_firma r ON r.jrf_id = d.jrf_id
+                    INNER JOIN empleados_objetivo obj ON obj.empleado_id = r.empleado_id
+                    WHERE r.jrf_estado = 'FIRMADO'
+                ), continuidad AS (
+                    SELECT * FROM semillas
                     UNION
                     SELECT v.* FROM detalles v
                     INNER JOIN continuidad c ON c.empleado_id = v.empleado_id
@@ -29,17 +82,17 @@ class JornadaCruceBiotime extends Conectar
                     e.je_codigo AS estado_codigo,
                     emp.id_empl AS empleado_id, emp.cedu_empl AS documento,
                     emp.nomb_empl AS empleado
-                FROM jornada_reporte_detalle d
+                FROM continuidad c
+                INNER JOIN jornada_reporte_detalle d ON d.jrd_id = c.jrd_id
                 INNER JOIN jornada_reportes_firma r ON r.jrf_id = d.jrf_id
                 INNER JOIN jornadas_trabajo j ON j.jornada_id = d.jornada_id
                 INNER JOIN jornada_estados e ON e.je_id = j.jornada_estado_id
                 INNER JOIN empleados emp ON emp.id_empl = r.empleado_id
                 WHERE r.jrf_estado = 'FIRMADO'
-                  AND d.jrd_id IN (SELECT jrd_id FROM continuidad)";
-        $sql .= ' ORDER BY emp.nomb_empl, d.jrd_id';
+                ORDER BY emp.nomb_empl, d.jrd_id";
         $stmt = parent::Conexion()->prepare($sql);
-        $stmt->bindValue(':desde', $desde);
-        $stmt->bindValue(':hasta', $hasta);
+        $stmt->bindValue(':desde', $desde, PDO::PARAM_STR);
+        $stmt->bindValue(':hasta', $hasta, PDO::PARAM_STR);
         if ($empleado !== null) {
             $stmt->bindValue(':empleado', $empleado, PDO::PARAM_INT);
         }
@@ -47,32 +100,53 @@ class JornadaCruceBiotime extends Conectar
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /** Solo acepta respuestas completas; una falla nunca equivale a ausencia. */
-    public function marcaciones($desde, $hasta)
+    /**
+     * Solo acepta respuestas completas; una falla nunca equivale a ausencia.
+     */
+    public function marcaciones($desde, $hasta, &$metricas = null)
     {
         $resultado = [];
         $pagina = 1;
         $esperados = null;
+        // Valores acumulados incluso si alguna pagina falla.
+        $metricas = [
+            'paginas' => 0,
+            'http_ms' => 0.0,
+            'pagina_max_ms' => 0.0,
+            'recibidas' => 0,
+            'esperadas' => 0
+        ];
         do {
-            $respuesta = CurlController::requestBiotime(http_build_query([
-                'start_date' => $desde,
-                'end_date' => $hasta,
-                'departments' => 1,
-                'areas' => 2,
-                'page' => $pagina,
-                'page_size' => 1000
-            ]), 'GET');
+            $inicio_http = microtime(true);
+            try {
+                $respuesta = CurlController::requestBiotime(http_build_query([
+                    'start_date' => $desde,
+                    'end_date' => $hasta,
+                    'departments' => 1,
+                    'areas' => 2,
+                    'page' => $pagina,
+                    'page_size' => 1000
+                ]), 'GET');
+            } finally {
+                $duracion_http = round((microtime(true) - $inicio_http) * 1000, 2);
+                $metricas['paginas']++;
+                $metricas['http_ms'] += $duracion_http;
+                $metricas['pagina_max_ms'] = max($metricas['pagina_max_ms'], $duracion_http);
+            }
             if (
-                !is_object($respuesta) || !isset($respuesta->data, $respuesta->count)
-                || !is_array($respuesta->data) || !is_numeric($respuesta->count)
+                !is_object($respuesta) ||
+                !isset($respuesta->data, $respuesta->count) ||
+                !is_array($respuesta->data) ||
+                !is_numeric($respuesta->count)
             ) {
                 throw new RuntimeException('BioTime no entregó una respuesta válida. Intente nuevamente.');
             }
-            $total = (int)$respuesta->count;
+            $total = (int) $respuesta->count;
             if ($total < 0 || ($esperados !== null && $esperados !== $total)) {
                 throw new RuntimeException('Las marcaciones cambiaron durante la consulta. Repita el cruce.');
             }
             $esperados = $total;
+            $metricas['esperadas'] = $total;
 
             if ($total > 20000 || (empty($respuesta->data) && count($resultado) < $total)) {
                 throw new RuntimeException('No se pudo completar la consulta BioTime. Reduzca el periodo.');
@@ -80,13 +154,16 @@ class JornadaCruceBiotime extends Conectar
 
             foreach ($respuesta->data as $registro) {
                 if (
-                    !is_object($registro) || empty($registro->emp_code)
-                    || empty($registro->att_date) || empty($registro->punch_time)
+                    !is_object($registro) ||
+                    empty($registro->emp_code) ||
+                    empty($registro->att_date) ||
+                    empty($registro->punch_time)
                 ) {
                     throw new RuntimeException('BioTime devolvió una marcación incompleta. No se realizó el cruce.');
                 }
 
                 $resultado[] = $registro;
+                $metricas['recibidas']++;
             }
 
             $pagina++;
@@ -97,7 +174,235 @@ class JornadaCruceBiotime extends Conectar
         return $resultado;
     }
 
-    /** Asocia pares cronológicos por empleado y días de la jornada, sin alterar liquidaciones. */
+    /**
+     * Obtiene marcaciones desde una caché privada.
+     *
+     * Si la caché está vencida o se solicita actualizar,
+     * consulta BioTime mediante marcaciones().
+     *
+     * No almacena respuestas incompletas o fallidas.
+     */
+    public function marcacionesCacheadas(
+        $desde,
+        $hasta,
+        &$metricas = null,
+        $forzar = false
+    ) {
+        $this->biotime_cache_hit = false;
+
+        $metricas = [
+            'paginas' => 0,
+            'http_ms' => 0.0,
+            'pagina_max_ms' => 0.0,
+            'recibidas' => 0,
+            'esperadas' => 0
+        ];
+
+        $directorio = trim(
+            (string) getenv('BIOTIME_CACHE_DIR')
+        );
+
+        if ($directorio === '') {
+            throw new RuntimeException(
+                'No está configurado BIOTIME_CACHE_DIR.'
+            );
+        }
+
+        $directorio = rtrim($directorio, '/\\');
+
+        if (!is_dir($directorio)) {
+            if (!@mkdir($directorio, 0700, true) &&
+                    !is_dir($directorio)) {
+                throw new RuntimeException(
+                    'No fue posible crear la caché BioTime.'
+                );
+            }
+        }
+
+        if (!is_writable($directorio)) {
+            throw new RuntimeException(
+                'La carpeta de caché BioTime no permite escritura.'
+            );
+        }
+
+        $zona = new DateTimeZone('America/Bogota');
+
+        $fechaFin = DateTimeImmutable::createFromFormat(
+            '!Y-m-d',
+            $hasta,
+            $zona
+        );
+
+        if (!$fechaFin ||
+                $fechaFin->format('Y-m-d') !== $hasta) {
+            throw new InvalidArgumentException(
+                'La fecha final no es válida.'
+            );
+        }
+
+        $hoy = new DateTimeImmutable('today', $zona);
+
+        // Periodos históricos: 60 minutos.
+        // Periodos recientes: 2 minutos.
+        $ttl = $fechaFin < $hoy->modify('-2 days')
+            ? 3600
+            : 120;
+
+        // Identifica exactamente los filtros de BioTime.
+        $clave = hash(
+            'sha256',
+            'v1|departments=1|areas=2|' . $desde . '|' . $hasta
+        );
+
+        $archivo = $directorio
+            . DIRECTORY_SEPARATOR
+            . 'biotime_' . $clave . '.json';
+
+        $bloqueo = @fopen($archivo . '.lock', 'c');
+
+        if ($bloqueo === false) {
+            throw new RuntimeException(
+                'No fue posible abrir el bloqueo de caché.'
+            );
+        }
+
+        @chmod($archivo . '.lock', 0600);
+
+        $bloqueado = false;
+
+        try {
+            $bloqueado = flock($bloqueo, LOCK_EX);
+
+            if (!$bloqueado) {
+                throw new RuntimeException(
+                    'No fue posible bloquear la caché.'
+                );
+            }
+
+            clearstatcache(true, $archivo);
+
+            if (!$forzar && is_file($archivo)) {
+                $modificado = @filemtime($archivo);
+
+                if ($modificado !== false &&
+                        time() - $modificado <= $ttl) {
+                    $contenido = @file_get_contents($archivo);
+
+                    if ($contenido !== false) {
+                        $cache = json_decode($contenido);
+
+                        $valida =
+                            is_object($cache) &&
+                            isset(
+                                $cache->version,
+                                $cache->total,
+                                $cache->data
+                            ) &&
+                            $cache->version === 1 &&
+                            is_int($cache->total) &&
+                            is_array($cache->data) &&
+                            count($cache->data) === $cache->total;
+
+                        if ($valida) {
+                            foreach ($cache->data as $marca) {
+                                if (!is_object($marca) ||
+                                        empty($marca->emp_code) ||
+                                        empty($marca->att_date) ||
+                                        empty($marca->punch_time)) {
+                                    $valida = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if ($valida) {
+                            $this->biotime_cache_hit = true;
+
+                            $metricas['esperadas'] =
+                                count($cache->data);
+
+                            $metricas['recibidas'] =
+                                count($cache->data);
+
+                            error_log(
+                                '[BIOTIME_CACHE] HIT periodo='
+                                . $desde . '/' . $hasta
+                                . ' registros='
+                                . count($cache->data)
+                            );
+
+                            return $cache->data;
+                        }
+                    }
+                }
+            }
+
+            // Caché inexistente, vencida o actualización forzada.
+            // Conserva la paginación y las validaciones existentes.
+            $datos = $this->marcaciones(
+                $desde,
+                $hasta,
+                $metricas
+            );
+
+            // Guardar solamente los campos necesarios
+            // para comparar las jornadas.
+            $minimos = [];
+
+            foreach ($datos as $registro) {
+                $minimos[] = [
+                    'emp_code' => $registro->emp_code,
+                    'att_date' => $registro->att_date,
+                    'punch_time' => $registro->punch_time
+                ];
+            }
+
+            $contenido = json_encode(
+                [
+                    'version' => 1,
+                    'total' => count($minimos),
+                    'data' => $minimos
+                ],
+                JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            );
+
+            $guardado = @file_put_contents(
+                $archivo,
+                $contenido,
+                LOCK_EX
+            );
+
+            if ($guardado === false ||
+                    $guardado !== strlen($contenido)) {
+                @unlink($archivo);
+
+                error_log(
+                    '[BIOTIME_CACHE] No fue posible guardar '
+                    . 'la caché del periodo consultado.'
+                );
+            } else {
+                @chmod($archivo, 0600);
+            }
+
+            error_log(
+                '[BIOTIME_CACHE] MISS periodo='
+                . $desde . '/' . $hasta
+                . ' registros=' . count($datos)
+            );
+
+            return $datos;
+        } finally {
+            if ($bloqueado) {
+                flock($bloqueo, LOCK_UN);
+            }
+
+            fclose($bloqueo);
+        }
+    }
+
+    /**
+     * Asocia pares cronológicos por empleado y días de la jornada, sin alterar liquidaciones.
+     */
     public static function comparar(array $filas, array $marcaciones, $tolerancia, $hasta = null)
     {
         $zona = new DateTimeZone('America/Bogota');
@@ -111,10 +416,11 @@ class JornadaCruceBiotime extends Conectar
         }
         $indice = [];
         foreach ($marcaciones as $m) {
-            $documento = preg_replace('/\D+/', '', (string)$m->emp_code);
-            $hora = trim((string)$m->punch_time);
+            $documento = preg_replace('/\D+/', '', (string) $m->emp_code);
+            $hora = trim((string) $m->punch_time);
             $texto = preg_match('/^\d{4}-\d{2}-\d{2}[ T]/', $hora)
-                ? $hora : $m->att_date . ' ' . $hora;
+                ? $hora
+                : $m->att_date . ' ' . $hora;
             try {
                 $fecha = new DateTimeImmutable($texto, $zona);
             } catch (Exception $e) {
@@ -130,8 +436,8 @@ class JornadaCruceBiotime extends Conectar
             $snapshot = json_decode($fila['jrd_snapshot'], true);
             $i = count($salida);
             $salida[$i] = [
-                'reporte' => (int)$fila['jrf_id'], 'jornada' => (int)$fila['jornada_id'],
-                'empleado_id' => (int)$fila['empleado_id'], 'empleado' => $fila['empleado'],
+                'reporte' => (int) $fila['jrf_id'], 'jornada' => (int) $fila['jornada_id'],
+                'empleado_id' => (int) $fila['empleado_id'], 'empleado' => $fila['empleado'],
                 'documento' => $fila['documento'], 'inicio' => '', 'fin' => '', 'ubicacion' => '',
                 'entrada_bio' => '', 'salida_bio' => '', 'diferencia_entrada' => null,
                 'diferencia_salida' => null, 'resultado' => 'Revisión de marcaciones',
@@ -140,8 +446,8 @@ class JornadaCruceBiotime extends Conectar
                 'continuidad_entrada' => false, 'continuidad_salida' => false,
                 'limite_compartido_entrada' => false, 'limite_compartido_salida' => false,
                 'corte_periodo_salida' => false, 'salida_bio_real' => '',
-                'version_firmada' => (int)$fila['jrd_jornada_version'],
-                'version_actual' => (int)$fila['jornada_version'],
+                'version_firmada' => (int) $fila['jrd_jornada_version'],
+                'version_actual' => (int) $fila['jornada_version'],
                 'inicio_actual' => $fila['jornada_inicio'], 'fin_actual' => $fila['jornada_fin'],
                 'estado_actual' => $fila['estado_codigo'] ?? '',
                 'snapshot_hash' => hash('sha256', $fila['jrd_snapshot'])
@@ -162,11 +468,11 @@ class JornadaCruceBiotime extends Conectar
             $salida[$i]['inicio'] = $inicio->format('Y-m-d H:i:s');
             $salida[$i]['fin'] = $fin->format('Y-m-d H:i:s');
             $salida[$i]['ubicacion'] = $snapshot['jornada_ubicacion'] ?? '';
-            $documento = preg_replace('/\D+/', '', (string)$fila['documento']);
+            $documento = preg_replace('/\D+/', '', (string) $fila['documento']);
             $intervalos[$documento][$i] = ['entrada' => $inicio->getTimestamp(), 'salida' => $fin->getTimestamp()];
             // La versión cambia también al firmar; el diagnóstico conserva siempre el snapshot.
-            if ($inicio != new DateTimeImmutable($fila['jornada_inicio'], $zona)
-                || $fin != new DateTimeImmutable($fila['jornada_fin'], $zona)) {
+            if ($inicio != new DateTimeImmutable($fila['jornada_inicio'], $zona) ||
+                    $fin != new DateTimeImmutable($fila['jornada_fin'], $zona)) {
                 $modificadas[$i] = true;
                 $salida[$i]['detalle'] = 'El horario actual difiere de la copia firmada. Se comparó únicamente la copia firmada. ';
             }
@@ -174,8 +480,8 @@ class JornadaCruceBiotime extends Conectar
         foreach ($intervalos as $documento => $jornadas) {
             // Orden determinístico de jornadas; nunca se seleccionan evidencias por tolerancia.
             uksort($jornadas, function ($a, $b) use ($jornadas, $salida) {
-                return [$jornadas[$a]['entrada'], $jornadas[$a]['salida'], $salida[$a]['reporte'], $salida[$a]['jornada']]
-                    <=> [$jornadas[$b]['entrada'], $jornadas[$b]['salida'], $salida[$b]['reporte'], $salida[$b]['jornada']];
+                return [$jornadas[$a]['entrada'], $jornadas[$a]['salida'], $salida[$a]['reporte'], $salida[$a]['jornada']] <=>
+                    [$jornadas[$b]['entrada'], $jornadas[$b]['salida'], $salida[$b]['reporte'], $salida[$b]['jornada']];
             });
             // Une cortes exactos a cualquier hora con un único vecino por extremo.
             // Las copias duplicadas o superpuestas conservan el diagnóstico de revisión.
@@ -188,9 +494,11 @@ class JornadaCruceBiotime extends Conectar
             foreach ($jornadas as $i => $intervalo) {
                 $ultimo = count($bloques) - 1;
                 $corte = $intervalo['entrada'];
-                if ($ultimo >= 0 && $bloques[$ultimo]['salida'] === $corte
-                    && $salida[$bloques[$ultimo]['ids'][0]]['empleado_id'] === $salida[$i]['empleado_id']
-                    && count($inicios[$corte]) === 1 && count($finales[$corte] ?? []) === 1) {
+                if ($ultimo >= 0 &&
+                        $bloques[$ultimo]['salida'] === $corte &&
+                        $salida[$bloques[$ultimo]['ids'][0]]['empleado_id'] === $salida[$i]['empleado_id'] &&
+                        count($inicios[$corte]) === 1 &&
+                        count($finales[$corte] ?? []) === 1) {
                     $bloques[$ultimo]['salida'] = $intervalo['salida'];
                     $bloques[$ultimo]['ids'][] = $i;
                 } else {
@@ -220,12 +528,15 @@ class JornadaCruceBiotime extends Conectar
                 });
                 $tiempos = array_keys($candidatas);
                 $cantidad = count($tiempos);
-                $comparaciones = array_map(function ($b) use ($bloques) { return $bloques[$b]; }, $grupo['ids']);
+                $comparaciones = array_map(function ($b) use ($bloques) {
+                    return $bloques[$b];
+                }, $grupo['ids']);
                 $revision = false;
                 if (count($comparaciones) === 1 && $cantidad === 1) {
                     // Una evidencia única puede ser entrada o salida; jamás constituye un par.
                     $extremo = abs($tiempos[0] - $comparaciones[0]['salida']) < abs($tiempos[0] - $comparaciones[0]['entrada'])
-                        ? 'salida' : 'entrada';
+                        ? 'salida'
+                        : 'entrada';
                     $comparaciones[0]['marcas'] = [$extremo => $tiempos[0]];
                 } elseif ($cantidad > 0) {
                     // Busca una única distribución que consuma todas las marcas: pares reales
@@ -245,16 +556,22 @@ class JornadaCruceBiotime extends Conectar
                         $mejora = false;
                         $sinEmpeorar = true;
                         foreach ($rescates as $rescate) {
-                            if ($rescate['revision']) { $sinEmpeorar = false; break; }
+                            if ($rescate['revision']) {
+                                $sinEmpeorar = false;
+                                break;
+                            }
                             foreach (['entrada', 'salida'] as $extremo) {
                                 $id = $extremo === 'entrada' ? $rescate['ids'][0] : $rescate['ids'][count($rescate['ids']) - 1];
                                 $anterior = abs($porJornada[$id][$extremo] - $rescate[$extremo]);
                                 $nueva = abs($rescate['marcas'][$extremo] - $rescate[$extremo]);
-                                if ($nueva > $anterior) $sinEmpeorar = false;
-                                if ($nueva < $anterior) $mejora = true;
+                                if ($nueva > $anterior)
+                                    $sinEmpeorar = false;
+                                if ($nueva < $anterior)
+                                    $mejora = true;
                             }
                         }
-                        if ($sinEmpeorar && $mejora) $pares = $rescates;
+                        if ($sinEmpeorar && $mejora)
+                            $pares = $rescates;
                     }
                     if ($pares === null) {
                         $revision = true;
@@ -274,9 +591,13 @@ class JornadaCruceBiotime extends Conectar
                         if (count($ids) > 1) {
                             $item['detalle'] .= 'Bloque continuo: ' . $salida[$ids[0]]['inicio'] . ' a '
                                 . $salida[$ids[count($ids) - 1]]['fin'] . '. Jornadas: '
-                                . implode(', ', array_map(function ($id) use ($salida) { return $salida[$id]['jornada']; }, $ids))
+                                . implode(', ', array_map(function ($id) use ($salida) {
+                                    return $salida[$id]['jornada'];
+                                }, $ids))
                                 . '. Cortes internos: '
-                                . implode(', ', array_map(function ($id) use ($salida) { return $salida[$id]['inicio']; }, array_slice($ids, 1)))
+                                . implode(', ', array_map(function ($id) use ($salida) {
+                                    return $salida[$id]['inicio'];
+                                }, array_slice($ids, 1)))
                                 . '. ';
                         }
                         if (!empty($bloque['pendientes'])) {
@@ -311,7 +632,8 @@ class JornadaCruceBiotime extends Conectar
                                     $item['diferencia_' . $extremo] = 0.0;
                                     continue;
                                 }
-                                if ($item['continuidad_' . $extremo]) continue;
+                                if ($item['continuidad_' . $extremo])
+                                    continue;
                                 $item[$extremo . '_bio'] = $candidatas[$instante];
                                 $item['diferencia_' . $extremo] = round(($instante - $jornadas[$i][$extremo]) / 60, 2);
                             }
@@ -323,7 +645,8 @@ class JornadaCruceBiotime extends Conectar
                             } else {
                                 // Un par válido respalda el corte interno, sin convertirlo en evidencia ajustable.
                                 foreach (['entrada', 'salida'] as $extremo) {
-                                    if ($item['continuidad_' . $extremo]) $item['diferencia_' . $extremo] = 0.0;
+                                    if ($item['continuidad_' . $extremo])
+                                        $item['diferencia_' . $extremo] = 0.0;
                                 }
                                 if (count($ids) > 1) {
                                     $item['detalle'] .= 'Cortes validados: diferencia 00:00. ';
@@ -333,8 +656,10 @@ class JornadaCruceBiotime extends Conectar
                                 }
                                 // Al cerrar el periodo, la salida posterior respalda la continuidad
                                 // hasta las 00:00; se conserva como soporte y no como ajuste de esta jornada.
-                                if ($cierrePeriodo !== null && $jornadas[$i]['salida'] === $cierrePeriodo
-                                    && $elegidas['entrada'] < $cierrePeriodo && $elegidas['salida'] > $cierrePeriodo) {
+                                if ($cierrePeriodo !== null &&
+                                        $jornadas[$i]['salida'] === $cierrePeriodo &&
+                                        $elegidas['entrada'] < $cierrePeriodo &&
+                                        $elegidas['salida'] > $cierrePeriodo) {
                                     $item['corte_periodo_salida'] = true;
                                     $item['continuidad_salida'] = false;
                                     $item['salida_bio_real'] = $candidatas[$elegidas['salida']];
@@ -345,9 +670,10 @@ class JornadaCruceBiotime extends Conectar
                                         . ' corresponde al periodo siguiente. La diferencia de salida es 00:00 por el corte;'
                                         . ' no es una marcación ni permite ajustar la salida de esta jornada. ';
                                 }
-                                $item['resultado'] = abs($item['diferencia_entrada']) <= $tolerancia
-                                    && abs($item['diferencia_salida']) <= $tolerancia
-                                    ? 'Horario correcto' : 'Diferencia de horario';
+                                $item['resultado'] = abs($item['diferencia_entrada']) <= $tolerancia &&
+                                    abs($item['diferencia_salida']) <= $tolerancia
+                                        ? 'Horario correcto'
+                                        : 'Diferencia de horario';
                                 if (count($ids) === 1) {
                                     $item['detalle'] .= 'Se asignó un par real de marcaciones BioTime a esta jornada.';
                                 }
@@ -355,7 +681,8 @@ class JornadaCruceBiotime extends Conectar
                                     $item['detalle'] .= ' ' . $item['resultado'] . '. '
                                         . count($item['marcaciones_adicionales']) . ' marcaciones pendientes de revisión (ver lista).';
                                     $item['resultado'] = count($item['marcaciones_adicionales']) === 1
-                                        ? 'Marcación adicional por revisar' : 'Marcaciones adicionales por revisar';
+                                        ? 'Marcación adicional por revisar'
+                                        : 'Marcaciones adicionales por revisar';
                                 }
                             }
                         }
@@ -370,26 +697,33 @@ class JornadaCruceBiotime extends Conectar
             }
         }
         usort($salida, function ($a, $b) {
-            return [$a['empleado_id'], $a['inicio'], $a['reporte'], $a['jornada']]
-                <=> [$b['empleado_id'], $b['inicio'], $b['reporte'], $b['jornada']];
+            return [$a['empleado_id'], $a['inicio'], $a['reporte'], $a['jornada']] <=>
+                [$b['empleado_id'], $b['inicio'], $b['reporte'], $b['jornada']];
         });
         return $salida;
     }
 
-    /** Agrega evidencia parcial a jornadas sin resolver, sin modificar pares existentes. */
+    /**
+     * Agrega evidencia parcial a jornadas sin resolver, sin modificar pares existentes.
+     */
     private static function identificar_pendientes(array $bloques, array $candidatas, $revision)
     {
         $usadas = [];
         $hayPares = false;
         foreach ($bloques as $bloque) {
-            if (!$revision && empty($bloque['revision']) && count($bloque['marcas'] ?? []) === 2) $hayPares = true;
-            foreach ($bloque['marcas'] ?? [] as $instante) $usadas[$instante] = true;
-            foreach ($bloque['compartidas'] ?? [] as $instante => $valor) $usadas[$instante] = true;
+            if (!$revision && empty($bloque['revision']) && count($bloque['marcas'] ?? []) === 2)
+                $hayPares = true;
+            foreach ($bloque['marcas'] ?? [] as $instante)
+                $usadas[$instante] = true;
+            foreach ($bloque['compartidas'] ?? [] as $instante => $valor)
+                $usadas[$instante] = true;
         }
-        if (!$hayPares) return $bloques;
+        if (!$hayPares)
+            return $bloques;
         $sinAsignar = array_diff_key($candidatas, $usadas);
         foreach ($bloques as $b => &$bloque) {
-            if ((!$revision && empty($bloque['revision'])) || count($bloque['ids']) !== 1) continue;
+            if ((!$revision && empty($bloque['revision'])) || count($bloque['ids']) !== 1)
+                continue;
             $cercanas = [];
             foreach (['entrada', 'salida'] as $extremo) {
                 $distancia = PHP_INT_MAX;
@@ -405,24 +739,31 @@ class JornadaCruceBiotime extends Conectar
                 }
                 $cercanas[$extremo] = $mejor;
             }
-            if ($cercanas['entrada'] === null || $cercanas['entrada'] !== $cercanas['salida']) continue;
+            if ($cercanas['entrada'] === null || $cercanas['entrada'] !== $cercanas['salida'])
+                continue;
             $instante = $cercanas['entrada'];
-            if (!isset($sinAsignar[$instante])) continue;
+            if (!isset($sinAsignar[$instante]))
+                continue;
             $zona = new DateTimeZone('America/Bogota');
             $desde = (new DateTimeImmutable('@' . $bloque['entrada']))->setTimezone($zona)->format('Y-m-d');
             $hasta = (new DateTimeImmutable('@' . $bloque['salida']))->setTimezone($zona)->format('Y-m-d');
             $diaMarca = substr($sinAsignar[$instante], 0, 10);
-            if ($diaMarca < $desde || $diaMarca > $hasta) continue;
+            if ($diaMarca < $desde || $diaMarca > $hasta)
+                continue;
             $compite = false;
             $pertenece = true;
             $distanciaIntervalo = max($bloque['entrada'] - $instante, $instante - $bloque['salida'], 0);
             foreach ($bloques as $otro => $vecino) {
-                if ($otro === $b) continue;
+                if ($otro === $b)
+                    continue;
                 $distanciaVecino = max($vecino['entrada'] - $instante, $instante - $vecino['salida'], 0);
-                if ($distanciaVecino < $distanciaIntervalo) $pertenece = false;
-                if ($distanciaVecino === $distanciaIntervalo) $compite = true;
+                if ($distanciaVecino < $distanciaIntervalo)
+                    $pertenece = false;
+                if ($distanciaVecino === $distanciaIntervalo)
+                    $compite = true;
             }
-            if (!$pertenece) continue;
+            if (!$pertenece)
+                continue;
             $bloque['pendientes'] = [$sinAsignar[$instante]];
             $distanciaEntrada = abs($instante - $bloque['entrada']);
             $distanciaSalida = abs($instante - $bloque['salida']);
@@ -435,7 +776,9 @@ class JornadaCruceBiotime extends Conectar
         return $bloques;
     }
 
-    /** Rescata bloques inequívocos sin consumir marcas que compitan con otras jornadas. */
+    /**
+     * Rescata bloques inequívocos sin consumir marcas que compitan con otras jornadas.
+     */
     private static function bloques_con_adicionales(array $bloques, array $candidatas, array $jornadas, array $salida)
     {
         $porBloque = [];
@@ -469,28 +812,39 @@ class JornadaCruceBiotime extends Conectar
             $bloque['revision'] = true;
             $entrada = $masCercana($bloque['entrada'], $porBloque[$b]);
             $fin = $masCercana($bloque['salida'], $porBloque[$b]);
-            if ($entrada === null || $fin === null || $entrada >= $fin
-                || isset($usadas[$entrada]) || isset($usadas[$fin])) continue;
+            if ($entrada === null ||
+                $fin === null ||
+                $entrada >= $fin ||
+                isset($usadas[$entrada]) ||
+                isset($usadas[$fin]))
+                continue;
             $seguro = true;
             // Los extremos respaldan el bloque; cada marca exacta en un corte
             // se registra una sola vez como límite compartido por las filas vecinas.
             $compartidas = [];
             foreach (array_slice($bloque['ids'], 1) as $id) {
                 $corte = $jornadas[$id]['entrada'];
-                if ($entrada >= $corte || $fin <= $corte) $seguro = false;
-                if (isset($candidatas[$corte])) $compartidas[$corte] = true;
+                if ($entrada >= $corte || $fin <= $corte)
+                    $seguro = false;
+                if (isset($candidatas[$corte]))
+                    $compartidas[$corte] = true;
             }
             foreach ($bloques as $otro => $vecino) {
-                if ($otro === $b) continue;
-                if ($bloque['entrada'] < $vecino['salida'] && $bloque['salida'] > $vecino['entrada']) $seguro = false;
-                if ($entrada < $vecino['salida'] && $fin > $vecino['entrada']) $seguro = false;
+                if ($otro === $b)
+                    continue;
+                if ($bloque['entrada'] < $vecino['salida'] && $bloque['salida'] > $vecino['entrada'])
+                    $seguro = false;
+                if ($entrada < $vecino['salida'] && $fin > $vecino['entrada'])
+                    $seguro = false;
                 foreach ($vecino['ids'] as $id) {
                     foreach ($jornadas[$id] as $objetivo) {
                         foreach (['entrada' => $entrada, 'salida' => $fin] as $extremoAsignado => $instante) {
-                            if (!isset($porBloque[$otro][$instante])) continue;
+                            if (!isset($porBloque[$otro][$instante]))
+                                continue;
                             // Un turno incompleto no reclama una marca que encaja mejor
                             // en el extremo ya identificado de esta jornada.
-                            if (abs($instante - $objetivo) > abs($instante - $bloque[$extremoAsignado])) continue;
+                            if (abs($instante - $objetivo) > abs($instante - $bloque[$extremoAsignado]))
+                                continue;
                             $hayMasCercana = false;
                             foreach ($porBloque[$otro] as $marca => $texto) {
                                 if (abs($marca - $objetivo) < abs($instante - $objetivo)) {
@@ -498,75 +852,98 @@ class JornadaCruceBiotime extends Conectar
                                     break;
                                 }
                             }
-                            if (!$hayMasCercana) $seguro = false;
+                            if (!$hayMasCercana)
+                                $seguro = false;
                         }
                     }
                 }
             }
-            if (!$seguro) continue;
+            if (!$seguro)
+                continue;
             $bloque['revision'] = false;
             $bloque['marcas'] = ['entrada' => $entrada, 'salida' => $fin];
             $bloque['compartidas'] = $compartidas;
             $usadas[$entrada] = $usadas[$fin] = true;
-            foreach ($compartidas as $instante => $valor) $usadas[$instante] = true;
+            foreach ($compartidas as $instante => $valor)
+                $usadas[$instante] = true;
         }
         unset($bloque);
         $adicionales = array_values(array_diff_key($candidatas, $usadas));
         foreach ($bloques as &$bloque) {
-            if (!$bloque['revision']) $bloque['adicionales'] = $adicionales;
+            if (!$bloque['revision'])
+                $bloque['adicionales'] = $adicionales;
         }
         unset($bloque);
         return $bloques;
     }
 
-    /** Distribuye pares cronológicos sin omitir marcas ni elegir entre varias soluciones. */
+    /**
+     * Distribuye pares cronológicos sin omitir marcas ni elegir entre varias soluciones.
+     */
     private static function asociar_pares(array $bloques, array $candidatas, array $jornadas, array $salida)
     {
         $tiempos = array_keys($candidatas);
-        if (count($tiempos) % 2 !== 0) return null;
+        if (count($tiempos) % 2 !== 0)
+            return null;
         $filas = [];
         $finAnterior = null;
         foreach ($bloques as $b => $bloque) {
             foreach ($bloque['ids'] as $id) {
-                if ($finAnterior !== null && $jornadas[$id]['entrada'] < $finAnterior) return null;
+                if ($finAnterior !== null && $jornadas[$id]['entrada'] < $finAnterior)
+                    return null;
                 $finAnterior = $jornadas[$id]['salida'];
                 $filas[] = ['id' => $id, 'bloque' => $b];
             }
         }
         $numeroPares = intdiv(count($tiempos), 2);
-        if ($numeroPares < count($bloques) || $numeroPares > count($filas)) return null;
+        if ($numeroPares < count($bloques) || $numeroPares > count($filas))
+            return null;
         $memo = [];
         $buscar = function ($posicion, $par) use (&$buscar, &$memo, $filas, $tiempos, $candidatas, $jornadas, $salida, $numeroPares) {
             $clave = $posicion . ':' . $par;
-            if (isset($memo[$clave])) return $memo[$clave];
-            if ($posicion === count($filas)) return $par === $numeroPares ? [[]] : [];
-            if ($par >= $numeroPares) return [];
+            if (isset($memo[$clave]))
+                return $memo[$clave];
+            if ($posicion === count($filas))
+                return $par === $numeroPares ? [[]] : [];
+            if ($par >= $numeroPares)
+                return [];
             $entrada = $tiempos[$par * 2];
             $fin = $tiempos[$par * 2 + 1];
             $primero = $filas[$posicion]['id'];
             $desde = substr($salida[$primero]['inicio'], 0, 10);
             $soluciones = [];
             $ids = [];
-            for ($ultimo = $posicion; $ultimo < count($filas)
-                && $filas[$ultimo]['bloque'] === $filas[$posicion]['bloque']; $ultimo++) {
+            for ($ultimo = $posicion;
+                    $ultimo < count($filas) &&
+                        $filas[$ultimo]['bloque'] === $filas[$posicion]['bloque'];
+                    $ultimo++) {
                 $id = $filas[$ultimo]['id'];
                 $ids[] = $id;
                 $hasta = substr($salida[$id]['fin'], 0, 10);
-                if (substr($candidatas[$entrada], 0, 10) < $desde || substr($candidatas[$entrada], 0, 10) > $hasta
-                    || substr($candidatas[$fin], 0, 10) < $desde || substr($candidatas[$fin], 0, 10) > $hasta) continue;
+                if (substr($candidatas[$entrada], 0, 10) < $desde ||
+                    substr($candidatas[$entrada], 0, 10) > $hasta ||
+                    substr($candidatas[$fin], 0, 10) < $desde ||
+                    substr($candidatas[$fin], 0, 10) > $hasta)
+                    continue;
                 // Los pares reales a cada lado de un corte deben respetar ese corte.
-                if ($posicion > 0 && $filas[$posicion - 1]['bloque'] === $filas[$posicion]['bloque']
-                    && $entrada < $jornadas[$primero]['entrada']) continue;
-                if ($ultimo + 1 < count($filas) && $filas[$ultimo + 1]['bloque'] === $filas[$ultimo]['bloque']
-                    && $fin > $jornadas[$id]['salida']) continue;
+                if ($posicion > 0 &&
+                    $filas[$posicion - 1]['bloque'] === $filas[$posicion]['bloque'] &&
+                    $entrada < $jornadas[$primero]['entrada'])
+                    continue;
+                if ($ultimo + 1 < count($filas) &&
+                    $filas[$ultimo + 1]['bloque'] === $filas[$ultimo]['bloque'] &&
+                    $fin > $jornadas[$id]['salida'])
+                    continue;
                 // Un par continuo debe abarcar todos los cortes que pretende respaldar.
-                if ($ultimo > $posicion && ($entrada >= $jornadas[$primero]['salida']
-                    || $fin <= $jornadas[$id]['entrada'])) continue;
+                if ($ultimo > $posicion && ($entrada >= $jornadas[$primero]['salida'] ||
+                    $fin <= $jornadas[$id]['entrada']))
+                    continue;
                 $segmento = ['ids' => $ids, 'entrada' => $jornadas[$primero]['entrada'],
                     'salida' => $jornadas[$id]['salida'], 'marcas' => ['entrada' => $entrada, 'salida' => $fin]];
                 foreach ($buscar($ultimo + 1, $par + 1) as $resto) {
                     $soluciones[] = array_merge([$segmento], $resto);
-                    if (count($soluciones) === 2) return $memo[$clave] = $soluciones;
+                    if (count($soluciones) === 2)
+                        return $memo[$clave] = $soluciones;
                 }
             }
             return $memo[$clave] = $soluciones;
@@ -575,49 +952,62 @@ class JornadaCruceBiotime extends Conectar
         return count($soluciones) === 1 ? $soluciones[0] : null;
     }
 
-    /** Firma evidencia consultada con una clave privada de sesión, nunca enviada al navegador. */
-    public static function autorizar_evidencia(array $fila, $clave, $usuario) {
+    /**
+     * Firma evidencia consultada con una clave privada de sesión, nunca enviada al navegador.
+     */
+    public static function autorizar_evidencia(array $fila, $clave, $usuario)
+    {
         $datos = [
-            'usuario' => (int)$usuario, 'expira' => time() + 1200,
+            'usuario' => (int) $usuario, 'expira' => time() + 1200,
             'jornada' => $fila['jornada'], 'reporte' => $fila['reporte'],
             'empleado_id' => $fila['empleado_id'], 'version' => $fila['version_actual'],
             'inicio_actual' => $fila['inicio_actual'], 'fin_actual' => $fila['fin_actual'],
             'estado' => $fila['estado_actual'], 'snapshot_hash' => $fila['snapshot_hash'],
             'entrada' => ($fila['extremo_pendiente'] ?? '') === 'entrada' || !empty($fila['limite_compartido_entrada']) ? '' : $fila['entrada_bio'],
-            'salida' => !empty($fila['corte_periodo_salida']) || ($fila['extremo_pendiente'] ?? '') === 'salida'
-                || !empty($fila['limite_compartido_salida']) ? '' : $fila['salida_bio']
+            'salida' => !empty($fila['corte_periodo_salida']) ||
+                ($fila['extremo_pendiente'] ?? '') === 'salida' ||
+                !empty($fila['limite_compartido_salida']) ? '' : $fila['salida_bio']
         ];
         $texto = base64_encode(json_encode($datos, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
         return $texto . '.' . hash_hmac('sha256', $texto, $clave);
     }
 
-    /** Rechaza evidencias manipuladas, vencidas, de otra sesión/usuario o sin el extremo elegido. */
-    public static function validar_evidencia($token, $extremo, $clave, $usuario) {
+    /**
+     * Rechaza evidencias manipuladas, vencidas, de otra sesión/usuario o sin el extremo elegido.
+     */
+    public static function validar_evidencia($token, $extremo, $clave, $usuario)
+    {
         if (!in_array($extremo, ['entrada', 'salida'], true)) {
             throw new InvalidArgumentException('Seleccione entrada o salida BioTime.');
         }
         $partes = explode('.', $token);
-        if ($clave === '' || count($partes) !== 2
-            || !hash_equals(hash_hmac('sha256', $partes[0], $clave), $partes[1])) {
+        if ($clave === '' ||
+                count($partes) !== 2 ||
+                !hash_equals(hash_hmac('sha256', $partes[0], $clave), $partes[1])) {
             throw new RuntimeException('La evidencia no es válida. Ejecute nuevamente el cruce.');
         }
         $datos = json_decode(base64_decode($partes[0], true), true);
-        if (!is_array($datos) || (int)($datos['usuario'] ?? 0) !== (int)$usuario
-            || (int)($datos['expira'] ?? 0) < time() || empty($datos[$extremo])) {
+        if (!is_array($datos) ||
+                (int) ($datos['usuario'] ?? 0) !== (int) $usuario ||
+                (int) ($datos['expira'] ?? 0) < time() ||
+                empty($datos[$extremo])) {
             throw new RuntimeException('No hay evidencia vigente para este ajuste. Ejecute nuevamente el cruce.');
         }
         return $datos;
     }
 
-    /** Valida la versión y el estado, y prepara exclusivamente el extremo solicitado. */
-    public static function preparar_ajuste(array $actual, array $evidencia, $extremo) {
+    /**
+     * Valida la versión y el estado, y prepara exclusivamente el extremo solicitado.
+     */
+    public static function preparar_ajuste(array $actual, array $evidencia, $extremo)
+    {
         if (!in_array($extremo, ['entrada', 'salida'], true) || empty($evidencia[$extremo])) {
             throw new InvalidArgumentException('No existe la marcación solicitada.');
         }
-        if ((int)$actual['jornada_version'] !== (int)$evidencia['version']
-            || $actual['je_codigo'] !== $evidencia['estado']
-            || $actual['jornada_inicio'] !== $evidencia['inicio_actual']
-            || $actual['jornada_fin'] !== $evidencia['fin_actual']) {
+        if ((int) $actual['jornada_version'] !== (int) $evidencia['version'] ||
+                $actual['je_codigo'] !== $evidencia['estado'] ||
+                $actual['jornada_inicio'] !== $evidencia['inicio_actual'] ||
+                $actual['jornada_fin'] !== $evidencia['fin_actual']) {
             throw new RuntimeException('La jornada cambió desde la consulta. Ejecute nuevamente el cruce.');
         }
         if (!in_array($actual['je_codigo'], ['APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO'], true)) {
@@ -637,8 +1027,11 @@ class JornadaCruceBiotime extends Conectar
         return ['campo' => $campo, 'nueva' => $nueva];
     }
 
-    /** Cambia un solo horario en transacción; versión, fecha y auditoría siguen el mecanismo existente. */
-    public function ajustar_desde_biotime($token, $extremo, $clave, $usuario) {
+    /**
+     * Cambia un solo horario en transacción; versión, fecha y auditoría siguen el mecanismo existente.
+     */
+    public function ajustar_desde_biotime($token, $extremo, $clave, $usuario)
+    {
         $evidencia = self::validar_evidencia($token, $extremo, $clave, $usuario);
         $db = parent::Conexion();
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -646,11 +1039,11 @@ class JornadaCruceBiotime extends Conectar
             $db->beginTransaction();
             // Misma serialización por empleado utilizada en las ediciones de Jornada.
             $stmt = $db->prepare('SELECT pg_advisory_xact_lock(?)');
-            $stmt->execute([(int)$evidencia['empleado_id']]);
+            $stmt->execute([(int) $evidencia['empleado_id']]);
             $stmt = $db->prepare('SELECT j.*, e.je_codigo FROM jornadas_trabajo j
                 INNER JOIN jornada_estados e ON e.je_id = j.jornada_estado_id
                 WHERE j.jornada_id = ? AND j.empleado_id = ? FOR UPDATE OF j');
-            $stmt->execute([(int)$evidencia['jornada'], (int)$evidencia['empleado_id']]);
+            $stmt->execute([(int) $evidencia['jornada'], (int) $evidencia['empleado_id']]);
             $actual = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$actual) {
                 throw new RuntimeException('No se encontró la jornada correspondiente a la evidencia.');
@@ -667,11 +1060,11 @@ class JornadaCruceBiotime extends Conectar
                 throw new RuntimeException('El reporte firmado cambió. Ejecute nuevamente el cruce.');
             }
             $ajuste = self::preparar_ajuste($actual, $evidencia, $extremo);
-            $campo = $ajuste['campo']; // Lista cerrada, nunca se recibe un nombre SQL del cliente.
+            $campo = $ajuste['campo'];  // Lista cerrada, nunca se recibe un nombre SQL del cliente.
             $nueva = $ajuste['nueva'];
             if ($actual[$campo] === $nueva[$campo]) {
                 $db->commit();
-                return ['jornada' => (int)$actual['jornada_id'], 'sin_cambios' => true];
+                return ['jornada' => (int) $actual['jornada_id'], 'sin_cambios' => true];
             }
             // Conserva la regla vigente de no superponer jornadas activas del empleado.
             $stmt = $db->prepare("SELECT j.jornada_id FROM jornadas_trabajo j
@@ -699,18 +1092,19 @@ class JornadaCruceBiotime extends Conectar
             $datosNuevos = $guardada;
             $datosNuevos['evidencia_biotime'] = $evidencia;
             $datosNuevos['extremo_ajustado'] = $extremo;
-            $datosNuevos['version_firmada'] = (int)$firmada['jrd_jornada_version'];
+            $datosNuevos['version_firmada'] = (int) $firmada['jrd_jornada_version'];
             $stmt->execute([$actual['jornada_id'], 'AJUSTAR_' . strtoupper($extremo) . '_BIOTIME_CONTABILIDAD',
                 $actual['je_codigo'], $actual['je_codigo'],
                 json_encode($actual, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                 json_encode($datosNuevos, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                 'Ajuste posterior a la firma confirmado por Contabilidad con evidencia BioTime; snapshot firmado intacto.',
-                (int)$usuario]);
+                (int) $usuario]);
             $db->commit();
-            return ['jornada' => (int)$actual['jornada_id'], 'version_actual' => (int)$guardada['jornada_version'],
+            return ['jornada' => (int) $actual['jornada_id'], 'version_actual' => (int) $guardada['jornada_version'],
                 'inicio_actual' => $guardada['jornada_inicio'], 'fin_actual' => $guardada['jornada_fin']];
         } catch (Throwable $e) {
-            if ($db->inTransaction()) $db->rollBack();
+            if ($db->inTransaction())
+                $db->rollBack();
             throw $e;
         }
     }

@@ -1,0 +1,19 @@
+
+/* Select2 - Filtro de empleados */
+
+#icb-empleado + .select2-container {
+    width: 100% !important;
+}
+
+#icb-empleado + .select2-container .select2-selection--single {
+    height: 38px;
+}
+
+#icb-empleado + .select2-container .select2-selection__rendered {
+    line-height: 36px;
+    padding-right: 30px;
+}
+
+#icb-empleado + .select2-container .select2-selection__arrow {
+    height: 36px;
+}

@@ -47,31 +47,138 @@ $(function () {
             { data: 'salida_bio', render: fechaHora('hora', 'salida') },
             { data: 'diferencia_entrada', render: diferencia, defaultContent: '—' },
             { data: 'diferencia_salida', render: diferencia, defaultContent: '—' },
-            { data: 'resultado', render: function (valor, type) {
-                if (type !== 'display') return valor;
-                return '<span class="badge ' + (valor === 'Horario correcto' ? 'badge-success' : 'badge-warning')
-                    + '">' + escapar(valor) + '</span>';
-            } },
-            { data: null, orderable: false, searchable: false, render: function () {
-                return '<button type="button" class="btn btn-sm btn-info icb-detalle">Ver marcaciones</button>';
-            } }
+            {
+                data: 'resultado', render: function (valor, type) {
+                    if (type !== 'display') return valor;
+                    return '<span class="badge ' + (valor === 'Horario correcto' ? 'badge-success' : 'badge-warning')
+                        + '">' + escapar(valor) + '</span>';
+                }
+            },
+            {
+                data: null, orderable: false, searchable: false, render: function () {
+                    return '<button type="button" class="btn btn-sm btn-info icb-detalle">Ver marcaciones</button>';
+                }
+            }
         ],
-        language: { emptyTable: 'No hay resultados del cruce', search: 'Buscar:',
+        language: {
+            emptyTable: 'No hay resultados del cruce', search: 'Buscar:',
             lengthMenu: 'Mostrar _MENU_ registros', info: 'Mostrando _START_ a _END_ de _TOTAL_',
             infoEmpty: 'Sin resultados', zeroRecords: 'No hay coincidencias',
-            paginate: { previous: 'Anterior', next: 'Siguiente' } }
+            paginate: { previous: 'Anterior', next: 'Siguiente' }
+        }
     });
-    $('#icb-empleado').select2({ width: '100%' });
+
+    // SELECT2: empleado
+    $('#icb-empleado').select2({
+        width: '100%',
+        placeholder: 'Todos los empleados con reporte firmado',
+        allowClear: true,
+        language: {
+            noResults: function () {
+                return 'No se encontraron empleados';
+            }
+        }
+    });
+
+    // PERIODOS: del día 16 al día 15.
+    // El periodo actual es el último periodo cerrado.
+    const hoy = moment();
+
+    const finActual = hoy.clone().date(15);
+
+    if (hoy.date() < 15) {
+        finActual.subtract(1, 'month');
+    }
+
+    const inicioActual = finActual.clone()
+        .subtract(1, 'month')
+        .date(16);
+
+    const inicioAnterior = inicioActual.clone()
+        .subtract(1, 'month');
+
+    const finAnterior = finActual.clone()
+        .subtract(1, 'month');
+
+    const inicioSiguiente = inicioActual.clone()
+        .add(1, 'month');
+
+    const finSiguiente = finActual.clone()
+        .add(1, 'month');
+
+    // DATERANGEPICKER
     $('#icb-periodo').daterangepicker({
-        startDate: moment().subtract(1, 'month').startOf('month'), endDate: moment(), maxDate: moment(),
-        locale: { format: 'YYYY-MM-DD', separator: ' - ', applyLabel: 'Aplicar', cancelLabel: 'Cancelar',
-            daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
-            monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'] }
+        startDate: inicioActual,
+        endDate: finActual,
+
+        autoUpdateInput: true,
+        autoApply: false,
+
+        // Permite consultar el periodo siguiente,
+        // incluso si contiene fechas futuras.
+        // El controlador mantiene la validacion
+        // de un maximo de 63 dias.
+        maxSpan: {
+            days: 62
+        },
+
+        showDropdowns: true,
+        showCustomRangeLabel: true,
+        alwaysShowCalendars: true,
+        opens: 'right',
+
+        ranges: {
+            'Periodo anterior': [
+                inicioAnterior,
+                finAnterior
+            ],
+            'Periodo actual': [
+                inicioActual,
+                finActual
+            ],
+            'Periodo siguiente': [
+                inicioSiguiente,
+                finSiguiente
+            ]
+        },
+
+        locale: {
+            format: 'YYYY-MM-DD',
+            separator: ' - ',
+            applyLabel: 'Aplicar',
+            cancelLabel: 'Cancelar',
+            customRangeLabel: 'Rango personalizado',
+            fromLabel: 'Desde',
+            toLabel: 'Hasta',
+            weekLabel: 'S',
+            daysOfWeek: [
+                'Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'
+            ],
+            monthNames: [
+                'Enero', 'Febrero', 'Marzo', 'Abril',
+                'Mayo', 'Junio', 'Julio', 'Agosto',
+                'Septiembre', 'Octubre', 'Noviembre',
+                'Diciembre'
+            ],
+            firstDay: 1
+        }
     });
+
+    /*     $('#icb-empleado').select2({ width: '100%' });
+        $('#icb-periodo').daterangepicker({
+            startDate: moment().subtract(1, 'month').startOf('month'), endDate: moment(), maxDate: moment(),
+            locale: {
+                format: 'YYYY-MM-DD', separator: ' - ', applyLabel: 'Aplicar', cancelLabel: 'Cancelar',
+                daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+                monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+            }
+        }); */
     function filtros() {
         const rango = $('#icb-periodo').data('daterangepicker');
-        return { fecha_desde: rango.startDate.format('YYYY-MM-DD'), fecha_hasta: rango.endDate.format('YYYY-MM-DD'),
-            empleado_id: $('#icb-empleado').val() || '', tolerancia: $('#icb-tolerancia').val() };
+        return {
+            fecha_desde: rango.startDate.format('YYYY-MM-DD'), fecha_hasta: rango.endDate.format('YYYY-MM-DD'),
+            empleado_id: $('#icb-empleado').val() || '', tolerancia: $('#icb-tolerancia').val()
+        };
     }
     function error(xhr) {
         Swal.fire('No fue posible consultar', xhr.responseJSON && xhr.responseJSON.message
@@ -97,19 +204,29 @@ $(function () {
         $('#icb-resumen').text('Filtros actualizados. Ejecute nuevamente el cruce.');
     });
     // Vuelve a consultar la evidencia y las versiones después de cada ajuste confirmado.
-    function consultarCruce(mensajeAjuste) {
+    function consultarCruce(mensajeAjuste, forzarBiotime = false) {
         if (ocupado) return;
         ocupado = true;
-        const datos = Object.assign(filtros(), { op: 'cruzarReporteBiotime' });
+        const datos = Object.assign(filtros(), { op: 'cruzarReporteBiotime', forzar_biotime: forzarBiotime ? '1' : '0' });
         tabla.clear().draw();
-        $('#icb-consultar, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', true);
+        $('#icb-consultar, #icb-actualizar-biotime, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', true);
         $('#icb-resumen').text('Consultando BioTime…');
-        Swal.fire({ title: 'Consultando BioTime…', allowOutsideClick: false, allowEscapeKey: false,
-            showConfirmButton: false, didOpen: function () { Swal.showLoading(); } });
+        Swal.fire({
+            title: 'Consultando BioTime…', allowOutsideClick: false, allowEscapeKey: false,
+            showConfirmButton: false, didOpen: function () { Swal.showLoading(); }
+        });
         $.getJSON(url, datos).done(function (r) {
             tabla.rows.add(r.data || []).draw();
-            $('#icb-resumen').text((r.data || []).length + ' jornadas consultadas. Tolerancia: '
-                + r.tolerancia + ' min. Consulta: ' + r.consultado);
+            $('#icb-resumen').text(
+                (r.data || []).length + ' jornadas consultadas. ' +
+                'Tolerancia: ' + r.tolerancia + ' min. ' +
+                'Consulta: ' + r.consultado + '. ' +
+                (r.biotime_cache_hit
+                    ? 'Marcaciones obtenidas desde caché.'
+                    : 'Marcaciones consultadas en BioTime.')
+            );
+            /*             $('#icb-resumen').text((r.data || []).length + ' jornadas consultadas. Tolerancia: '
+                            + r.tolerancia + ' min. Consulta: ' + r.consultado); */
             if (mensajeAjuste) {
                 Swal.fire('Ajuste guardado', mensajeAjuste, 'success');
             } else {
@@ -125,17 +242,22 @@ $(function () {
             }
         }).always(function () {
             ocupado = false;
-            $('#icb-consultar, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', false);
+            $('#icb-consultar, #icb-actualizar-biotime, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', false);
         });
     }
     $('#icb-consultar').on('click', function () { consultarCruce(); });
+
+    $('#icb-actualizar-biotime').on('click', function () {
+        consultarCruce(null, true);
+    });
 
     // Solo envía el extremo y la evidencia autenticada, nunca un horario libre del navegador.
     function ajustarHorario(fila, extremo) {
         const marca = fila[extremo + '_bio'];
         if (ocupado || !marca) return;
         const actual = extremo === 'entrada' ? fila.inicio_actual : fila.fin_actual;
-        Swal.fire({ title: 'Usar ' + extremo + ' BioTime', icon: 'question',
+        Swal.fire({
+            title: 'Usar ' + extremo + ' BioTime', icon: 'question',
             html: '<p><strong>Horario actual:</strong> ' + escapar(actual) + '</p>'
                 + '<p><strong>Horario BioTime:</strong> ' + escapar(marca) + '</p>'
                 + '<p>Se cambiará únicamente la ' + extremo + ' de la jornada actual. La copia firmada se conservará.</p>',
@@ -143,18 +265,22 @@ $(function () {
         }).then(function (r) {
             if (!r.isConfirmed || ocupado) return;
             ocupado = true;
-            $('#icb-consultar, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', true);
-            Swal.fire({ title: 'Guardando ajuste…', allowOutsideClick: false, allowEscapeKey: false,
-                showConfirmButton: false, didOpen: function () { Swal.showLoading(); } });
-            $.ajax({ url: url, type: 'POST', dataType: 'json', data: {
-                op: 'ajustarJornadaBiotime', csrf_token: $('#icb-csrf').val(),
-                evidencia: fila.evidencia_ajuste, extremo: extremo
-            } }).done(function (respuesta) {
+            $('#icb-consultar, #icb-actualizar-biotime, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', true);
+            Swal.fire({
+                title: 'Guardando ajuste…', allowOutsideClick: false, allowEscapeKey: false,
+                showConfirmButton: false, didOpen: function () { Swal.showLoading(); }
+            });
+            $.ajax({
+                url: url, type: 'POST', dataType: 'json', data: {
+                    op: 'ajustarJornadaBiotime', csrf_token: $('#icb-csrf').val(),
+                    evidencia: fila.evidencia_ajuste, extremo: extremo
+                }
+            }).done(function (respuesta) {
                 ocupado = false;
                 consultarCruce(respuesta.message);
             }).fail(function (xhr) {
                 ocupado = false;
-                $('#icb-consultar, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', false);
+                $('#icb-consultar, #icb-actualizar-biotime, #icb-periodo, #icb-empleado, #icb-tolerancia').prop('disabled', false);
                 error(xhr);
             });
         });
@@ -166,7 +292,8 @@ $(function () {
         const fila = tabla.row(tr).data();
         if (!fila) return;
         const editable = ['APROBADO', 'PENDIENTE_LIQUIDACION', 'LIQUIDADO'].includes(fila.estado_actual);
-        Swal.fire({ title: 'Marcaciones del periodo de la jornada',
+        Swal.fire({
+            title: 'Marcaciones del periodo de la jornada',
             html: '<p>' + escapar(fila.detalle) + '</p><p>Versión firmada: ' + fila.version_firmada
                 + '. Versión actual: ' + fila.version_actual + '.</p><p>La firma también incrementa la versión.</p><ul>'
                 + fila.marcaciones.map(function (m) {
