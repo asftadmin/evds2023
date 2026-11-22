@@ -53,7 +53,7 @@ SQL
         'fin' => '2026-10-19 17:00:00', 'minutos_ordinarios' => 480, 'ubicacion' => 'La Toscana',
         'actividad' => 'FALLAR', 'observaciones' => ''];
     $mensaje = falla(fn() => $modelo->guardar_jornada_equipo_varios([2, 1], 3, 9, $fila));
-    comprobar(strpos($mensaje, 'ID 2') !== false, 'Identifica el segundo empleado que falló');
+    comprobar(strpos($mensaje, 'Empleado Dos:') !== false, 'Identifica por nombre el segundo empleado que falló');
     comprobar((int)$db->query('SELECT count(*) FROM jornadas_trabajo')->fetchColumn() === 0, 'Rollback elimina también la jornada creada para el primer empleado');
     comprobar((int)$db->query('SELECT count(*) FROM jornada_auditoria')->fetchColumn() === 0, 'Rollback revierte la auditoría del primer empleado');
 

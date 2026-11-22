@@ -2314,19 +2314,22 @@ class Jornada extends Conectar
         $jornada['jornada_id'] = null;
         // Orden estable para evitar bloqueos cruzados entre registros concurrentes.
         sort($ids, SORT_NUMERIC);
+        $nombres = array_column($this->listar_subordinados_jefe($jefe_id), 'empleado_nombre', 'empleado_id');
         $db = parent::Conexion();
         try {
             $db->beginTransaction();
             $pasos = [];
             foreach ($ids as $id) {
+                $nombre = trim((string) ($nombres[$id] ?? ''));
+                $empleado = $nombre !== '' ? 'Empleado ' . $nombre : 'Empleado seleccionado';
                 try {
                     $resultado = $this->guardar_borradores_equipo_masivo($id, $jefe_id, $user_id, [$jornada], $db);
                     $pasos[] = ['empleado_id' => $id, 'jornada_id' => $resultado['jornadas_creadas'][0]];
                 } catch (PDOException $e) {
                     // No exponer consultas ni detalles de la base de datos.
-                    throw new RuntimeException('No se pudo registrar al empleado ID ' . $id . '. Se revirtió todo el registro.', 0, $e);
+                    throw new RuntimeException($empleado . ': No se pudo registrar la jornada. Se revirtió todo el registro.', 0, $e);
                 } catch (RuntimeException | InvalidArgumentException $e) {
-                    throw new RuntimeException('Empleado ID ' . $id . ': ' . $e->getMessage() . ' Se revirtió todo el registro.', 0, $e);
+                    throw new RuntimeException($empleado . ': ' . $e->getMessage() . ' Se revirtió todo el registro.', 0, $e);
                 }
             }
             $db->commit();
