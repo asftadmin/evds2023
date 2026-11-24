@@ -53,11 +53,11 @@ if (!isset($_SESSION['user_id'])) {
             </section>
 
             <!-- Contenido -->
-            <section class="content">
+            <section class="content pb-2">
                 <div class="container-fluid">
 
                     <!-- Filtros -->
-                    <div class="card card-outline card-primary">
+                    <div class="card card-outline card-dark">
 
                         <div class="card-header">
                             <h3 class="card-title">
@@ -70,7 +70,7 @@ if (!isset($_SESSION['user_id'])) {
 
                             <div class="row">
 
-                                <div class="col-md-4">
+                                <div class="col-md-3">
 
                                     <div class="form-group">
                                         <label for="filtro_fechas">
@@ -82,7 +82,7 @@ if (!isset($_SESSION['user_id'])) {
 
                                 </div>
 
-                                <div class="col-md-4">
+                                <div class="col-md-3">
 
                                     <div class="form-group">
                                         <label for="empleado_id">
@@ -98,7 +98,7 @@ if (!isset($_SESSION['user_id'])) {
 
                                 </div>
 
-                                <div class="col-md-4">
+                                <div class="col-md-3">
 
                                     <div class="form-group">
                                         <label for="estado_control">
@@ -134,12 +134,19 @@ if (!isset($_SESSION['user_id'])) {
 
                                 </div>
 
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <button type="button" id="btn-consultar" class="btn btn-info btn-block">
+                                            <i class="fas fa-search mr-1"></i>
+                                            Consultar
+                                        </button>
+                                    </div>
+                                </div>
+
                             </div>
 
-                            <button type="button" id="btn-consultar" class="btn btn-info">
-                                <i class="fas fa-search mr-1"></i>
-                                Consultar
-                            </button>
+
 
                         </div>
 
@@ -234,7 +241,7 @@ if (!isset($_SESSION['user_id'])) {
                     </div>
 
                     <!-- Tabla -->
-                    <div class="card">
+                    <div class="card mb-2 card-outline card-danger">
 
                         <div class="card-header">
 
@@ -263,8 +270,9 @@ if (!isset($_SESSION['user_id'])) {
                                             </th>
                                             <th>Aprobadas</th>
                                             <th>Firma reporte</th>
-                                            <th>Última firma</th>
+                                            <th>Fecha Firma Empleado</th>
                                             <th>Estado</th>
+                                            <th>Acciones</th>
                                         </tr>
                                     </thead>
 
@@ -295,4 +303,3 @@ if (!isset($_SESSION['user_id'])) {
 </body>
 
 </html>
-```

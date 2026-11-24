@@ -230,9 +230,25 @@ function renderTablaControl(filas) {
         pageLength: 10,
         order: [[0, 'asc']],
         language: {
-            url:
-                '../../public/plugins/datatables-' +
-                'plugins/i18n/es-ES.json'
+            processing: 'Procesando...',
+            search: 'Buscar:',
+            lengthMenu: 'Mostrar _MENU_ registros',
+            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
+            infoEmpty: 'Mostrando 0 a 0 de 0 registros',
+            infoFiltered: '(filtrado de _MAX_ registros totales)',
+            loadingRecords: 'Cargando...',
+            zeroRecords: 'No se encontraron registros',
+            emptyTable: 'No hay información disponible',
+            paginate: {
+                first: 'Primero',
+                previous: 'Anterior',
+                next: 'Siguiente',
+                last: 'Último'
+            },
+            aria: {
+                sortAscending: ': activar para ordenar ascendente',
+                sortDescending: ': activar para ordenar descendente'
+            }
         },
         columns: [
             {
@@ -303,7 +319,7 @@ function renderTablaControl(filas) {
                 }
             },
             {
-                data: 'fecha_ultima_firma',
+                data: 'fecha_ultima_confirmacion',
                 render: function (data) {
                     if (!data) {
                         return '-';
@@ -318,6 +334,15 @@ function renderTablaControl(filas) {
                 data: null,
                 render: function (data, type, fila) {
                     return renderEstadoControl(fila);
+                }
+            },
+            {
+                data: null,
+                orderable: false,
+                searchable: false,
+                className: 'text-center',
+                render: function (data, type, fila) {
+                    return renderReporteIndividual(fila);
                 }
             }
         ]
@@ -397,6 +422,34 @@ function consultarControlFirmas() {
         });
 }
 
+function renderReporteIndividual(fila) {
+    const totalJornadas = parseInt(
+        fila.total_jornadas || 0,
+        10
+    );
+
+    if (totalJornadas <= 0) {
+        return (
+            '<button type="button" ' +
+            'class="btn btn-sm btn-secondary" disabled>' +
+            '<i class="fas fa-file-pdf"></i>' +
+            '</button>'
+        );
+    }
+
+    return (
+        '<button type="button" ' +
+        'class="btn btn-sm btn-danger btn-reporte-individual" ' +
+        'data-empleado-id="' +
+        parseInt(fila.empleado_id, 10) +
+        '" ' +
+        'title="Ver reporte individual">' +
+        '<i class="fas fa-file-pdf"></i> ' +
+        'PDF' +
+        '</button>'
+    );
+}
+
 $(document).ready(function () {
     inicializarFiltrosControl();
 
@@ -411,4 +464,49 @@ $('#btn-consultar').on(
 $('#estado_control').on(
     'change',
     aplicarFiltroEstado
+);
+
+$('#tabla-control-firmas').on(
+    'click',
+    '.btn-reporte-individual',
+    function () {
+        const empleadoId = parseInt(
+            $(this).data('empleado-id'),
+            10
+        );
+
+        const periodo = obtenerPeriodoControl();
+
+        if (
+            !empleadoId ||
+            !periodo.fecha_desde ||
+            !periodo.fecha_hasta
+        ) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Datos incompletos',
+                text:
+                    'No fue posible determinar el empleado ' +
+                    'o el periodo del reporte.'
+            });
+
+            return;
+        }
+
+        const url =
+            '../../controller/jornada_exportar.php' +
+            '?tipo=pdf_borrador_equipo' +
+            '&empleado_id=' +
+            encodeURIComponent(empleadoId) +
+            '&fecha_desde=' +
+            encodeURIComponent(periodo.fecha_desde) +
+            '&fecha_hasta=' +
+            encodeURIComponent(periodo.fecha_hasta);
+
+        window.open(
+            url,
+            '_blank',
+            'noopener'
+        );
+    }
 );
