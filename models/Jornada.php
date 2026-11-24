@@ -3282,7 +3282,18 @@ class Jornada extends Conectar
 
             WHERE c.jco_estado = 'VIGENTE'
               AND d.jcod_estado = 'VIGENTE'
-              AND d.jcod_jornada_version = j.jornada_version
+            AND (
+                d.jcod_jornada_version = j.jornada_version
+                OR (
+                    j.jornada_version = d.jcod_jornada_version + 1
+                    AND EXISTS (
+                        SELECT 1
+                        FROM jornada_estados je_actual
+                        WHERE je_actual.je_id = j.jornada_estado_id
+                        AND je_actual.je_codigo = 'CONFIRMADO_EMPLEADO'
+                    )
+                )
+            )
 
             GROUP BY d.jornada_id
         ),
