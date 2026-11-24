@@ -661,32 +661,37 @@ class Jornada extends Conectar
             WHERE emp.id_empl = ? AND emp.esta_empl = 1');
         $stmt->execute([(int) $empleado_id]);
         $datos = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$datos) throw new RuntimeException('El empleado no está activo.');
+        if (!$datos)
+            throw new RuntimeException('El empleado no está activo.');
         $datos['desde'] = $desde;
         $datos['hasta'] = $hasta;
         $datos['borrador'] = true;
         $datos['jornadas'] = array_values(array_filter(
             $this->listar_mis_jornadas($empleado_id, $desde, $hasta),
             static function ($fila) use ($estado) {
-                return !in_array($fila['estado_codigo'], ['ANULADO', 'RECHAZADO'], true)
-                    && ($estado === '' || $fila['estado_codigo'] === $estado);
+                return !in_array($fila['estado_codigo'], ['ANULADO', 'RECHAZADO'], true) &&
+                    ($estado === '' || $fila['estado_codigo'] === $estado);
             }
         ));
-        if (!$datos['jornadas']) throw new RuntimeException('No existen jornadas reportables para el periodo y estado seleccionados.');
+        if (!$datos['jornadas'])
+            throw new RuntimeException('No existen jornadas reportables para el periodo y estado seleccionados.');
         $datos['totales'] = ['ORD' => array_sum(array_column($datos['jornadas'], 'jornada_minutos_ordinarios'))];
 
         return array_merge($datos, self::obtener_firmas_pdf($db, $empleado_id, $datos['jornadas']));
     }
 
-    /** Firmas compartidas por Historial y Contabilidad, verificadas contra las jornadas del documento. */
+    /**
+     * Firmas compartidas por Historial y Contabilidad, verificadas contra las jornadas del documento.
+     */
     public static function obtener_firmas_pdf(PDO $db, $empleado_id, array $jornadas, $fecha_limite = null)
     {
         $datos = array_merge(['jefe_nombre' => null, 'firma_jefe' => null,
-            'firma_empleado' => null, 'fecha_firma_empleado' => null,
-            'jornadas_firmadas' => 0, 'mostrar_firmas' => true],
+                'firma_empleado' => null, 'fecha_firma_empleado' => null,
+                'jornadas_firmadas' => 0, 'mostrar_firmas' => true],
             self::obtener_aprobadores_pdf($db, $empleado_id, $jornadas, $fecha_limite));
         $por_id = array_column($jornadas, null, 'jornada_id');
-        if (!$por_id) return $datos;
+        if (!$por_id)
+            return $datos;
         $ids = array_map('intval', array_keys($por_id));
         $marcadores = implode(',', array_fill(0, count($ids), '?'));
         // Usa los IDs congelados, no las fechas actuales de registros que pudieron cambiar.
@@ -716,12 +721,15 @@ class Jornada extends Conectar
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $evidencia) {
             $id = (int) $evidencia['jornada_id'];
             $snapshot = json_decode($evidencia['snapshot'], true);
-            if (!isset($por_id[$id]) || !is_array($snapshot) || empty($evidencia['firma'])) continue;
+            if (!isset($por_id[$id]) || !is_array($snapshot) || empty($evidencia['firma']))
+                continue;
             foreach (['jornada_inicio', 'jornada_fin', 'jornada_minutos_ordinarios',
-                'jornada_ubicacion', 'jornada_actividad', 'jornada_observaciones'] as $campo) {
+                    'jornada_ubicacion', 'jornada_actividad', 'jornada_observaciones'] as $campo) {
                 // Los snapshots contables antiguos no incluían este campo; verifica los demás.
-                if ($campo === 'jornada_minutos_ordinarios' && !array_key_exists($campo, $por_id[$id])) continue;
-                if (!array_key_exists($campo, $snapshot) || (string) $snapshot[$campo] !== (string) $por_id[$id][$campo]) continue 2;
+                if ($campo === 'jornada_minutos_ordinarios' && !array_key_exists($campo, $por_id[$id]))
+                    continue;
+                if (!array_key_exists($campo, $snapshot) || (string) $snapshot[$campo] !== (string) $por_id[$id][$campo])
+                    continue 2;
             }
             $firmadas[$id] = true;
             if ($datos['firma_empleado'] === null) {
@@ -733,12 +741,15 @@ class Jornada extends Conectar
         return $datos;
     }
 
-    /** Firmantes reales de las jornadas, sin sustituirlos por la jefatura asignada actualmente. */
+    /**
+     * Firmantes reales de las jornadas, sin sustituirlos por la jefatura asignada actualmente.
+     */
     public static function obtener_aprobadores_pdf(PDO $db, $empleado_id, array $jornadas, $fecha_limite = null)
     {
         $datos = ['jefe_nombre' => null, 'firma_jefe' => null, 'firmas_jefes' => []];
         $por_id = array_column($jornadas, null, 'jornada_id');
-        if (!$por_id) return $datos;
+        if (!$por_id)
+            return $datos;
         $ids = array_map('intval', array_keys($por_id));
         $marcadores = implode(',', array_fill(0, count($ids), '?'));
         $limite = $fecha_limite !== null ? ' AND apr.jap_fecha <= ?::timestamp' : '';
@@ -755,15 +766,19 @@ class Jornada extends Conectar
         $stmt->execute(array_merge([$empleado_id], $ids, $fecha_limite !== null ? [$fecha_limite] : []));
         $jefes = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $aprobacion) {
-            $jornada = $por_id[(int)$aprobacion['jornada_id']];
+            $jornada = $por_id[(int) $aprobacion['jornada_id']];
             // En un cierre antiguo no atribuye una aprobación a un responsable distinto del congelado.
-            if (!empty($jornada['aprobado_por_id']) && (int)$jornada['aprobado_por_id'] !== (int)$aprobacion['empleado_id']) continue;
-            if (!empty($jornada['aprobado_por']) && trim($jornada['aprobado_por']) !== trim($aprobacion['jefe_nombre'] ?? '')) continue;
-            if (empty($aprobacion['empleado_id']) || empty($aprobacion['jefe_nombre'])) continue;
-            $id = (int)$aprobacion['empleado_id'];
-            if (!isset($jefes[$id])) $jefes[$id] = ['empleado_id' => $id,
-                'jefe_nombre' => $aprobacion['jefe_nombre'], 'firma_jefe' => $aprobacion['firma_jefe'], 'jornadas_aprobadas' => []];
-            $jefes[$id]['jornadas_aprobadas'][] = (int)$aprobacion['jornada_id'];
+            if (!empty($jornada['aprobado_por_id']) && (int) $jornada['aprobado_por_id'] !== (int) $aprobacion['empleado_id'])
+                continue;
+            if (!empty($jornada['aprobado_por']) && trim($jornada['aprobado_por']) !== trim($aprobacion['jefe_nombre'] ?? ''))
+                continue;
+            if (empty($aprobacion['empleado_id']) || empty($aprobacion['jefe_nombre']))
+                continue;
+            $id = (int) $aprobacion['empleado_id'];
+            if (!isset($jefes[$id]))
+                $jefes[$id] = ['empleado_id' => $id,
+                    'jefe_nombre' => $aprobacion['jefe_nombre'], 'firma_jefe' => $aprobacion['firma_jefe'], 'jornadas_aprobadas' => []];
+            $jefes[$id]['jornadas_aprobadas'][] = (int) $aprobacion['jornada_id'];
         }
         ksort($jefes);
         $datos['firmas_jefes'] = array_values($jefes);
@@ -2328,7 +2343,7 @@ class Jornada extends Conectar
                 } catch (PDOException $e) {
                     // No exponer consultas ni detalles de la base de datos.
                     throw new RuntimeException($empleado . ': No se pudo registrar la jornada. Se revirtió todo el registro.', 0, $e);
-                } catch (RuntimeException | InvalidArgumentException $e) {
+                } catch (RuntimeException|InvalidArgumentException $e) {
                     throw new RuntimeException($empleado . ': ' . $e->getMessage() . ' Se revirtió todo el registro.', 0, $e);
                 }
             }
@@ -2342,7 +2357,9 @@ class Jornada extends Conectar
         }
     }
 
-    /** Aprueba jornadas confirmadas y publica el reporte usando la firma original del empleado. */
+    /**
+     * Aprueba jornadas confirmadas y publica el reporte usando la firma original del empleado.
+     */
     public function registrar_aprobar_equipo_masivo(
         $empleado_id,
         $jefe_empleado_id,
@@ -2579,13 +2596,15 @@ class Jornada extends Conectar
             }
             $evidencia = $evidencias[0];
             $snapshot = json_decode($evidencia['jcod_snapshot'], true);
-            if (!is_array($snapshot) || empty($evidencia['jco_firma_base64']) ||
-                empty($evidencia['jco_confirmado_por']) || empty($evidencia['jco_fecha_confirmacion']) ||
-                (int) $evidencia['jcod_jornada_version'] + 1 !== (int) $jornada['jornada_version']) {
+            if (!is_array($snapshot) ||
+                    empty($evidencia['jco_firma_base64']) ||
+                    empty($evidencia['jco_confirmado_por']) ||
+                    empty($evidencia['jco_fecha_confirmacion']) ||
+                    (int) $evidencia['jcod_jornada_version'] + 1 !== (int) $jornada['jornada_version']) {
                 throw new RuntimeException('La firma de la jornada #' . $jornada['jornada_id'] . ' no corresponde a su versión actual.');
             }
             foreach (['jornada_id', 'empleado_id', 'jornada_inicio', 'jornada_fin', 'jornada_minutos_ordinarios',
-                'jornada_ubicacion', 'jornada_actividad', 'jornada_observaciones', 'jornada_origen'] as $campo) {
+                    'jornada_ubicacion', 'jornada_actividad', 'jornada_observaciones', 'jornada_origen'] as $campo) {
                 if (!array_key_exists($campo, $snapshot) || (string) $snapshot[$campo] !== (string) $jornada[$campo]) {
                     throw new RuntimeException('Los datos de la jornada #' . $jornada['jornada_id'] . ' difieren de los firmados. Debe confirmarse nuevamente.');
                 }
@@ -3022,7 +3041,7 @@ class Jornada extends Conectar
                 continue;
             }
             foreach (['jornada_inicio', 'jornada_fin', 'jornada_minutos_ordinarios', 'jornada_ubicacion',
-                'jornada_actividad', 'jornada_observaciones'] as $campo) {
+                    'jornada_actividad', 'jornada_observaciones'] as $campo) {
                 if (!array_key_exists($campo, $snapshot) || (string) $snapshot[$campo] !== (string) $por_id[$id][$campo]) {
                     continue 2;
                 }
@@ -3040,7 +3059,9 @@ class Jornada extends Conectar
         return $datos;
     }
 
-    /** Prepara un PDF conjunto; valida toda la selección antes de generar cualquier planilla. */
+    /**
+     * Prepara un PDF conjunto; valida toda la selección antes de generar cualquier planilla.
+     */
     public function obtener_borradores_equipo_lote($jefe_id, array $empleados_ids, $desde, $hasta, $todos = false)
     {
         $disponibles = $this->listar_subordinados_jefe($jefe_id);
@@ -3062,9 +3083,11 @@ class Jornada extends Conectar
         $snapshots = [];
         // Conserva el orden alfabético del selector, sin repetir empleados.
         foreach ($disponibles as $empleado) {
-            if (!isset($seleccion[$empleado['empleado_id']])) continue;
+            if (!isset($seleccion[$empleado['empleado_id']]))
+                continue;
             $snapshot = $this->obtener_borrador_equipo($jefe_id, $empleado['empleado_id'], $desde, $hasta);
-            if (count($snapshot['jornadas']) > 0) $snapshots[] = $snapshot;
+            if (count($snapshot['jornadas']) > 0)
+                $snapshots[] = $snapshot;
         }
         if (!$snapshots) {
             throw new RuntimeException('No existen jornadas guardadas para los empleados y el periodo seleccionados.');
@@ -3187,5 +3210,287 @@ class Jornada extends Conectar
         $stmt->execute();
 
         return $detalle;
+    }
+
+    /**
+     * Consolida el avance de confirmación, aprobación y firma de jornadas
+     * por empleado dentro de un periodo.
+     */
+
+    /**
+     * Consolida el avance de confirmación, aprobación y firma de jornadas
+     * por empleado dentro de un periodo.
+     */
+
+    /**
+     * Consolida el avance de confirmación, aprobación y firma de jornadas
+     * de los subordinados activos de un jefe dentro de un periodo.
+     */
+    public function listar_control_firmas(
+        $jefe_empleado_id,
+        $fecha_desde,
+        $fecha_hasta,
+        $empleado_id = null
+    ) {
+        $conectar = parent::Conexion();
+
+        $sql = "
+        WITH base AS (
+            SELECT
+                j.jornada_id,
+                j.empleado_id,
+                j.jornada_inicio,
+                j.jornada_origen,
+                j.jornada_version,
+                estado.je_codigo
+            FROM jornadas_trabajo j
+
+            INNER JOIN jornada_estados estado
+                ON estado.je_id = j.jornada_estado_id
+
+            INNER JOIN empleado_jefe ej
+                ON ej.empleado_id = j.empleado_id
+
+            INNER JOIN empleados emp_base
+                ON emp_base.id_empl = ej.empleado_id
+
+            WHERE ej.jefe_id = :jefe_empleado_id
+              AND ej.ej_estado = 1
+              AND emp_base.esta_empl = 1
+
+              AND j.jornada_inicio::date >= :fecha_desde::date
+              AND j.jornada_inicio::date <= :fecha_hasta::date
+
+              AND estado.je_codigo NOT IN (
+                    'ANULADO',
+                    'RECHAZADO'
+              )
+        ),
+
+        confirmaciones AS (
+            SELECT
+                d.jornada_id,
+                MAX(c.jco_fecha_confirmacion)
+                    AS fecha_confirmacion
+            FROM jornada_confirmacion_obra_detalle d
+
+            INNER JOIN jornada_confirmaciones_obra c
+                ON c.jco_id = d.jco_id
+
+            INNER JOIN jornadas_trabajo j
+                ON j.jornada_id = d.jornada_id
+
+            WHERE c.jco_estado = 'VIGENTE'
+              AND d.jcod_estado = 'VIGENTE'
+              AND d.jcod_jornada_version = j.jornada_version
+
+            GROUP BY d.jornada_id
+        ),
+
+        firmas_reporte AS (
+            SELECT
+                d.jornada_id,
+                MAX(r.jrf_fecha_firma)
+                    AS fecha_firma
+            FROM jornada_reporte_detalle d
+
+            INNER JOIN jornada_reportes_firma r
+                ON r.jrf_id = d.jrf_id
+
+            WHERE r.jrf_estado = 'FIRMADO'
+
+            GROUP BY d.jornada_id
+        )
+
+        SELECT
+            emp.id_empl AS empleado_id,
+            emp.nomb_empl AS empleado,
+            emp.cedu_empl AS documento,
+
+            COUNT(b.jornada_id)::integer
+                AS total_jornadas,
+
+            COUNT(b.jornada_id) FILTER (
+                WHERE b.jornada_origen = 'REGISTRO_JEFE'
+            )::integer
+                AS jornadas_registradas_jefe,
+
+            COUNT(b.jornada_id) FILTER (
+                WHERE b.jornada_origen = 'REGISTRO_JEFE'
+                  AND c.jornada_id IS NOT NULL
+            )::integer
+                AS jornadas_confirmadas,
+
+            COUNT(b.jornada_id) FILTER (
+                WHERE b.je_codigo IN (
+                    'CONFIRMADO_EMPLEADO',
+                    'PENDIENTE_APROBACION'
+                )
+            )::integer
+                AS pendientes_aprobacion,
+
+            COUNT(b.jornada_id) FILTER (
+                WHERE b.je_codigo IN (
+                    'APROBADO',
+                    'PENDIENTE_LIQUIDACION',
+                    'LIQUIDADO'
+                )
+            )::integer
+                AS jornadas_aprobadas,
+
+            COUNT(b.jornada_id) FILTER (
+                WHERE f.jornada_id IS NOT NULL
+            )::integer
+                AS jornadas_firmadas_reporte,
+
+            COUNT(b.jornada_id) FILTER (
+                WHERE b.je_codigo = 'APROBADO'
+                  AND f.jornada_id IS NULL
+            )::integer
+                AS pendientes_firma_reporte,
+
+            MAX(c.fecha_confirmacion)
+                AS fecha_ultima_confirmacion,
+
+            MAX(f.fecha_firma)
+                AS fecha_ultima_firma
+
+        FROM base b
+
+        INNER JOIN empleados emp
+            ON emp.id_empl = b.empleado_id
+
+        LEFT JOIN confirmaciones c
+            ON c.jornada_id = b.jornada_id
+
+        LEFT JOIN firmas_reporte f
+            ON f.jornada_id = b.jornada_id
+
+        WHERE 1 = 1
+    ";
+
+        if ($empleado_id !== null) {
+            $sql .= '
+            AND b.empleado_id = :empleado_id
+        ';
+        }
+
+        $sql .= '
+        GROUP BY
+            emp.id_empl,
+            emp.nomb_empl,
+            emp.cedu_empl
+
+        ORDER BY emp.nomb_empl
+    ';
+
+        $stmt = $conectar->prepare($sql);
+
+        $stmt->bindValue(
+            ':jefe_empleado_id',
+            (int) $jefe_empleado_id,
+            PDO::PARAM_INT
+        );
+
+        $stmt->bindValue(
+            ':fecha_desde',
+            $fecha_desde,
+            PDO::PARAM_STR
+        );
+
+        $stmt->bindValue(
+            ':fecha_hasta',
+            $fecha_hasta,
+            PDO::PARAM_STR
+        );
+
+        if ($empleado_id !== null) {
+            $stmt->bindValue(
+                ':empleado_id',
+                (int) $empleado_id,
+                PDO::PARAM_INT
+            );
+        }
+
+        $stmt->execute();
+
+        $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($filas as &$fila) {
+            $total = (int) $fila['total_jornadas'];
+
+            $jefe = (int) $fila['jornadas_registradas_jefe'];
+
+            $confirmadas = (int) $fila['jornadas_confirmadas'];
+
+            $pendientes_aprobacion = (int) $fila['pendientes_aprobacion'];
+
+            $pendientes_firma = (int) $fila['pendientes_firma_reporte'];
+
+            $firmadas = (int) $fila['jornadas_firmadas_reporte'];
+
+            if (
+                $jefe > 0 &&
+                $confirmadas < $jefe
+            ) {
+                $fila['estado_control'] =
+                    'PENDIENTE_CONFIRMACION';
+
+                $fila['estado_nombre'] =
+                    'Pendiente confirmación';
+
+                continue;
+            }
+
+            if ($pendientes_aprobacion > 0) {
+                $fila['estado_control'] =
+                    'PENDIENTE_APROBACION';
+
+                $fila['estado_nombre'] =
+                    'Pendiente aprobación';
+
+                continue;
+            }
+
+            if ($pendientes_firma > 0) {
+                $fila['estado_control'] =
+                    'PENDIENTE_FIRMA';
+
+                $fila['estado_nombre'] =
+                    'Pendiente firma reporte';
+
+                continue;
+            }
+
+            if ($firmadas > 0) {
+                $fila['estado_control'] =
+                    'FIRMADO';
+
+                $fila['estado_nombre'] =
+                    'Firmado';
+
+                continue;
+            }
+
+            if ($total > 0) {
+                $fila['estado_control'] =
+                    'EN_PROCESO';
+
+                $fila['estado_nombre'] =
+                    'En proceso';
+
+                continue;
+            }
+
+            $fila['estado_control'] =
+                'SIN_JORNADAS';
+
+            $fila['estado_nombre'] =
+                'Sin jornadas';
+        }
+
+        unset($fila);
+
+        return $filas;
     }
 }

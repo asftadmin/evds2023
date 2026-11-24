@@ -1414,7 +1414,8 @@ try {
                 jornada_responder(['success' => false, 'message' => 'Utilice GET para exportar.'], 405);
             }
             foreach (['empleado_id', 'user_id', 'usuario_id', 'documento'] as $campo) {
-                if (isset($_GET[$campo])) throw new InvalidArgumentException('La exportación utiliza únicamente el empleado de la sesión.');
+                if (isset($_GET[$campo]))
+                    throw new InvalidArgumentException('La exportación utiliza únicamente el empleado de la sesión.');
             }
             $desde = jornada_entrada('fecha_desde');
             $hasta = jornada_entrada('fecha_hasta');
@@ -1550,6 +1551,58 @@ try {
             jornada_responder([
                 'success' => true,
                 'data' => $jornada->listar_ubicaciones_jornada()
+            ]);
+
+            break;
+
+        case 'listarControlFirmas':
+            $fecha_desde = jornada_entrada('fecha_desde');
+            $fecha_hasta = jornada_entrada('fecha_hasta');
+            $empleado_texto = jornada_entrada('empleado_id');
+
+            if (
+                $fecha_desde === '' ||
+                $fecha_hasta === '' ||
+                !jornada_fecha_valida($fecha_desde) ||
+                !jornada_fecha_valida($fecha_hasta)
+            ) {
+                throw new InvalidArgumentException(
+                    'El periodo consultado no es válido.'
+                );
+            }
+
+            if ($fecha_hasta < $fecha_desde) {
+                throw new InvalidArgumentException(
+                    'La fecha final no puede ser anterior a la inicial.'
+                );
+            }
+
+            $empleado_id = null;
+
+            if ($empleado_texto !== '') {
+                $empleado_id = filter_var(
+                    $empleado_texto,
+                    FILTER_VALIDATE_INT
+                );
+
+                if (!$empleado_id || $empleado_id <= 0) {
+                    throw new InvalidArgumentException(
+                        'El empleado seleccionado no es válido.'
+                    );
+                }
+            }
+
+            $datos = $jornada->listar_control_firmas(
+                (int) $empleado['id_empl'],
+                $fecha_desde,
+                $fecha_hasta,
+                $empleado_id
+            );
+
+            jornada_responder([
+                'success' => true,
+                'data' => $datos,
+                'cantidad' => count($datos)
             ]);
 
             break;
