@@ -30,7 +30,7 @@ function inicializarFiltrosControl() {
             cancelLabel: 'Cancelar',
             fromLabel: 'Desde',
             toLabel: 'Hasta',
-            customRangeLabel: 'Personalizado',
+            customRangeLabel: 'Rango personalizado',
             daysOfWeek: [
                 'Do',
                 'Lu',
@@ -56,8 +56,24 @@ function inicializarFiltrosControl() {
             ],
             firstDay: 1
         },
-        startDate: moment().startOf('month'),
-        endDate: moment()
+
+        startDate: moment('2026-10-16', 'YYYY-MM-DD'),
+        endDate: moment('2026-11-15', 'YYYY-MM-DD'),
+
+        ranges: {
+            'Periodo actual': [
+                moment('2026-10-16', 'YYYY-MM-DD'),
+                moment('2026-11-15', 'YYYY-MM-DD')
+            ],
+
+            'Periodo anterior': [
+                moment('2026-09-16', 'YYYY-MM-DD'),
+                moment('2026-10-15', 'YYYY-MM-DD')
+            ]
+        },
+
+        alwaysShowCalendars: true,
+        showDropdowns: true
     });
 }
 
@@ -291,8 +307,8 @@ function aplicarFiltroEstado() {
     const filtrados = !estado
         ? datosControlFirmas
         : datosControlFirmas.filter(function (fila) {
-              return fila.estado_control === estado;
-          });
+            return fila.estado_control === estado;
+        });
 
     actualizarCardsControl(filtrados);
     renderTablaControl(filtrados);
