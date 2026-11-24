@@ -264,8 +264,31 @@ function renderTablaControl(filas) {
             },
             {
                 data: null,
-                orderable: false,
+                orderable: true,
                 render: function (data, type, fila) {
+                    const jefe = parseInt(
+                        fila.jornadas_registradas_jefe || 0,
+                        10
+                    );
+
+                    const confirmadas = parseInt(
+                        fila.jornadas_confirmadas || 0,
+                        10
+                    );
+
+                    // Valor usado por DataTables para ordenar.
+                    if (type === 'sort' || type === 'type') {
+                        if (jefe > 0 && confirmadas === jefe) {
+                            return 1; // Firmó primero
+                        }
+
+                        if (jefe > 0 && confirmadas < jefe) {
+                            return 2; // Pendiente después
+                        }
+
+                        return 3; // No aplica al final
+                    }
+
                     return renderConfirmacion(fila);
                 }
             },
